@@ -27,6 +27,13 @@
     @apply rounded-lg border border-gray-700 bg-white/5 backdrop-blur-sm transition-all duration-200;
   }
 
+  .tm-card-interactive:hover {
+    border-color: rgba(251, 191, 36, 0.38);
+    box-shadow:
+      0 0 0 1px rgba(251, 191, 36, 0.12),
+      0 6px 18px rgba(251, 191, 36, 0.1);
+  }
+
   .container-max {
     @apply max-w-7xl mx-auto px-4 sm:px-6 lg:px-8;
   }

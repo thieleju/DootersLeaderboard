@@ -14,7 +14,7 @@ export default function Home() {
       </div>
 
       <div className="grid grid-cols-2 gap-4 min-[768px]:grid-cols-4">
-        <AnimatedCard interactive delay={0} className="p-6 text-center">
+        <AnimatedCard interactive className="p-6 text-center">
           <div className="mb-3 flex justify-center">
             <Play className="h-8 w-8 text-green-500" />
           </div>
@@ -51,7 +51,7 @@ export default function Home() {
         <AnimatedCard delay={4} className="p-8 lg:col-span-1">
           <h2 className="mb-6 text-2xl font-bold text-white">Leaderboard</h2>
           <div className="space-y-3">
-            <div className="rounded border border-gray-700 bg-white/5 p-3">
+            <div className="tm-card tm-card-interactive p-3">
               <div className="font-semibold text-white">No data yet</div>
               <div className="text-sm text-gray-400">
                 Leaderboard will be updated soon
@@ -63,7 +63,7 @@ export default function Home() {
         <AnimatedCard delay={5} className="p-8 lg:col-span-1">
           <h2 className="mb-6 text-2xl font-bold text-white">Statistics</h2>
           <div className="space-y-3">
-            <div className="rounded border border-gray-700 bg-white/5 p-3">
+            <div className="tm-card tm-card-interactive p-3">
               <div className="text-sm font-semibold text-white">
                 Statistics will be displayed here
               </div>
