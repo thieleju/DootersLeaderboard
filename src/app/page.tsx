@@ -1,69 +1,94 @@
 import Link from "next/link";
 
-import { LatestPost } from "~/app/_components/post";
-import { auth } from "~/server/auth";
-import { api, HydrateClient } from "~/trpc/server";
+import AnimatedCard from "./_components/animated-card";
+import { Award, Play, Crown, TrendingUp } from "lucide-react";
 
-export default async function Home() {
-  const hello = await api.post.hello({ text: "from tRPC" });
-  const session = await auth();
-
-  if (session?.user) {
-    void api.post.getLatest.prefetch();
-  }
-
+export default function Home() {
   return (
-    <HydrateClient>
-      <main className="flex min-h-screen flex-col items-center justify-center bg-gradient-to-b from-[#2e026d] to-[#15162c] text-white">
-        <div className="container flex flex-col items-center justify-center gap-12 px-4 py-16">
-          <h1 className="text-5xl font-extrabold tracking-tight sm:text-[5rem]">
-            Create <span className="text-[hsl(280,100%,70%)]">T3</span> App
-          </h1>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:gap-8">
-            <Link
-              className="flex max-w-xs flex-col gap-4 rounded-xl bg-white/10 p-4 hover:bg-white/20"
-              href="https://create.t3.gg/en/usage/first-steps"
-              target="_blank"
-            >
-              <h3 className="text-2xl font-bold">First Steps →</h3>
-              <div className="text-lg">
-                Just the basics - Everything you need to know to set up your
-                database and authentication.
-              </div>
-            </Link>
-            <Link
-              className="flex max-w-xs flex-col gap-4 rounded-xl bg-white/10 p-4 hover:bg-white/20"
-              href="https://create.t3.gg/en/introduction"
-              target="_blank"
-            >
-              <h3 className="text-2xl font-bold">Documentation →</h3>
-              <div className="text-lg">
-                Learn more about Create T3 App, the libraries it uses, and how
-                to deploy it.
-              </div>
-            </Link>
-          </div>
-          <div className="flex flex-col items-center gap-2">
-            <p className="text-2xl text-white">
-              {hello ? hello.greeting : "Loading tRPC query..."}
-            </p>
+    <div className="mb-20 space-y-12">
+      <div className="space-y-4 text-center">
+        <h1 className="text-6xl font-bold text-white">Dooters Leaderboard</h1>
+        <p className="text-xl text-gray-400">
+          Leaderboard for Monster Hunter Wilds speedruns
+        </p>
+      </div>
 
-            <div className="flex flex-col items-center justify-center gap-4">
-              <p className="text-center text-2xl text-white">
-                {session && <span>Logged in as {session.user?.name}</span>}
-              </p>
-              <Link
-                href={session ? "/api/auth/signout" : "/api/auth/signin"}
-                className="rounded-full bg-white/10 px-10 py-3 font-semibold no-underline transition hover:bg-white/20"
-              >
-                {session ? "Sign out" : "Sign in"}
-              </Link>
+      <div className="grid grid-cols-2 gap-4 min-[768px]:grid-cols-4">
+        <AnimatedCard interactive delay={0} className="p-6 text-center">
+          <div className="mb-3 flex justify-center">
+            <Play className="h-8 w-8 text-green-500" />
+          </div>
+          <div className="mb-2 text-sm text-gray-400">Players</div>
+          <div className="text-2xl font-bold text-white">0</div>
+        </AnimatedCard>
+
+        <AnimatedCard interactive delay={1} className="p-6 text-center">
+          <div className="mb-3 flex justify-center">
+            <Crown className="h-8 w-8 text-amber-400" />
+          </div>
+          <div className="mb-2 text-sm text-gray-400">1st Place</div>
+          <div className="text-2xl font-bold text-white">N/A</div>
+        </AnimatedCard>
+
+        <AnimatedCard interactive delay={2} className="p-6 text-center">
+          <div className="mb-3 flex justify-center">
+            <TrendingUp className="h-8 w-8 text-orange-500" />
+          </div>
+          <div className="mb-2 text-sm text-gray-400">Fastest</div>
+          <div className="text-2xl font-bold text-white">N/A</div>
+        </AnimatedCard>
+
+        <AnimatedCard interactive delay={3} className="p-6 text-center">
+          <div className="mb-3 flex justify-center">
+            <Award className="h-8 w-8 text-amber-300" />
+          </div>
+          <div className="mb-2 text-sm text-gray-400">Finishers</div>
+          <div className="text-2xl font-bold text-white">0</div>
+        </AnimatedCard>
+      </div>
+
+      <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
+        <AnimatedCard delay={4} className="p-8 lg:col-span-1">
+          <h2 className="mb-6 text-2xl font-bold text-white">Leaderboard</h2>
+          <div className="space-y-3">
+            <div className="rounded border border-gray-700 bg-white/5 p-3">
+              <div className="font-semibold text-white">No data yet</div>
+              <div className="text-sm text-gray-400">
+                Leaderboard will be updated soon
+              </div>
             </div>
           </div>
+        </AnimatedCard>
 
-          {session?.user && <LatestPost />}
+        <AnimatedCard delay={5} className="p-8 lg:col-span-1">
+          <h2 className="mb-6 text-2xl font-bold text-white">Statistics</h2>
+          <div className="space-y-3">
+            <div className="rounded border border-gray-700 bg-white/5 p-3">
+              <div className="text-sm font-semibold text-white">
+                Statistics will be displayed here
+              </div>
+            </div>
+          </div>
+        </AnimatedCard>
+      </div>
+
+      <AnimatedCard delay={6} className="p-8 text-center">
+        <div className="mb-4 text-gray-300">Welcome to Dooters Leaderboard</div>
+        <div className="flex flex-wrap justify-center gap-4">
+          <Link
+            href="/players"
+            className="rounded bg-amber-400 px-6 py-2 font-semibold text-gray-900 transition-colors hover:bg-amber-300"
+          >
+            View Players
+          </Link>
+          <Link
+            href="/info"
+            className="rounded border border-gray-600 px-6 py-2 font-semibold text-gray-300 transition-colors hover:border-amber-400 hover:text-amber-400"
+          >
+            Learn More
+          </Link>
         </div>
-      </main>
-    </HydrateClient>
+      </AnimatedCard>
+    </div>
   );
 }

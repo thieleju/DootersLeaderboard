@@ -1,6 +1,33 @@
 @import "tailwindcss";
 
+@layer base {
+  :root {
+    --accent: 255 196 47;
+    --button-text: 0 0 0;
+    --gold: 251 191 36;
+    --silver: 229 228 226;
+    --bronze: 217 119 6;
+    --gray-light: 243 244 246;
+    --gray-dark: 31 41 55;
+    --green: 16 185 129;
+  }
+
+  body {
+    @apply bg-gray-900 text-gray-100;
+  }
+}
+
 @theme {
   --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif,
     "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+}
+
+@layer components {
+  .tm-card {
+    @apply rounded-lg border border-gray-700 bg-white/5 backdrop-blur-sm transition-all duration-200;
+  }
+
+  .container-max {
+    @apply max-w-7xl mx-auto px-4 sm:px-6 lg:px-8;
+  }
 }

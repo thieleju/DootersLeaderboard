@@ -8,5 +8,5 @@ export default {
   dbCredentials: {
     url: env.DATABASE_URL,
   },
-  tablesFilter: ["ddleaderboard_*"],
+  tablesFilter: ["dootersleaderboard_*"],
 } satisfies Config;
