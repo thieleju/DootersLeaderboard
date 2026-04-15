@@ -11,10 +11,7 @@ WORKDIR /app
 
 COPY package.json yarn.lock* package-lock.json* pnpm-lock.yaml* .npmrc* ./
 
-RUN --mount=type=cache,target=/root/.npm \
-    --mount=type=cache,target=/usr/local/share/.cache/yarn \
-    --mount=type=cache,target=/root/.local/share/pnpm/store \
-    if [ -f package-lock.json ]; then \
+RUN if [ -f package-lock.json ]; then \
     npm ci --no-audit --no-fund; \
     elif [ -f yarn.lock ]; then \
     npm install -g yarn && yarn install --frozen-lockfile --production=false; \
@@ -36,6 +33,7 @@ COPY --from=dependencies /app/node_modules ./node_modules
 COPY . .
 
 ENV NODE_ENV=production
+ENV SKIP_ENV_VALIDATION=1
 
 # Uncomment to disable telemetry during build.
 # ENV NEXT_TELEMETRY_DISABLED=1
