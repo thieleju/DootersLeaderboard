@@ -20,8 +20,9 @@ import {
   type LeaderboardRow,
   type LeaderboardWeaponKey,
   type LeaderboardWeaponResource,
-  formatRunTime,
 } from "~/server/types/leaderboard";
+import { calculatePlacementScore } from "~/server/lib/score";
+import { formatRunTime } from "~/server/lib/run-time";
 
 import { readFileSync } from "node:fs";
 import path from "node:path";
@@ -211,6 +212,7 @@ export async function getLeaderboardRows(): Promise<{
       }),
       runTimeMs: run.runTimeMs,
       runTimeLabel: formatRunTime(run.runTimeMs),
+      score: 0,
       categoryId: run.category,
       categoryLabel,
       categoryIcon,
@@ -233,13 +235,21 @@ export async function getLeaderboardRows(): Promise<{
 
   const rows: LeaderboardRow[] = [];
   for (const [questId, questRows] of rowsByQuestId.entries()) {
+    const participants = questRows.length;
     const sorted = questRows
       .slice()
       .sort(
         (a, b) =>
           a.runTimeMs - b.runTimeMs || a.submittedAtMs - b.submittedAtMs,
       )
-      .map((row, index) => ({ ...row, rank: index + 1 }));
+      .map((row, index) => {
+        const rank = index + 1;
+        return {
+          ...row,
+          rank,
+          score: calculatePlacementScore(rank, participants),
+        };
+      });
     rows.push(...sorted);
     void questId;
   }

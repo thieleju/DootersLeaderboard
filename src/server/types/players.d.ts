@@ -1,0 +1,80 @@
+import type { RunCategoryId } from "~/server/types/leaderboard";
+
+export type PlayerOverviewRow = {
+  userId: string;
+  displayName: string;
+  avatar: string | null;
+  hunterName: string;
+  score: number;
+  submittedRunsCount: number;
+  top3Placements: {
+    first: number;
+    second: number;
+    third: number;
+    total: number;
+  };
+  lastSubmittedAtMs: number;
+  mostUsedWeapon: {
+    key: string;
+    label: string;
+    count: number;
+  } | null;
+};
+
+export type PlayerProfileRunRow = {
+  runId: string;
+  userId: string;
+  displayName: string;
+  avatar: string | null;
+  hunterName: string;
+  questId: string;
+  questSlug: string;
+  questTitle: string;
+  monster: string;
+  difficultyStars: number;
+  areaLabel: string;
+  submittedAtMs: number;
+  submittedAtLabel: string;
+  runTimeMs: number;
+  runTimeLabel: string;
+  categoryId: RunCategoryId;
+  categoryLabel: string;
+  categoryIcon: string;
+  categoryColor: string;
+  tagLabels: string[];
+  primaryWeaponKey: string;
+  primaryWeaponLabel: string;
+  secondaryWeaponKey: string | null;
+  secondaryWeaponLabel: string | null;
+  isApproved: boolean;
+};
+
+export type PlayerProfileData = {
+  user: {
+    id: string;
+    displayName: string;
+    username: string | null;
+    avatar: string | null;
+  } | null;
+  performance: {
+    score: number;
+    top3Placements: {
+      first: number;
+      second: number;
+      third: number;
+    };
+  };
+  pendingRuns: PlayerProfileRunRow[];
+  approvedRuns: PlayerProfileRunRow[];
+  isCurrentUser: boolean;
+};
+
+export type SubmitRunInput = {
+  questId: string;
+  hunterName: string;
+  runTime: string;
+  category: RunCategoryId;
+  primaryWeaponKey: string;
+  secondaryWeaponKey: string;
+  tags: string[];
+};

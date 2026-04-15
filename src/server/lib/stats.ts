@@ -13,6 +13,8 @@ import {
   users as usersTable,
 } from "~/server/db/schema";
 import type { LeaderboardWeaponResource } from "~/server/types/leaderboard";
+import type { HomeStats } from "~/server/types/stats";
+import { calculateUserScoreAndTop3Placements } from "~/server/lib/score";
 
 const resourceDir = path.join(process.cwd(), "src/server/resources");
 
@@ -30,25 +32,6 @@ function readJsonResource<T>(fileName: string) {
 
 const weapons = readJsonResource<LeaderboardWeaponResource[]>("weapons.jsonc");
 const weaponByKey = new Map(weapons.map((weapon) => [weapon.key, weapon]));
-
-export interface HomeStats {
-  activeRunnerCount: number;
-  uploadedRunCount: number;
-  mostPlayedWeapon: {
-    key: string;
-    label: string;
-    count: number;
-  } | null;
-  topRunner: {
-    userId: string;
-    userName: string;
-    userImage: string | null;
-    firstPlaceCount: number;
-    podiumCount: number;
-    totalPlacedCount: number;
-    bestRank: number;
-  } | null;
-}
 
 export async function getHomeStats(): Promise<HomeStats> {
   const uploadedRuns = await db
@@ -115,23 +98,7 @@ export async function getHomeStats(): Promise<HomeStats> {
     (row) => row.approvedAt !== null && questById.has(row.questId),
   );
 
-  const bestRunByQuestAndUser = new Map<
-    string,
-    (typeof approvedRuns)[number]
-  >();
-  for (const run of approvedRuns) {
-    const key = `${run.questId}:${run.userId}`;
-    if (!bestRunByQuestAndUser.has(key)) {
-      bestRunByQuestAndUser.set(key, run);
-    }
-  }
-
-  const rowsByQuestId = new Map<string, (typeof approvedRuns)[number][]>();
-  for (const run of bestRunByQuestAndUser.values()) {
-    const runsForQuest = rowsByQuestId.get(run.questId) ?? [];
-    runsForQuest.push(run);
-    rowsByQuestId.set(run.questId, runsForQuest);
-  }
+  const { scoreByUser } = calculateUserScoreAndTop3Placements(approvedRuns);
 
   const placements = new Map<
     string,
@@ -139,63 +106,38 @@ export async function getHomeStats(): Promise<HomeStats> {
       userId: string;
       userName: string;
       userImage: string | null;
-      firstPlaceCount: number;
-      podiumCount: number;
-      totalPlacedCount: number;
-      bestRank: number;
-      rankScore: number;
+      scoreSum: number;
+      scoredQuestCount: number;
+      score: number;
     }
   >();
 
-  for (const runsForQuest of rowsByQuestId.values()) {
-    const ranked = runsForQuest
-      .slice()
-      .sort(
-        (a, b) =>
-          a.runTimeMs - b.runTimeMs ||
-          new Date(a.submittedAt).getTime() - new Date(b.submittedAt).getTime(),
-      );
+  for (const run of approvedRuns) {
+    const score = scoreByUser.get(run.userId);
+    if (!score) continue;
 
-    ranked.forEach((run, index) => {
-      const rank = index + 1;
-      const existing = placements.get(run.userId) ?? {
-        userId: run.userId,
-        userName: run.userName ?? "Unknown Runner",
-        userImage: run.userImage ?? null,
-        firstPlaceCount: 0,
-        podiumCount: 0,
-        totalPlacedCount: 0,
-        bestRank: Number.POSITIVE_INFINITY,
-        rankScore: 0,
-      };
+    const existing = placements.get(run.userId) ?? {
+      userId: run.userId,
+      userName: run.userName ?? "Unknown Runner",
+      userImage: run.userImage ?? null,
+      scoreSum: 0,
+      scoredQuestCount: 0,
+      score: 0,
+    };
 
-      existing.totalPlacedCount += 1;
-      existing.bestRank = Math.min(existing.bestRank, rank);
-      if (rank === 1) existing.firstPlaceCount += 1;
-      if (rank <= 3) {
-        existing.podiumCount += 1;
-        existing.rankScore += 4 - rank;
-      }
+    existing.scoreSum = score.sum;
+    existing.scoredQuestCount = score.count;
+    existing.score = score.sum;
 
-      placements.set(run.userId, existing);
-    });
+    placements.set(run.userId, existing);
   }
 
   const topRunnerRecord = [...placements.values()].sort((a, b) => {
-    if (b.firstPlaceCount !== a.firstPlaceCount) {
-      return b.firstPlaceCount - a.firstPlaceCount;
+    if (b.score !== a.score) {
+      return b.score - a.score;
     }
-    if (b.podiumCount !== a.podiumCount) {
-      return b.podiumCount - a.podiumCount;
-    }
-    if (b.rankScore !== a.rankScore) {
-      return b.rankScore - a.rankScore;
-    }
-    if (b.totalPlacedCount !== a.totalPlacedCount) {
-      return b.totalPlacedCount - a.totalPlacedCount;
-    }
-    if (a.bestRank !== b.bestRank) {
-      return a.bestRank - b.bestRank;
+    if (b.scoredQuestCount !== a.scoredQuestCount) {
+      return b.scoredQuestCount - a.scoredQuestCount;
     }
     return a.userName.localeCompare(b.userName);
   })[0];
@@ -209,10 +151,7 @@ export async function getHomeStats(): Promise<HomeStats> {
           userId: topRunnerRecord.userId,
           userName: topRunnerRecord.userName,
           userImage: topRunnerRecord.userImage,
-          firstPlaceCount: topRunnerRecord.firstPlaceCount,
-          podiumCount: topRunnerRecord.podiumCount,
-          totalPlacedCount: topRunnerRecord.totalPlacedCount,
-          bestRank: topRunnerRecord.bestRank,
+          score: topRunnerRecord.score,
         }
       : null,
   };

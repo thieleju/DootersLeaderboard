@@ -1,0 +1,466 @@
+import "server-only";
+
+import { readFileSync } from "node:fs";
+import path from "node:path";
+
+import { TRPCError } from "@trpc/server";
+import { and, asc, desc, eq, isNotNull } from "drizzle-orm";
+import { parse } from "jsonc-parser";
+
+import { db } from "~/server/db";
+import {
+  quests as questsTable,
+  runs as runsTable,
+  users as usersTable,
+} from "~/server/db/schema";
+import type {
+  LeaderboardAreaKey,
+  LeaderboardAreaResource,
+  LeaderboardCategoryResource,
+  LeaderboardQuestOption,
+  UserRole,
+  LeaderboardWeaponKey,
+  LeaderboardWeaponResource,
+} from "~/server/types/leaderboard";
+import {
+  type PlayerOverviewRow,
+  type PlayerProfileData,
+  type PlayerProfileRunRow,
+  type SubmitRunInput,
+} from "~/server/types/players";
+import { calculateUserScoreAndTop3Placements } from "~/server/lib/score";
+import { formatRunTime, parseRunTimeInputToMs } from "~/server/lib/run-time";
+import { submitRunInputSchema } from "~/server/validation/players";
+
+const resourceDir = path.join(process.cwd(), "src/server/resources");
+
+function readJsonResource<T>(fileName: string) {
+  const filePath = path.join(resourceDir, fileName);
+  const fileContents = readFileSync(filePath, "utf8");
+  const parsed = parse(fileContents);
+
+  if (parsed === undefined) {
+    throw new Error(`Failed to parse JSONC resource: ${fileName}`);
+  }
+
+  return parsed as T;
+}
+
+const areas = readJsonResource<LeaderboardAreaResource[]>("areas.jsonc");
+const weapons = readJsonResource<LeaderboardWeaponResource[]>("weapons.jsonc");
+const categories =
+  readJsonResource<LeaderboardCategoryResource[]>("categories.jsonc");
+
+const areaByKey = new Map(areas.map((area) => [area.key, area]));
+const weaponByKey = new Map(weapons.map((weapon) => [weapon.key, weapon]));
+const categoryById = new Map(
+  categories.map((category) => [category.id, category]),
+);
+
+function parseRunTags(value: string | null): string[] {
+  if (!value) return [];
+
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    return Array.isArray(parsed)
+      ? parsed.filter((item): item is string => typeof item === "string")
+      : [];
+  } catch {
+    return [];
+  }
+}
+
+function normalizeTags(tags: string[]) {
+  const unique = new Set<string>();
+
+  for (const tag of tags) {
+    const trimmed = tag.trim();
+    if (!trimmed) continue;
+    unique.add(trimmed);
+  }
+
+  return [...unique];
+}
+
+export async function getPlayersOverview(): Promise<PlayerOverviewRow[]> {
+  const approvedRuns = await db
+    .select({
+      runId: runsTable.id,
+      userId: runsTable.userId,
+      questId: runsTable.questId,
+      hunterName: runsTable.hunterName,
+      submittedAt: runsTable.submittedAt,
+      runTimeMs: runsTable.runTimeMs,
+      primaryWeapon: runsTable.primaryWeapon,
+      secondaryWeapon: runsTable.secondaryWeapon,
+      displayName: usersTable.displayName,
+      avatar: usersTable.image,
+    })
+    .from(runsTable)
+    .innerJoin(usersTable, eq(runsTable.userId, usersTable.id))
+    .where(isNotNull(runsTable.approvedByUserId))
+    .orderBy(desc(runsTable.submittedAt));
+
+  const submittedRunsCount = new Map<string, number>();
+  const weaponUsageByUser = new Map<string, Map<string, number>>();
+  const latestSubmittedAtByUser = new Map<string, number>();
+  const latestHunterNameByUser = new Map<string, string>();
+  const userMeta = new Map<
+    string,
+    { displayName: string; avatar: string | null }
+  >();
+
+  for (const run of approvedRuns) {
+    submittedRunsCount.set(
+      run.userId,
+      (submittedRunsCount.get(run.userId) ?? 0) + 1,
+    );
+
+    const submittedAtMs =
+      run.submittedAt instanceof Date
+        ? run.submittedAt.getTime()
+        : new Date(run.submittedAt).getTime();
+
+    const latestSubmittedAt = latestSubmittedAtByUser.get(run.userId);
+    if (!latestSubmittedAt || submittedAtMs > latestSubmittedAt) {
+      latestSubmittedAtByUser.set(run.userId, submittedAtMs);
+      latestHunterNameByUser.set(run.userId, run.hunterName);
+    }
+
+    const usage =
+      weaponUsageByUser.get(run.userId) ?? new Map<string, number>();
+    const weaponKeys = new Set(
+      [run.primaryWeapon, run.secondaryWeapon].filter((key): key is string =>
+        Boolean(key),
+      ),
+    );
+    for (const key of weaponKeys) {
+      usage.set(key, (usage.get(key) ?? 0) + 1);
+    }
+    weaponUsageByUser.set(run.userId, usage);
+
+    if (!userMeta.has(run.userId)) {
+      userMeta.set(run.userId, {
+        displayName: run.displayName ?? run.hunterName,
+        avatar: run.avatar ?? null,
+      });
+    }
+  }
+
+  const { scoreByUser, top3PlacementsByUser } =
+    calculateUserScoreAndTop3Placements(approvedRuns);
+
+  const rows: PlayerOverviewRow[] = [...submittedRunsCount.entries()].map(
+    ([userId, submittedRuns]) => {
+      const usage = weaponUsageByUser.get(userId) ?? new Map<string, number>();
+      let mostUsedWeapon: PlayerOverviewRow["mostUsedWeapon"] = null;
+      for (const [key, count] of usage.entries()) {
+        if (!mostUsedWeapon || count > mostUsedWeapon.count) {
+          mostUsedWeapon = {
+            key,
+            label: weaponByKey.get(key as LeaderboardWeaponKey)?.label ?? key,
+            count,
+          };
+        }
+      }
+
+      const meta = userMeta.get(userId) ?? {
+        displayName: "Unknown Runner",
+        avatar: null,
+      };
+      const top3 = top3PlacementsByUser.get(userId) ?? {
+        first: 0,
+        second: 0,
+        third: 0,
+      };
+      const score = scoreByUser.get(userId);
+
+      return {
+        userId,
+        displayName: meta.displayName,
+        avatar: meta.avatar,
+        hunterName: latestHunterNameByUser.get(userId) ?? meta.displayName,
+        score: score ? score.sum : 0,
+        submittedRunsCount: submittedRuns,
+        top3Placements: {
+          first: top3.first,
+          second: top3.second,
+          third: top3.third,
+          total: top3.first + top3.second + top3.third,
+        },
+        lastSubmittedAtMs: latestSubmittedAtByUser.get(userId) ?? 0,
+        mostUsedWeapon,
+      };
+    },
+  );
+
+  return rows.sort(
+    (a, b) =>
+      b.score - a.score ||
+      b.top3Placements.total - a.top3Placements.total ||
+      a.displayName.localeCompare(b.displayName),
+  );
+}
+
+export async function getPlayerProfile(
+  userId: string,
+  viewerUserId?: string,
+  viewerRole?: UserRole,
+): Promise<PlayerProfileData> {
+  const user = await db
+    .select({
+      id: usersTable.id,
+      displayName: usersTable.displayName,
+      username: usersTable.name,
+      avatar: usersTable.image,
+    })
+    .from(usersTable)
+    .where(eq(usersTable.id, userId))
+    .limit(1)
+    .then((rows) => rows[0] ?? null);
+
+  if (!user) {
+    return {
+      user: null,
+      performance: {
+        score: 0,
+        top3Placements: { first: 0, second: 0, third: 0 },
+      },
+      pendingRuns: [],
+      approvedRuns: [],
+      isCurrentUser: false,
+    };
+  }
+
+  const allApprovedRuns = await db
+    .select({
+      userId: runsTable.userId,
+      questId: runsTable.questId,
+      runTimeMs: runsTable.runTimeMs,
+      submittedAt: runsTable.submittedAt,
+      approvedByUserId: runsTable.approvedByUserId,
+    })
+    .from(runsTable)
+    .where(isNotNull(runsTable.approvedByUserId));
+
+  const { scoreByUser, top3PlacementsByUser } =
+    calculateUserScoreAndTop3Placements(allApprovedRuns);
+
+  const userScore = scoreByUser.get(userId);
+  const userPlacements = top3PlacementsByUser.get(userId) ?? {
+    first: 0,
+    second: 0,
+    third: 0,
+  };
+
+  const runRows = await db
+    .select({
+      runId: runsTable.id,
+      userId: runsTable.userId,
+      hunterName: runsTable.hunterName,
+      questId: runsTable.questId,
+      categoryId: runsTable.category,
+      tags: runsTable.tags,
+      submittedAt: runsTable.submittedAt,
+      runTimeMs: runsTable.runTimeMs,
+      primaryWeaponKey: runsTable.primaryWeapon,
+      secondaryWeaponKey: runsTable.secondaryWeapon,
+      approvedByUserId: runsTable.approvedByUserId,
+      questSlug: questsTable.slug,
+      questTitle: questsTable.title,
+      monster: questsTable.monster,
+      difficultyStars: questsTable.difficultyStars,
+      areaKey: questsTable.area,
+      displayName: usersTable.displayName,
+      avatar: usersTable.image,
+    })
+    .from(runsTable)
+    .innerJoin(questsTable, eq(runsTable.questId, questsTable.id))
+    .innerJoin(usersTable, eq(runsTable.userId, usersTable.id))
+    .where(eq(runsTable.userId, userId))
+    .orderBy(desc(runsTable.submittedAt), desc(runsTable.runTimeMs));
+
+  const rows: PlayerProfileRunRow[] = runRows.map((run) => {
+    const submittedAtMs =
+      run.submittedAt instanceof Date
+        ? run.submittedAt.getTime()
+        : new Date(run.submittedAt).getTime();
+
+    const category = categoryById.get(run.categoryId);
+    const primaryWeaponLabel =
+      weaponByKey.get(run.primaryWeaponKey as LeaderboardWeaponKey)?.label ??
+      run.primaryWeaponKey;
+    const secondaryWeaponLabel = run.secondaryWeaponKey
+      ? (weaponByKey.get(run.secondaryWeaponKey as LeaderboardWeaponKey)
+          ?.label ?? run.secondaryWeaponKey)
+      : null;
+
+    return {
+      runId: run.runId,
+      userId: run.userId,
+      displayName: run.displayName ?? run.hunterName,
+      avatar: run.avatar ?? null,
+      hunterName: run.hunterName,
+      questId: run.questId,
+      questSlug: run.questSlug,
+      questTitle: run.questTitle,
+      monster: run.monster,
+      difficultyStars: run.difficultyStars,
+      areaLabel:
+        areaByKey.get(run.areaKey as LeaderboardAreaKey)?.label ?? run.areaKey,
+      submittedAtMs,
+      submittedAtLabel: new Date(submittedAtMs).toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      }),
+      runTimeMs: run.runTimeMs,
+      runTimeLabel: formatRunTime(run.runTimeMs),
+      categoryId: run.categoryId,
+      categoryLabel: category?.label ?? run.categoryId,
+      categoryIcon: category?.icon ?? "flame",
+      categoryColor: category?.color ?? "amber",
+      tagLabels: parseRunTags(run.tags),
+      primaryWeaponKey: run.primaryWeaponKey,
+      primaryWeaponLabel,
+      secondaryWeaponKey: run.secondaryWeaponKey,
+      secondaryWeaponLabel,
+      isApproved: Boolean(run.approvedByUserId),
+    };
+  });
+
+  const isCurrentUser = Boolean(viewerUserId && viewerUserId === userId);
+  const canViewPendingRuns =
+    isCurrentUser || viewerRole === "moderator" || viewerRole === "admin";
+
+  return {
+    user: {
+      ...user,
+      displayName: user.displayName ?? user.username ?? "Player",
+    },
+    performance: {
+      score:
+        userScore && userScore.count > 0 ? userScore.sum / userScore.count : 0,
+      top3Placements: userPlacements,
+    },
+    pendingRuns: canViewPendingRuns
+      ? rows.filter((run) => !run.isApproved)
+      : [],
+    approvedRuns: rows.filter((run) => run.isApproved),
+    isCurrentUser,
+  };
+}
+
+export async function getSubmitRunOptions() {
+  const quests = await db
+    .select({
+      id: questsTable.id,
+      slug: questsTable.slug,
+      title: questsTable.title,
+      monster: questsTable.monster,
+      difficultyStars: questsTable.difficultyStars,
+      type: questsTable.type,
+      areaKey: questsTable.area,
+    })
+    .from(questsTable)
+    .orderBy(desc(questsTable.difficultyStars), asc(questsTable.title));
+
+  const rowsWithTags = await db
+    .select({ tags: runsTable.tags })
+    .from(runsTable)
+    .where(
+      and(isNotNull(runsTable.approvedByUserId), isNotNull(runsTable.tags)),
+    );
+
+  const existingTags = new Set<string>();
+  for (const row of rowsWithTags) {
+    for (const tag of parseRunTags(row.tags)) {
+      existingTags.add(tag);
+    }
+  }
+
+  return {
+    quests: quests.map((quest): LeaderboardQuestOption => {
+      const areaKey = quest.areaKey as LeaderboardAreaKey;
+      return {
+        slug: quest.slug,
+        title: quest.title,
+        monster: quest.monster,
+        type: quest.type,
+        areaKey,
+        areaLabel: areaByKey.get(areaKey)?.label ?? areaKey,
+        difficultyStars: quest.difficultyStars,
+      };
+    }),
+    questIdsBySlug: Object.fromEntries(
+      quests.map((quest) => [quest.slug, quest.id]),
+    ),
+    categories: categories.map((category) => ({
+      id: category.id,
+      label: category.label,
+    })),
+    weapons: weapons.map((weapon) => ({
+      key: weapon.key,
+      label: weapon.label,
+    })),
+    existingTags: [...existingTags].sort((a, b) => a.localeCompare(b)),
+  };
+}
+
+export async function submitRun(input: SubmitRunInput, userId: string) {
+  const parsed = submitRunInputSchema.safeParse(input);
+  if (!parsed.success) {
+    throw new TRPCError({ code: "BAD_REQUEST", cause: parsed.error });
+  }
+
+  const value = parsed.data;
+
+  const quest = await db
+    .select({ id: questsTable.id })
+    .from(questsTable)
+    .where(eq(questsTable.id, value.questId))
+    .limit(1)
+    .then((rows) => rows[0] ?? null);
+
+  if (!quest) {
+    throw new TRPCError({ code: "BAD_REQUEST", message: "Invalid quest" });
+  }
+
+  if (!weaponByKey.has(value.primaryWeaponKey as LeaderboardWeaponKey)) {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message: "Invalid primary weapon",
+    });
+  }
+
+  const secondaryWeaponKey = value.secondaryWeaponKey?.trim() || null;
+  if (
+    secondaryWeaponKey &&
+    !weaponByKey.has(secondaryWeaponKey as LeaderboardWeaponKey)
+  ) {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message: "Invalid secondary weapon",
+    });
+  }
+
+  const tags = normalizeTags(value.tags);
+
+  const runId = crypto.randomUUID();
+  await db.insert(runsTable).values({
+    id: runId,
+    userId,
+    questId: value.questId,
+    hunterName: value.hunterName,
+    category: value.category,
+    tags: tags.length > 0 ? JSON.stringify(tags) : "null",
+    submittedAt: new Date(),
+    runTimeMs: parseRunTimeInputToMs(value.runTime),
+    primaryWeapon: value.primaryWeaponKey,
+    secondaryWeapon: secondaryWeaponKey,
+    approvedByUserId: null,
+    approvedAt: null,
+  });
+
+  return { runId };
+}

@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { Award, Swords, Upload, Users } from "lucide-react";
+import { Award, Swords, Upload, Users, UserRound } from "lucide-react";
+import { useRouter } from "next/navigation";
 
 import { api } from "~/trpc/react";
 import AnimatedCard from "./animated-card";
@@ -33,7 +34,12 @@ function SubtitleSkeleton() {
   );
 }
 
+function formatScore(value: number) {
+  return Math.round(value).toLocaleString("en-US");
+}
+
 export default function HomeStatsCards() {
+  const router = useRouter();
   const statsQuery = api.stats.getHomeStats.useQuery(undefined, {
     staleTime: Infinity,
   });
@@ -43,7 +49,7 @@ export default function HomeStatsCards() {
 
   return (
     <div className="grid grid-cols-1 gap-4 min-[640px]:grid-cols-2 min-[1024px]:grid-cols-4">
-      <AnimatedCard interactive className="p-6 text-center">
+      <AnimatedCard interactive className="p-6 text-center" href="/players">
         <div className="mb-3 flex justify-center">
           <Users className="h-8 w-8 text-cyan-400" />
         </div>
@@ -139,33 +145,71 @@ export default function HomeStatsCards() {
         )}
       </AnimatedCard>
 
-      <AnimatedCard interactive delay={3} className="p-6 text-center">
+      <AnimatedCard
+        interactive
+        delay={3}
+        className="p-6 text-center"
+        onClick={() => {
+          if (stats?.topRunner) {
+            router.push(`/player/${stats.topRunner.userId}`);
+          }
+        }}
+      >
         <div className="mb-3 flex justify-center">
           <Award className="h-8 w-8 text-amber-400" />
         </div>
         <div className="mb-2 text-sm text-gray-400">Top Runner</div>
         {stats?.topRunner ? (
-          <div className="space-y-1">
-            <div className="flex h-8 items-center justify-center truncate px-1 text-lg leading-none font-semibold text-white">
-              {stats.topRunner.userName}
+          <div>
+            <div className="mb-2 flex h-8 items-center justify-center gap-2">
+              <div className="relative flex h-5 w-5 items-center justify-center overflow-hidden rounded-full border border-gray-700 bg-white/5">
+                {stats.topRunner.userImage ? (
+                  <img
+                    src={stats.topRunner.userImage}
+                    alt={stats.topRunner.userName}
+                    className="h-full w-full object-cover"
+                  />
+                ) : (
+                  <UserRound className="h-3 w-3 text-gray-400" />
+                )}
+              </div>
+              <div className="truncate text-lg leading-none font-semibold text-white">
+                {stats.topRunner.userName}
+              </div>
             </div>
-            <div className="text-xs text-amber-300">
-              {stats.topRunner.firstPlaceCount}x #1 placements
-            </div>
-            <div className="text-xs text-gray-400">
-              {stats.topRunner.podiumCount}x Top 3 · Best rank #
-              {stats.topRunner.bestRank}
+            <div className="mt-3 text-xs text-amber-300">
+              Score {formatScore(stats.topRunner.score)}
             </div>
           </div>
         ) : isLoading ? (
-          <div className="space-y-2">
-            <div className="flex justify-center">
-              <ValueSkeleton />
+          <>
+            <div className="mb-2 flex h-8 items-center justify-center gap-2">
+              <motion.div
+                className="h-5 w-5 rounded bg-white/10"
+                initial={{ opacity: 0.35 }}
+                animate={{ opacity: [0.35, 0.7, 0.35] }}
+                transition={{
+                  duration: 1.15,
+                  repeat: Infinity,
+                  ease: "easeInOut",
+                }}
+              />
+              <motion.div
+                className="h-5 w-28 rounded bg-white/10"
+                initial={{ opacity: 0.35 }}
+                animate={{ opacity: [0.35, 0.7, 0.35] }}
+                transition={{
+                  duration: 1.15,
+                  repeat: Infinity,
+                  ease: "easeInOut",
+                  delay: 0.12,
+                }}
+              />
             </div>
             <div className="flex justify-center">
               <SubtitleSkeleton />
             </div>
-          </div>
+          </>
         ) : (
           <div className="flex h-8 items-center justify-center text-2xl leading-none font-bold text-white">
             -

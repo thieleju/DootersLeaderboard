@@ -2,6 +2,7 @@
 
 import { type ReactNode } from "react";
 import { motion } from "framer-motion";
+import { useRouter } from "next/navigation";
 
 interface AnimatedCardProps {
   children: ReactNode;
@@ -20,6 +21,8 @@ export default function AnimatedCard({
   href,
   interactive = false,
 }: AnimatedCardProps) {
+  const router = useRouter();
+
   const variants = {
     hidden: { opacity: 0, y: 18, scale: 0.985, filter: "blur(4px)" },
     visible: {
@@ -43,19 +46,25 @@ export default function AnimatedCard({
       whileHover={interactive ? { y: -2, scale: 1.01 } : undefined}
       whileTap={interactive ? { scale: 0.995 } : undefined}
       className={`tm-card ${interactive ? "tm-card-interactive cursor-pointer" : ""} ${className}`}
-      onClick={onClick}
+      onClick={() => {
+        onClick?.();
+        if (href) {
+          router.push(href);
+        }
+      }}
+      role={href ? "link" : undefined}
+      tabIndex={href ? 0 : undefined}
+      onKeyDown={(event) => {
+        if (!href) return;
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          router.push(href);
+        }
+      }}
     >
       {children}
     </motion.div>
   );
-
-  if (href) {
-    return (
-      <a href={href} className="block">
-        {content}
-      </a>
-    );
-  }
 
   return content;
 }

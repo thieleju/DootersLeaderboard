@@ -1,4 +1,5 @@
 import { leaderboardRouter } from "~/server/api/routers/leaderboard";
+import { playersRouter } from "~/server/api/routers/players";
 import { statsRouter } from "~/server/api/routers/stats";
 import { createCallerFactory, createTRPCRouter } from "~/server/api/trpc";
 
@@ -9,6 +10,7 @@ import { createCallerFactory, createTRPCRouter } from "~/server/api/trpc";
  */
 export const appRouter = createTRPCRouter({
   leaderboard: leaderboardRouter,
+  players: playersRouter,
   stats: statsRouter,
 });
 
