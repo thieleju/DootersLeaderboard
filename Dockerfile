@@ -17,9 +17,9 @@ RUN --mount=type=cache,target=/root/.npm \
     if [ -f package-lock.json ]; then \
     npm ci --no-audit --no-fund; \
     elif [ -f yarn.lock ]; then \
-    corepack enable yarn && yarn install --frozen-lockfile --production=false; \
+    npm install -g yarn && yarn install --frozen-lockfile --production=false; \
     elif [ -f pnpm-lock.yaml ]; then \
-    corepack enable pnpm && pnpm install --frozen-lockfile; \
+    npm install -g pnpm@10.33.0 && pnpm install --frozen-lockfile; \
     else \
     echo "No lockfile found." && exit 1; \
     fi
@@ -43,9 +43,9 @@ ENV NODE_ENV=production
 RUN if [ -f package-lock.json ]; then \
     npm run build; \
     elif [ -f yarn.lock ]; then \
-    corepack enable yarn && yarn build; \
+    npm install -g yarn && yarn build; \
     elif [ -f pnpm-lock.yaml ]; then \
-    corepack enable pnpm && pnpm build; \
+    npm install -g pnpm@10.33.0 && pnpm build; \
     else \
     echo "No lockfile found." && exit 1; \
     fi
@@ -75,8 +75,7 @@ COPY --from=builder --chown=node:node /app/src/server/types ./src/server/types
 COPY --from=dependencies --chown=node:node /app/node_modules ./node_modules
 COPY --chown=node:node ./scripts/container-start.sh /app/container-start.sh
 
-RUN corepack enable \
-    && corepack prepare pnpm@10.33.0 --activate \
+RUN npm install -g pnpm@10.33.0 \
     && mkdir -p .next db \
     && chown -R node:node .next db /app/container-start.sh \
     && chmod +x /app/container-start.sh
