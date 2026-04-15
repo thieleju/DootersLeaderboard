@@ -1,19 +1,5 @@
 [
   {
-    "id": "run_01",
-    "userId": "7f16e568-aeb4-41a6-8312-befb082c3609",
-    "hunterName": "Than",
-    "questId": "q_rusted_horn",
-    "category": "fs",
-    "tags": null,
-    "submittedAtMs": 1742101200000,
-    "runTimeMs": 243010,
-    "primaryWeaponKey": "hh",
-    "secondaryWeaponKey": "hh",
-    "approvedByUserId": "u_banktm",
-    "approvedAtMs": 1742101800000,
-  },
-  {
     "id": "run_02",
     "userId": "u_sauuceytm",
     "hunterName": "sauuceytm",
