@@ -12,8 +12,6 @@ import {
 import {
   type LeaderboardAreaResource,
   type LeaderboardAreaKey,
-  type LeaderboardCategoryColor,
-  type LeaderboardCategoryIcon,
   type LeaderboardCategoryResource,
   type LeaderboardCategoryOption,
   type LeaderboardQuestOption,
@@ -22,7 +20,6 @@ import {
   type LeaderboardWeaponResource,
 } from "~/server/types/leaderboard";
 import { calculatePlacementScore } from "~/server/lib/score";
-import { formatRunTime } from "~/server/lib/run-time";
 
 import { readFileSync } from "node:fs";
 import path from "node:path";
@@ -47,7 +44,6 @@ const categories =
   readJsonResource<LeaderboardCategoryResource[]>("categories.jsonc");
 
 const areaByKey = new Map(areas.map((area) => [area.key, area]));
-const weaponByKey = new Map(weapons.map((weapon) => [weapon.key, weapon]));
 const categoryById = new Map(
   categories.map((category) => [category.id, category]),
 );
@@ -179,10 +175,6 @@ export async function getLeaderboardRows(): Promise<{
     if (!quest) continue;
     const runTags = parseRunTags(run.tags);
     const category = categoryById.get(run.category);
-    const categoryLabel = category?.label ?? (run.category as string);
-    const categoryIcon = (category?.icon ?? "flame") as LeaderboardCategoryIcon;
-    const categoryColor = (category?.color ??
-      "amber") as LeaderboardCategoryColor;
 
     const existingRows = rowsByQuestId.get(run.questId) ?? [];
     existingRows.push({
@@ -193,41 +185,17 @@ export async function getLeaderboardRows(): Promise<{
       userImage: run.userImage ?? null,
       hunterName: run.hunterName,
       questSlug: quest.slug,
-      questTitle: quest.title,
-      monster: quest.monster,
-      type: quest.type,
-      areaKey: quest.areaKey as LeaderboardAreaKey,
-      areaLabel:
-        areaByKey.get(quest.areaKey as LeaderboardAreaKey)?.label ??
-        (quest.areaKey as LeaderboardAreaKey),
-      difficultyStars: quest.difficultyStars,
       submittedAtMs:
         run.submittedAt instanceof Date
           ? run.submittedAt.getTime()
           : new Date(run.submittedAt).getTime(),
-      submittedAtLabel: new Date(run.submittedAt).toLocaleDateString("en-US", {
-        month: "short",
-        day: "numeric",
-        year: "numeric",
-      }),
       runTimeMs: run.runTimeMs,
-      runTimeLabel: formatRunTime(run.runTimeMs),
       score: 0,
-      categoryId: run.category,
-      categoryLabel,
-      categoryIcon,
-      categoryColor,
+      categoryId: (category?.id ?? run.category) as typeof run.category,
       tagLabels: runTags,
       primaryWeaponKey: run.primaryWeaponKey as LeaderboardWeaponKey,
-      primaryWeaponLabel:
-        weaponByKey.get(run.primaryWeaponKey as LeaderboardWeaponKey)?.label ??
-        (run.primaryWeaponKey as LeaderboardWeaponKey),
       secondaryWeaponKey: run.secondaryWeaponKey
         ? (run.secondaryWeaponKey as LeaderboardWeaponKey)
-        : null,
-      secondaryWeaponLabel: run.secondaryWeaponKey
-        ? (weaponByKey.get(run.secondaryWeaponKey as LeaderboardWeaponKey)
-            ?.label ?? (run.secondaryWeaponKey as LeaderboardWeaponKey))
         : null,
     });
     rowsByQuestId.set(run.questId, existingRows);

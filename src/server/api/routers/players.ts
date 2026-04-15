@@ -9,6 +9,7 @@ import {
   getPlayerProfile,
   getPlayersOverview,
   getSubmitRunOptions,
+  deleteRun,
   submitRun,
 } from "~/server/lib/players";
 import { submitRunInputSchema } from "~/server/validation/players";
@@ -35,4 +36,14 @@ export const playersRouter = createTRPCRouter({
   submitRun: protectedProcedure
     .input(submitRunInputSchema)
     .mutation(({ input, ctx }) => submitRun(input, ctx.session.user.id)),
+
+  deleteRun: protectedProcedure
+    .input(
+      z.object({
+        runId: z.string().trim().min(1),
+      }),
+    )
+    .mutation(({ input, ctx }) =>
+      deleteRun(input.runId, ctx.session.user.id, ctx.session.user.role),
+    ),
 });

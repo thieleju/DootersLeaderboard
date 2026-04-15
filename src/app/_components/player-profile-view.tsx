@@ -1,14 +1,32 @@
 "use client";
 
-import { type FormEvent, useEffect, useMemo, useState } from "react";
-import { AlertCircle, Clock3, Plus, Send, UserRound, X } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { motion } from "framer-motion";
+import {
+  AlertCircle,
+  BookOpen,
+  Clock3,
+  Flame,
+  Loader2,
+  Upload,
+  Plus,
+  Send,
+  Shield,
+  Tag,
+  UserRound,
+  X,
+  Trash2,
+} from "lucide-react";
+import Link from "next/link";
+import { useSession } from "next-auth/react";
 
 import type { SubmitRunInput } from "~/server/types/players";
 import { type RunCategoryId } from "~/server/types/leaderboard";
 import { submitRunInputSchema } from "~/server/validation/players";
 import { api } from "~/trpc/react";
 import AnimatedCard from "./animated-card";
-import { categoryBadgeClasses } from "./theme-classes";
+import DataTable, { getRelativeTime } from "./data-table";
+import { categoryToneClasses, iconToneClasses } from "./theme-classes";
 import PlacementBadges from "./placement-badges";
 
 interface PlayerProfileViewProps {
@@ -24,6 +42,54 @@ interface FormState {
   primaryWeaponKey: string;
   secondaryWeaponKey: string;
   tags: string[];
+}
+
+const categoryIconMap = {
+  flame: Flame,
+  shield: Shield,
+  "book-open": BookOpen,
+} as const;
+
+const categoryById: Record<
+  RunCategoryId,
+  {
+    label: string;
+    icon: keyof typeof categoryIconMap;
+    tone: keyof typeof categoryToneClasses;
+  }
+> = {
+  fs: { label: "Freestyle", icon: "flame", tone: "cyan" },
+  rr: { label: "Rules", icon: "shield", tone: "emerald" },
+  "ta-wiki": { label: "TA Wiki", icon: "book-open", tone: "violet" },
+};
+
+function capitalizeFirst(value: string) {
+  if (!value) return value;
+  return value.charAt(0).toUpperCase() + value.slice(1);
+}
+
+function formatFullDateTime(timestampMs: number) {
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(timestampMs);
+}
+
+function formatRunTime(ms: number) {
+  const minutes = Math.floor(ms / 60_000)
+    .toString()
+    .padStart(2, "0");
+  const seconds = Math.floor((ms % 60_000) / 1_000)
+    .toString()
+    .padStart(2, "0");
+  const centiseconds = Math.floor((ms % 1_000) / 10)
+    .toString()
+    .padStart(2, "0");
+
+  return `${minutes}'${seconds}"${centiseconds}`;
 }
 
 function emptyFormState(questId: string): FormState {
@@ -46,13 +112,31 @@ function statusBadge(isApproved: boolean) {
   return "border-amber-300/30 bg-amber-400/10 text-amber-300";
 }
 
+function getProfileRankBadgeClass(rank: number | null) {
+  if (rank === 1) {
+    return "border-amber-300/40 bg-amber-300/10 text-amber-300";
+  }
+
+  if (rank === 2) {
+    return "border-gray-300/40 bg-gray-300/10 text-gray-200";
+  }
+
+  if (rank === 3) {
+    return "border-orange-400/40 bg-orange-400/10 text-orange-300";
+  }
+
+  return "border-indigo-300/30 bg-indigo-400/10 text-indigo-200";
+}
+
 export default function PlayerProfileView({
   userId,
   onInitialReady,
 }: PlayerProfileViewProps) {
   const utils = api.useUtils();
+  const { data: session } = useSession();
   const [tagInput, setTagInput] = useState("");
   const [formError, setFormError] = useState<string | null>(null);
+  const [deletingRunId, setDeletingRunId] = useState<string | null>(null);
 
   const profileQuery = api.players.profile.useQuery(
     { userId },
@@ -62,6 +146,9 @@ export default function PlayerProfileView({
   );
 
   const isCurrentUser = profileQuery.data?.isCurrentUser ?? false;
+  const viewerRole = session?.user.role;
+  const canModerateRuns = viewerRole === "moderator" || viewerRole === "admin";
+  const canViewRunActions = isCurrentUser || canModerateRuns;
 
   const submitOptionsQuery = api.players.submitOptions.useQuery(undefined, {
     staleTime: Infinity,
@@ -113,6 +200,22 @@ export default function PlayerProfileView({
     },
   });
 
+  const deleteRunMutation = api.players.deleteRun.useMutation({
+    onSuccess: async () => {
+      setDeletingRunId(null);
+      await Promise.all([
+        utils.players.profile.invalidate({ userId }),
+        utils.players.list.invalidate(),
+        utils.leaderboard.getLeaderboard.invalidate(),
+        utils.stats.getHomeStats.invalidate(),
+        utils.players.submitOptions.invalidate(),
+      ]);
+    },
+    onError: () => {
+      setDeletingRunId(null);
+    },
+  });
+
   const addTag = (rawTag: string) => {
     const tag = rawTag.trim();
     if (!tag) return;
@@ -130,7 +233,7 @@ export default function PlayerProfileView({
     }));
   };
 
-  const submitForm = (event: FormEvent<HTMLFormElement>) => {
+  const submitForm = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
     const payload: SubmitRunInput = {
@@ -156,13 +259,228 @@ export default function PlayerProfileView({
 
   if (profileQuery.isLoading) {
     return (
-      <AnimatedCard className="p-6">
-        <div className="space-y-4">
-          <div className="h-8 w-48 animate-pulse rounded bg-white/10" />
-          <div className="h-4 w-72 animate-pulse rounded bg-white/10" />
-          <div className="h-56 animate-pulse rounded bg-white/5" />
+      <div className="space-y-4">
+        <div className="tm-card p-8">
+          <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
+            <div className="flex flex-wrap items-center gap-4">
+              <motion.div
+                className="h-14 w-14 rounded-full bg-gradient-to-r from-white/6 via-cyan-200/15 to-white/6"
+                initial={{ opacity: 0.35, scale: 0.96 }}
+                animate={{
+                  opacity: [0.35, 0.85, 0.35],
+                  scale: [0.96, 1, 0.96],
+                }}
+                transition={{
+                  duration: 1.15,
+                  repeat: Infinity,
+                  ease: "easeInOut",
+                }}
+              />
+              <div className="space-y-3">
+                <motion.div
+                  className="h-8 w-44 rounded bg-white/10"
+                  initial={{ opacity: 0.35 }}
+                  animate={{ opacity: [0.35, 0.8, 0.35] }}
+                  transition={{
+                    duration: 1.15,
+                    repeat: Infinity,
+                    ease: "easeInOut",
+                  }}
+                />
+                <motion.div
+                  className="h-6 w-24 rounded-full bg-white/10"
+                  initial={{ opacity: 0.35 }}
+                  animate={{ opacity: [0.35, 0.8, 0.35] }}
+                  transition={{
+                    duration: 1.15,
+                    repeat: Infinity,
+                    ease: "easeInOut",
+                    delay: 0.1,
+                  }}
+                />
+                <motion.div
+                  className="h-4 w-32 rounded bg-white/8"
+                  initial={{ opacity: 0.35 }}
+                  animate={{ opacity: [0.35, 0.72, 0.35] }}
+                  transition={{
+                    duration: 1.15,
+                    repeat: Infinity,
+                    ease: "easeInOut",
+                    delay: 0.2,
+                  }}
+                />
+              </div>
+            </div>
+
+            <div className="flex min-w-[150px] flex-col items-center gap-3 self-center md:self-auto">
+              <motion.div
+                className="h-10 w-20 rounded-md bg-gradient-to-r from-white/6 via-amber-200/15 to-white/6"
+                initial={{ opacity: 0.35, scaleX: 0.94 }}
+                animate={{
+                  opacity: [0.35, 0.82, 0.35],
+                  scaleX: [0.94, 1, 0.94],
+                }}
+                transition={{
+                  duration: 1.15,
+                  repeat: Infinity,
+                  ease: "easeInOut",
+                }}
+              />
+              <motion.div
+                className="h-3 w-16 rounded bg-white/10"
+                initial={{ opacity: 0.35 }}
+                animate={{ opacity: [0.35, 0.7, 0.35] }}
+                transition={{
+                  duration: 1.15,
+                  repeat: Infinity,
+                  ease: "easeInOut",
+                  delay: 0.08,
+                }}
+              />
+              <div className="flex gap-2">
+                <motion.div
+                  className="h-6 w-6 rounded-full bg-white/10"
+                  initial={{ opacity: 0.35 }}
+                  animate={{ opacity: [0.35, 0.75, 0.35] }}
+                  transition={{
+                    duration: 1.15,
+                    repeat: Infinity,
+                    ease: "easeInOut",
+                    delay: 0.1,
+                  }}
+                />
+                <motion.div
+                  className="h-6 w-6 rounded-full bg-white/10"
+                  initial={{ opacity: 0.35 }}
+                  animate={{ opacity: [0.35, 0.75, 0.35] }}
+                  transition={{
+                    duration: 1.15,
+                    repeat: Infinity,
+                    ease: "easeInOut",
+                    delay: 0.2,
+                  }}
+                />
+                <motion.div
+                  className="h-6 w-6 rounded-full bg-white/10"
+                  initial={{ opacity: 0.35 }}
+                  animate={{ opacity: [0.35, 0.75, 0.35] }}
+                  transition={{
+                    duration: 1.15,
+                    repeat: Infinity,
+                    ease: "easeInOut",
+                    delay: 0.3,
+                  }}
+                />
+              </div>
+            </div>
+          </div>
         </div>
-      </AnimatedCard>
+
+        <div className="tm-card p-6 shadow-2xl shadow-black/20">
+          <div className="mb-6 flex items-start gap-3">
+            <motion.div
+              className="flex h-12 min-h-12 w-12 min-w-12 items-center justify-center rounded-full border border-cyan-400/30 bg-cyan-400/10"
+              initial={{ opacity: 0.35, scale: 0.96 }}
+              animate={{ opacity: [0.35, 0.82, 0.35], scale: [0.96, 1, 0.96] }}
+              transition={{
+                duration: 1.15,
+                repeat: Infinity,
+                ease: "easeInOut",
+              }}
+            />
+            <div className="space-y-3">
+              <motion.div
+                className="h-7 w-28 rounded bg-white/10"
+                initial={{ opacity: 0.35 }}
+                animate={{ opacity: [0.35, 0.8, 0.35] }}
+                transition={{
+                  duration: 1.15,
+                  repeat: Infinity,
+                  ease: "easeInOut",
+                }}
+              />
+              <motion.div
+                className="h-4 w-72 rounded bg-white/8"
+                initial={{ opacity: 0.35 }}
+                animate={{ opacity: [0.35, 0.72, 0.35] }}
+                transition={{
+                  duration: 1.15,
+                  repeat: Infinity,
+                  ease: "easeInOut",
+                  delay: 0.12,
+                }}
+              />
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            {Array.from({ length: 3 }).map((_, index) => (
+              <motion.div
+                key={index}
+                className="flex items-center justify-between rounded-lg border border-gray-800/70 bg-white/3 px-4 py-4"
+                initial={{ opacity: 0.35, y: 4 }}
+                animate={{ opacity: [0.35, 0.75, 0.35], y: [4, 0, 4] }}
+                transition={{
+                  duration: 1.15,
+                  repeat: Infinity,
+                  ease: "easeInOut",
+                  delay: index * 0.12,
+                }}
+              >
+                <div className="flex items-center gap-3">
+                  <motion.div
+                    className="h-10 w-10 rounded-full bg-white/10"
+                    initial={{ opacity: 0.35 }}
+                    animate={{ opacity: [0.35, 0.75, 0.35] }}
+                    transition={{
+                      duration: 1.15,
+                      repeat: Infinity,
+                      ease: "easeInOut",
+                      delay: index * 0.08,
+                    }}
+                  />
+                  <div className="space-y-2">
+                    <motion.div
+                      className="h-4 w-40 rounded bg-white/10"
+                      initial={{ opacity: 0.35 }}
+                      animate={{ opacity: [0.35, 0.75, 0.35] }}
+                      transition={{
+                        duration: 1.15,
+                        repeat: Infinity,
+                        ease: "easeInOut",
+                        delay: index * 0.08,
+                      }}
+                    />
+                    <motion.div
+                      className="h-3 w-28 rounded bg-white/8"
+                      initial={{ opacity: 0.35 }}
+                      animate={{ opacity: [0.35, 0.72, 0.35] }}
+                      transition={{
+                        duration: 1.15,
+                        repeat: Infinity,
+                        ease: "easeInOut",
+                        delay: index * 0.08 + 0.08,
+                      }}
+                    />
+                  </div>
+                </div>
+
+                <motion.div
+                  className="h-6 w-20 rounded-full bg-white/10"
+                  initial={{ opacity: 0.35 }}
+                  animate={{ opacity: [0.35, 0.75, 0.35] }}
+                  transition={{
+                    duration: 1.15,
+                    repeat: Infinity,
+                    ease: "easeInOut",
+                    delay: index * 0.08 + 0.04,
+                  }}
+                />
+              </motion.div>
+            ))}
+          </div>
+        </div>
+      </div>
     );
   }
 
@@ -184,7 +502,7 @@ export default function PlayerProfileView({
 
   return (
     <div className="space-y-4">
-      <AnimatedCard className="p-8">
+      <AnimatedCard key="profile-header-card" className="p-8">
         <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
           <div className="flex flex-wrap items-center gap-4">
             <span className="relative flex h-14 w-14 items-center justify-center overflow-hidden rounded-full border border-gray-700 bg-white/5">
@@ -199,9 +517,25 @@ export default function PlayerProfileView({
               )}
             </span>
             <div>
-              <h1 className="text-3xl font-bold text-white">
-                {profile.user.displayName ?? profile.user.username ?? "Player"}
-              </h1>
+              <div className="flex flex-wrap items-center gap-3">
+                <h1 className="text-3xl font-bold text-white">
+                  {profile.user.displayName ??
+                    profile.user.username ??
+                    "Player"}
+                </h1>
+                <Link
+                  href="/players"
+                  className={`inline-flex cursor-pointer items-center rounded-full border px-2.5 py-1 text-xs font-semibold tracking-[0.12em] uppercase transition-colors hover:brightness-110 ${
+                    profile.leaderboardPlacement
+                      ? getProfileRankBadgeClass(profile.leaderboardPlacement)
+                      : "border-gray-700 bg-white/5 text-gray-400"
+                  }`}
+                >
+                  {profile.leaderboardPlacement
+                    ? `Rank ${profile.leaderboardPlacement}`
+                    : "Unranked"}
+                </Link>
+              </div>
               <p className="mt-2 text-sm text-gray-400">
                 {allRuns.length} total runs
               </p>
@@ -225,14 +559,255 @@ export default function PlayerProfileView({
         </div>
       </AnimatedCard>
 
+      {profile.pendingRuns.length > 0 ? (
+        <AnimatedCard key="profile-pending-runs-card" className="p-6">
+          <div className="mb-4 flex items-center gap-2">
+            <Clock3 className="h-4 w-4 text-amber-300" />
+            <h2 className="text-lg font-semibold text-white">Pending Runs</h2>
+          </div>
+          <div className="space-y-2">
+            {profile.pendingRuns.map((run) => (
+              <div
+                key={run.runId}
+                className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-amber-300/20 bg-amber-400/5 px-3 py-2 text-sm"
+              >
+                <div className="text-gray-200">
+                  <span className="font-medium">{run.questTitle}</span>
+                  <span className="text-gray-400"> · {run.hunterName}</span>
+                </div>
+                <div className="inline-flex items-center gap-2 text-gray-300">
+                  <span
+                    className={`rounded-full border px-2 py-0.5 text-xs ${statusBadge(false)}`}
+                  >
+                    Pending
+                  </span>
+                  <span>{formatRunTime(run.runTimeMs)}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </AnimatedCard>
+      ) : null}
+
+      <AnimatedCard key="profile-runs-card" className="p-6 shadow-2xl shadow-black/20">
+        <DataTable
+          title="Runs"
+          description="All submitted runs by this player."
+          icon={<Clock3 className="h-6 w-6" />}
+          iconColor="cyan"
+          columns={[
+            { key: "status", label: "Status" },
+            { key: "quest", label: "Quest" },
+            { key: "hunter", label: "Hunter" },
+            { key: "weapons", label: "Weapons" },
+            { key: "category", label: "Category" },
+            { key: "tags", label: "Tags" },
+            { key: "time", label: "Time" },
+            { key: "date", label: "Submitted" },
+            ...(canModerateRuns
+              ? [{ key: "approved-by", label: "Approved by" as const }]
+              : []),
+            ...(canViewRunActions
+              ? [{ key: "actions", label: "Actions" as const }]
+              : []),
+          ]}
+        >
+          <motion.tbody
+            key="runs-rows"
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -6 }}
+            transition={{ duration: 0.22 }}
+          >
+            {allRuns.map((run, index) => {
+              const category = categoryById[run.categoryId] ?? categoryById.fs;
+              const CategoryIcon = categoryIconMap[category.icon] ?? Flame;
+              const tone = categoryToneClasses[category.tone] ?? categoryToneClasses.amber;
+              const relativeSubmittedAt = capitalizeFirst(
+                getRelativeTime(run.submittedAtMs),
+              );
+              const submittedAtDateTimeLabel = formatFullDateTime(
+                run.submittedAtMs,
+              );
+              const approvedAtDateTimeLabel = run.approvedAtMs
+                ? formatFullDateTime(run.approvedAtMs)
+                : null;
+              const canDeleteRun =
+                canModerateRuns || (isCurrentUser && !run.isApproved);
+
+              return (
+                <motion.tr
+                  key={run.runId}
+                  layout
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.2, delay: index * 0.025 }}
+                  className="group border-b border-gray-800/70 text-sm transition-colors hover:bg-white/5"
+                >
+                  <td className="px-3 py-4 align-middle">
+                    <span
+                      className={`inline-flex rounded-full border px-2 py-0.5 text-xs ${statusBadge(run.isApproved)}`}
+                    >
+                      {run.isApproved ? "Approved" : "Pending"}
+                    </span>
+                  </td>
+                  <td className="px-3 py-4 align-middle">
+                    <div className="min-w-0">
+                      <div className="truncate text-sm font-semibold text-white">
+                        {run.questTitle}
+                      </div>
+                      <div className="truncate text-xs text-gray-500">
+                        {run.difficultyStars}★ {run.monster} · {run.areaLabel}
+                      </div>
+                    </div>
+                  </td>
+                  <td className="px-3 py-4 align-middle">
+                    <div className="min-w-0">
+                      <div className="truncate text-sm font-semibold text-white">
+                        {run.hunterName}
+                      </div>
+                    </div>
+                  </td>
+                  <td className="px-3 py-4 align-middle">
+                    <div className="flex items-center gap-2">
+                      <img
+                        src={`/weapons/${run.primaryWeaponKey}.png`}
+                        alt={run.primaryWeaponKey.toUpperCase()}
+                        title={run.primaryWeaponKey.toUpperCase()}
+                        className="h-7 w-7 object-contain"
+                      />
+                      {run.secondaryWeaponKey ? (
+                        <img
+                          src={`/weapons/${run.secondaryWeaponKey}.png`}
+                          alt={run.secondaryWeaponKey.toUpperCase()}
+                          title={run.secondaryWeaponKey.toUpperCase()}
+                          className="h-7 w-7 object-contain"
+                        />
+                      ) : null}
+                    </div>
+                  </td>
+                  <td className="px-3 py-4 align-middle">
+                    <span
+                      className={`inline-flex h-6 items-center justify-center gap-1.5 rounded-full border px-2.5 text-xs leading-none ${tone.badge}`}
+                    >
+                      <CategoryIcon
+                        className={`h-3.5 w-3.5 shrink-0 ${tone.icon}`}
+                      />
+                      {category.label}
+                    </span>
+                  </td>
+                  <td className="px-3 py-4 align-middle text-gray-300">
+                    <div className="flex flex-wrap items-center gap-2">
+                      {run.tagLabels.length > 0 ? (
+                        run.tagLabels.map((tagLabel) => (
+                          <span
+                            key={`${run.runId}-${tagLabel}`}
+                            className="inline-flex h-6 items-center justify-center gap-1.5 rounded-full border border-gray-700 bg-white/5 px-2.5 text-xs leading-none text-gray-300 transition-all hover:border-amber-300/40 hover:bg-amber-400/10 hover:text-amber-200 hover:shadow-[0_0_0_1px_rgba(251,191,36,0.12),0_6px_18px_rgba(251,191,36,0.1)]"
+                          >
+                            <Tag className="h-3.5 w-3.5 shrink-0 text-gray-500" />
+                            {tagLabel}
+                          </span>
+                        ))
+                      ) : (
+                        <span className="text-xs text-gray-500">-</span>
+                      )}
+                    </div>
+                  </td>
+                  <td className="px-3 py-4 text-right align-middle">
+                    <div className="text-lg font-semibold text-white">
+                      {formatRunTime(run.runTimeMs)}
+                    </div>
+                  </td>
+                  <td className="px-3 py-4 align-middle">
+                    <div className="inline-flex items-start gap-3 text-gray-200">
+                      <div className="min-w-0">
+                        <div className="truncate text-sm font-semibold text-white">
+                          {relativeSubmittedAt}
+                        </div>
+                        <div className="truncate text-xs text-gray-500">
+                          {submittedAtDateTimeLabel}
+                        </div>
+                      </div>
+                    </div>
+                  </td>
+                  {canModerateRuns ? (
+                    <td className="px-3 py-4 align-middle">
+                      {run.isApproved && run.approvedByDisplayName ? (
+                        <div className="min-w-0">
+                          <div className="truncate text-sm font-semibold text-white">
+                            {run.approvedByDisplayName}
+                          </div>
+                          <div className="truncate text-xs text-gray-500">
+                            {approvedAtDateTimeLabel ?? "-"}
+                          </div>
+                        </div>
+                      ) : (
+                        <span className="text-xs text-gray-500">-</span>
+                      )}
+                    </td>
+                  ) : null}
+                  {canViewRunActions ? (
+                    <td className="px-3 py-4 text-center align-middle">
+                      {canDeleteRun ? (
+                        <button
+                          type="button"
+                          disabled={deletingRunId === run.runId}
+                          aria-label={
+                            deletingRunId === run.runId
+                              ? "Deleting run"
+                              : "Delete run"
+                          }
+                          title={
+                            deletingRunId === run.runId
+                              ? "Deleting run"
+                              : "Delete run"
+                          }
+                          onClick={() => {
+                            setDeletingRunId(run.runId);
+                            deleteRunMutation.mutate({ runId: run.runId });
+                          }}
+                          className="mx-auto inline-flex h-9 w-9 cursor-pointer items-center justify-center rounded-lg border border-red-400/25 bg-red-400/10 text-red-200 transition-colors hover:border-red-300 hover:bg-red-400/20 hover:text-red-100 disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          {deletingRunId === run.runId ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <Trash2 className="h-4 w-4" />
+                          )}
+                        </button>
+                      ) : (
+                        <span className="text-xs text-gray-500">-</span>
+                      )}
+                    </td>
+                  ) : null}
+                </motion.tr>
+              );
+            })}
+          </motion.tbody>
+        </DataTable>
+
+        {allRuns.length === 0 ? (
+          <div className="rounded-lg border border-dashed border-gray-700 bg-white/2 p-6 text-center text-sm text-gray-400">
+            {isCurrentUser
+              ? "Submit your first run below."
+              : "This player hasn't submitted any runs yet."}
+          </div>
+        ) : null}
+      </AnimatedCard>
+
       {profile.isCurrentUser ? (
-        <AnimatedCard className="p-6">
-          <div className="mb-6">
-            <h2 className="text-xl font-bold text-white">Submit New Run</h2>
-            <p className="mt-1 text-sm text-gray-400">
-              Pending runs are reviewed before being shown in the public
-              leaderboard.
-            </p>
+        <AnimatedCard key="profile-submit-run-card" className="p-6">
+          <div className="mb-6 flex items-start gap-3">
+            <div
+              className={`flex h-12 min-h-12 w-12 min-w-12 items-center justify-center rounded-full border ${iconToneClasses.emerald}`}
+            >
+              <Upload className="h-6 w-6" />
+            </div>
+            <div>
+              <h2 className="text-2xl font-bold text-white">Submit New Run</h2>
+              <p className="mt-1 text-sm text-gray-400">
+                Pending runs are reviewed before being shown on the leaderboard.
+              </p>
+            </div>
           </div>
 
           <form
@@ -463,127 +1038,6 @@ export default function PlayerProfileView({
           </form>
         </AnimatedCard>
       ) : null}
-
-      {profile.pendingRuns.length > 0 ? (
-        <AnimatedCard className="p-6">
-          <div className="mb-4 flex items-center gap-2">
-            <Clock3 className="h-4 w-4 text-amber-300" />
-            <h2 className="text-lg font-semibold text-white">Pending Runs</h2>
-          </div>
-          <div className="space-y-2">
-            {profile.pendingRuns.map((run) => (
-              <div
-                key={run.runId}
-                className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-amber-300/20 bg-amber-400/5 px-3 py-2 text-sm"
-              >
-                <div className="text-gray-200">
-                  <span className="font-medium">{run.questTitle}</span>
-                  <span className="text-gray-400"> · {run.hunterName}</span>
-                </div>
-                <div className="inline-flex items-center gap-2 text-gray-300">
-                  <span
-                    className={`rounded-full border px-2 py-0.5 text-xs ${statusBadge(false)}`}
-                  >
-                    Pending
-                  </span>
-                  <span>{run.runTimeLabel}</span>
-                </div>
-              </div>
-            ))}
-          </div>
-        </AnimatedCard>
-      ) : null}
-
-      <AnimatedCard className="p-6 shadow-2xl shadow-black/20">
-        <div className="mb-6">
-          <h2 className="text-2xl font-bold text-white">Runs</h2>
-          <p className="mt-1 text-sm text-gray-400">
-            Newest entries are shown first.
-          </p>
-        </div>
-
-        <div className="no-scrollbar overflow-x-auto">
-          <table className="min-w-full border-separate border-spacing-0">
-            <thead>
-              <tr className="text-left text-xs tracking-[0.2em] text-gray-500 uppercase">
-                <th className="border-b border-gray-800 px-3 py-3">Date</th>
-                <th className="border-b border-gray-800 px-3 py-3">Quest</th>
-                <th className="border-b border-gray-800 px-3 py-3">Hunter</th>
-                <th className="border-b border-gray-800 px-3 py-3">Weapons</th>
-                <th className="border-b border-gray-800 px-3 py-3">Category</th>
-                <th className="border-b border-gray-800 px-3 py-3">Tags</th>
-                <th className="border-b border-gray-800 px-3 py-3">Status</th>
-                <th className="border-b border-gray-800 px-3 py-3 text-right">
-                  Time
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {allRuns.map((run) => {
-                const categoryColorClass =
-                  categoryBadgeClasses[
-                    run.categoryColor as keyof typeof categoryBadgeClasses
-                  ] ?? categoryBadgeClasses.amber;
-
-                return (
-                  <tr
-                    key={run.runId}
-                    className="border-b border-gray-800/70 text-sm transition-colors hover:bg-white/4"
-                  >
-                    <td className="px-3 py-3 text-gray-300">
-                      {run.submittedAtLabel}
-                    </td>
-                    <td className="px-3 py-3">
-                      <div className="text-gray-100">{run.questTitle}</div>
-                      <div className="text-xs text-gray-500">
-                        {run.difficultyStars}★ {run.monster} · {run.areaLabel}
-                      </div>
-                    </td>
-                    <td className="px-3 py-3 text-gray-300">
-                      {run.hunterName}
-                    </td>
-                    <td className="px-3 py-3 text-gray-300">
-                      {run.secondaryWeaponLabel
-                        ? `${run.primaryWeaponLabel} / ${run.secondaryWeaponLabel}`
-                        : run.primaryWeaponLabel}
-                    </td>
-                    <td className="px-3 py-3">
-                      <span
-                        className={`inline-flex rounded-full border px-2 py-1 text-xs ${categoryColorClass}`}
-                      >
-                        {run.categoryLabel}
-                      </span>
-                    </td>
-                    <td className="px-3 py-3 text-gray-300">
-                      {run.tagLabels.length > 0
-                        ? run.tagLabels.join(", ")
-                        : "-"}
-                    </td>
-                    <td className="px-3 py-3">
-                      <span
-                        className={`inline-flex rounded-full border px-2 py-0.5 text-xs ${statusBadge(run.isApproved)}`}
-                      >
-                        {run.isApproved ? "Approved" : "Pending"}
-                      </span>
-                    </td>
-                    <td className="px-3 py-3 text-right font-mono text-base text-amber-100">
-                      {run.runTimeLabel}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-
-        {allRuns.length === 0 ? (
-          <div className="rounded-lg border border-dashed border-gray-700 bg-white/2 p-6 text-center text-sm text-gray-400">
-            {isCurrentUser
-              ? "Submit your first run!"
-              : "This player hasn't submitted any runs yet."}
-          </div>
-        ) : null}
-      </AnimatedCard>
     </div>
   );
 }

@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 
 import { TRPCError } from "@trpc/server";
-import { and, asc, desc, eq, isNotNull } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNotNull } from "drizzle-orm";
 import { parse } from "jsonc-parser";
 
 import { db } from "~/server/db";
@@ -29,7 +29,7 @@ import {
   type SubmitRunInput,
 } from "~/server/types/players";
 import { calculateUserScoreAndTop3Placements } from "~/server/lib/score";
-import { formatRunTime, parseRunTimeInputToMs } from "~/server/lib/run-time";
+import { parseRunTimeInputToMs } from "~/server/lib/run-time";
 import { submitRunInputSchema } from "~/server/validation/players";
 
 const resourceDir = path.join(process.cwd(), "src/server/resources");
@@ -229,6 +229,7 @@ export async function getPlayerProfile(
       pendingRuns: [],
       approvedRuns: [],
       isCurrentUser: false,
+      leaderboardPlacement: null,
     };
   }
 
@@ -252,13 +253,15 @@ export async function getPlayerProfile(
     second: 0,
     third: 0,
   };
+  const leaderboardRows = await getPlayersOverview();
+  const leaderboardIndex = leaderboardRows.findIndex(
+    (row) => row.userId === userId,
+  );
 
   const runRows = await db
     .select({
       runId: runsTable.id,
-      userId: runsTable.userId,
       hunterName: runsTable.hunterName,
-      questId: runsTable.questId,
       categoryId: runsTable.category,
       tags: runsTable.tags,
       submittedAt: runsTable.submittedAt,
@@ -266,13 +269,11 @@ export async function getPlayerProfile(
       primaryWeaponKey: runsTable.primaryWeapon,
       secondaryWeaponKey: runsTable.secondaryWeapon,
       approvedByUserId: runsTable.approvedByUserId,
-      questSlug: questsTable.slug,
+      approvedAt: runsTable.approvedAt,
       questTitle: questsTable.title,
       monster: questsTable.monster,
       difficultyStars: questsTable.difficultyStars,
       areaKey: questsTable.area,
-      displayName: usersTable.displayName,
-      avatar: usersTable.image,
     })
     .from(runsTable)
     .innerJoin(questsTable, eq(runsTable.questId, questsTable.id))
@@ -280,52 +281,63 @@ export async function getPlayerProfile(
     .where(eq(runsTable.userId, userId))
     .orderBy(desc(runsTable.submittedAt), desc(runsTable.runTimeMs));
 
+  const approverUserIds = [
+    ...new Set(
+      runRows
+        .map((run) => run.approvedByUserId)
+        .filter((value): value is string => Boolean(value)),
+    ),
+  ];
+
+  const approverNameById = new Map<string, string>();
+  if (approverUserIds.length > 0) {
+    const approverUsers = await db
+      .select({
+        id: usersTable.id,
+        displayName: usersTable.displayName,
+        name: usersTable.name,
+      })
+      .from(usersTable)
+      .where(inArray(usersTable.id, approverUserIds));
+
+    for (const approver of approverUsers) {
+      approverNameById.set(
+        approver.id,
+        approver.displayName ?? approver.name ?? "Moderator",
+      );
+    }
+  }
+
   const rows: PlayerProfileRunRow[] = runRows.map((run) => {
     const submittedAtMs =
       run.submittedAt instanceof Date
         ? run.submittedAt.getTime()
         : new Date(run.submittedAt).getTime();
-
-    const category = categoryById.get(run.categoryId);
-    const primaryWeaponLabel =
-      weaponByKey.get(run.primaryWeaponKey as LeaderboardWeaponKey)?.label ??
-      run.primaryWeaponKey;
-    const secondaryWeaponLabel = run.secondaryWeaponKey
-      ? (weaponByKey.get(run.secondaryWeaponKey as LeaderboardWeaponKey)
-          ?.label ?? run.secondaryWeaponKey)
+    const approvedAtMs = run.approvedAt
+      ? run.approvedAt instanceof Date
+        ? run.approvedAt.getTime()
+        : new Date(run.approvedAt).getTime()
       : null;
 
     return {
       runId: run.runId,
-      userId: run.userId,
-      displayName: run.displayName ?? run.hunterName,
-      avatar: run.avatar ?? null,
       hunterName: run.hunterName,
-      questId: run.questId,
-      questSlug: run.questSlug,
       questTitle: run.questTitle,
       monster: run.monster,
       difficultyStars: run.difficultyStars,
       areaLabel:
         areaByKey.get(run.areaKey as LeaderboardAreaKey)?.label ?? run.areaKey,
       submittedAtMs,
-      submittedAtLabel: new Date(submittedAtMs).toLocaleDateString("en-US", {
-        month: "short",
-        day: "numeric",
-        year: "numeric",
-      }),
       runTimeMs: run.runTimeMs,
-      runTimeLabel: formatRunTime(run.runTimeMs),
       categoryId: run.categoryId,
-      categoryLabel: category?.label ?? run.categoryId,
-      categoryIcon: category?.icon ?? "flame",
-      categoryColor: category?.color ?? "amber",
       tagLabels: parseRunTags(run.tags),
       primaryWeaponKey: run.primaryWeaponKey,
-      primaryWeaponLabel,
       secondaryWeaponKey: run.secondaryWeaponKey,
-      secondaryWeaponLabel,
       isApproved: Boolean(run.approvedByUserId),
+      approvedByDisplayName: run.approvedByUserId
+        ? (approverNameById.get(run.approvedByUserId) ?? "Moderator")
+        : null,
+      approvedAtMs,
     };
   });
 
@@ -348,6 +360,7 @@ export async function getPlayerProfile(
       : [],
     approvedRuns: rows.filter((run) => run.isApproved),
     isCurrentUser,
+    leaderboardPlacement: leaderboardIndex >= 0 ? leaderboardIndex + 1 : null,
   };
 }
 
@@ -461,6 +474,39 @@ export async function submitRun(input: SubmitRunInput, userId: string) {
     approvedByUserId: null,
     approvedAt: null,
   });
+
+  return { runId };
+}
+
+export async function deleteRun(
+  runId: string,
+  viewerUserId: string,
+  viewerRole: UserRole,
+) {
+  const run = await db
+    .select({
+      id: runsTable.id,
+      userId: runsTable.userId,
+      approvedByUserId: runsTable.approvedByUserId,
+    })
+    .from(runsTable)
+    .where(eq(runsTable.id, runId))
+    .limit(1)
+    .then((rows) => rows[0] ?? null);
+
+  if (!run) {
+    throw new TRPCError({ code: "NOT_FOUND", message: "Run not found" });
+  }
+
+  const canModerateRuns = viewerRole === "moderator" || viewerRole === "admin";
+  const isOwner = run.userId === viewerUserId;
+  const canDeleteRun = canModerateRuns || (isOwner && !run.approvedByUserId);
+
+  if (!canDeleteRun) {
+    throw new TRPCError({ code: "FORBIDDEN", message: "Cannot delete run" });
+  }
+
+  await db.delete(runsTable).where(eq(runsTable.id, runId));
 
   return { runId };
 }

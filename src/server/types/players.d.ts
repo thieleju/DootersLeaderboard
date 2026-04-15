@@ -23,30 +23,20 @@ export type PlayerOverviewRow = {
 
 export type PlayerProfileRunRow = {
   runId: string;
-  userId: string;
-  displayName: string;
-  avatar: string | null;
   hunterName: string;
-  questId: string;
-  questSlug: string;
   questTitle: string;
   monster: string;
   difficultyStars: number;
   areaLabel: string;
   submittedAtMs: number;
-  submittedAtLabel: string;
   runTimeMs: number;
-  runTimeLabel: string;
   categoryId: RunCategoryId;
-  categoryLabel: string;
-  categoryIcon: string;
-  categoryColor: string;
   tagLabels: string[];
   primaryWeaponKey: string;
-  primaryWeaponLabel: string;
   secondaryWeaponKey: string | null;
-  secondaryWeaponLabel: string | null;
   isApproved: boolean;
+  approvedByDisplayName: string | null;
+  approvedAtMs: number | null;
 };
 
 export type PlayerProfileData = {
@@ -67,6 +57,7 @@ export type PlayerProfileData = {
   pendingRuns: PlayerProfileRunRow[];
   approvedRuns: PlayerProfileRunRow[];
   isCurrentUser: boolean;
+  leaderboardPlacement: number | null;
 };
 
 export type SubmitRunInput = {

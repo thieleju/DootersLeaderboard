@@ -37,6 +37,30 @@ const categoryIconMap = {
   "book-open": BookOpen,
 } as const;
 
+function formatRunTime(ms: number) {
+  const minutes = Math.floor(ms / 60_000)
+    .toString()
+    .padStart(2, "0");
+  const seconds = Math.floor((ms % 60_000) / 1_000)
+    .toString()
+    .padStart(2, "0");
+  const centiseconds = Math.floor((ms % 1_000) / 10)
+    .toString()
+    .padStart(2, "0");
+
+  return `${minutes}'${seconds}"${centiseconds}`;
+}
+
+function formatFullDateTime(timestampMs: number) {
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(timestampMs);
+}
+
 interface LeaderboardTableProps {
   delay?: number;
 }
@@ -286,10 +310,16 @@ export default function LeaderboardTable({ delay = 0 }: LeaderboardTableProps) {
             transition={{ duration: 0.22 }}
           >
             {rows.map((row, index) => {
-              const CategoryIcon = categoryIconMap[row.categoryIcon] ?? Layers;
-              const tone =
-                categoryToneClasses[row.categoryColor] ??
-                categoryToneClasses.amber;
+              const category = availableCategories.find(
+                (item) => item.id === row.categoryId,
+              );
+              const CategoryIcon = category
+                ? (categoryIconMap[category.icon] ?? Layers)
+                : Layers;
+              const tone = category
+                ? (categoryToneClasses[category.color] ??
+                  categoryToneClasses.amber)
+                : categoryToneClasses.amber;
 
               return (
                 <motion.tr
@@ -341,19 +371,15 @@ export default function LeaderboardTable({ delay = 0 }: LeaderboardTableProps) {
                     <div className="flex items-center gap-2">
                       <img
                         src={`/weapons/${row.primaryWeaponKey}.png`}
-                        alt={row.primaryWeaponLabel}
-                        title={row.primaryWeaponLabel}
+                        alt={row.primaryWeaponKey.toUpperCase()}
+                        title={row.primaryWeaponKey.toUpperCase()}
                         className="h-7 w-7 object-contain"
                       />
                       {row.secondaryWeaponKey ? (
                         <img
                           src={`/weapons/${row.secondaryWeaponKey}.png`}
-                          alt={
-                            row.secondaryWeaponLabel ?? row.secondaryWeaponKey
-                          }
-                          title={
-                            row.secondaryWeaponLabel ?? row.secondaryWeaponKey
-                          }
+                          alt={row.secondaryWeaponKey.toUpperCase()}
+                          title={row.secondaryWeaponKey.toUpperCase()}
                           className="h-7 w-7 object-contain"
                         />
                       ) : null}
@@ -367,7 +393,7 @@ export default function LeaderboardTable({ delay = 0 }: LeaderboardTableProps) {
                       <CategoryIcon
                         className={`h-3.5 w-3.5 shrink-0 ${tone.icon}`}
                       />
-                      {row.categoryLabel}
+                      {category?.label ?? row.categoryId}
                     </span>
                   </td>
 
@@ -397,10 +423,10 @@ export default function LeaderboardTable({ delay = 0 }: LeaderboardTableProps) {
 
                   <td className="px-3 py-4 text-right align-middle">
                     <div className="text-lg font-semibold text-amber-300">
-                      {row.runTimeLabel}
+                      {formatRunTime(row.runTimeMs)}
                     </div>
                     <div className="text-xs text-gray-400">
-                      {row.submittedAtLabel}
+                      {formatFullDateTime(row.submittedAtMs)}
                     </div>
                   </td>
                 </motion.tr>

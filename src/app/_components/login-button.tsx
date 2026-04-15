@@ -29,7 +29,7 @@ export default function LoginButton() {
               <UserRound className="h-4 w-4" />
             )}
           </span>
-          <span className="hidden text-sm font-medium sm:inline">
+          <span className="hidden text-sm font-bold sm:inline">
             {session.user.displayName ?? session.user.username ?? "Profile"}
           </span>
         </Link>
