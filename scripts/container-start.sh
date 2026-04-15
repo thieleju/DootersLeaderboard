@@ -33,7 +33,7 @@ log "pnpm version: $(pnpm -v)"
 log "working directory: $(pwd)"
 
 missing=""
-for required_var in AUTH_SECRET AUTH_DISCORD_ID AUTH_DISCORD_SECRET DISCORD_ADMIN_ID; do
+for required_var in AUTH_SECRET NEXTAUTH_URL AUTH_DISCORD_ID AUTH_DISCORD_SECRET DISCORD_ADMIN_ID; do
   eval "value=\${$required_var:-}"
   if [ -z "$value" ]; then
     missing="$missing $required_var"
