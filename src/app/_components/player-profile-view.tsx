@@ -5,6 +5,7 @@ import { motion } from "framer-motion";
 import {
   AlertCircle,
   BookOpen,
+  ChevronDown,
   Clock3,
   Flame,
   Loader2,
@@ -12,17 +13,23 @@ import {
   Plus,
   Send,
   Shield,
+  Check,
   Tag,
   UserRound,
   X,
+  Ban,
   Trash2,
 } from "lucide-react";
 import Link from "next/link";
-import { useSession } from "next-auth/react";
 
 import type { SubmitRunInput } from "~/server/types/players";
 import { type RunCategoryId } from "~/server/types/leaderboard";
-import { submitRunInputSchema } from "~/server/validation/players";
+import {
+  MAX_SUBMIT_HUNTER_NAME_LENGTH,
+  MAX_SUBMIT_TAG_LENGTH,
+  MAX_SUBMIT_TAGS,
+  submitRunInputSchema,
+} from "~/server/validation/players";
 import { api } from "~/trpc/react";
 import AnimatedCard from "./animated-card";
 import DataTable, { getRelativeTime } from "./data-table";
@@ -104,9 +111,13 @@ function emptyFormState(questId: string): FormState {
   };
 }
 
-function statusBadge(isApproved: boolean) {
-  if (isApproved) {
+function statusBadge(status: "pending" | "approved" | "rejected") {
+  if (status === "approved") {
     return "border-emerald-300/30 bg-emerald-400/10 text-emerald-300";
+  }
+
+  if (status === "rejected") {
+    return "border-rose-300/30 bg-rose-400/10 text-rose-300";
   }
 
   return "border-amber-300/30 bg-amber-400/10 text-amber-300";
@@ -133,10 +144,10 @@ export default function PlayerProfileView({
   onInitialReady,
 }: PlayerProfileViewProps) {
   const utils = api.useUtils();
-  const { data: session } = useSession();
   const [tagInput, setTagInput] = useState("");
   const [formError, setFormError] = useState<string | null>(null);
   const [deletingRunId, setDeletingRunId] = useState<string | null>(null);
+  const [openDropdown, setOpenDropdown] = useState<string | null>(null);
 
   const profileQuery = api.players.profile.useQuery(
     { userId },
@@ -146,9 +157,9 @@ export default function PlayerProfileView({
   );
 
   const isCurrentUser = profileQuery.data?.isCurrentUser ?? false;
-  const viewerRole = session?.user.role;
+  const viewerRole = profileQuery.data?.viewerRole ?? null;
   const canModerateRuns = viewerRole === "moderator" || viewerRole === "admin";
-  const canViewRunActions = isCurrentUser || canModerateRuns;
+  const isAdmin = viewerRole === "admin";
 
   const submitOptionsQuery = api.players.submitOptions.useQuery(undefined, {
     staleTime: Infinity,
@@ -177,6 +188,22 @@ export default function PlayerProfileView({
   }, [submitOptionsQuery.data]);
 
   const [form, setForm] = useState<FormState>(() => emptyFormState(""));
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        openDropdown &&
+        !(event.target as HTMLElement).closest(
+          '[role="button"], [role="listbox"]'
+        )
+      ) {
+        setOpenDropdown(null);
+      }
+    };
+
+    document.addEventListener("click", handleClickOutside);
+    return () => document.removeEventListener("click", handleClickOutside);
+  }, [openDropdown]);
 
   const formWithDefaultQuest =
     !form.questId && defaultQuestId
@@ -216,12 +243,54 @@ export default function PlayerProfileView({
     },
   });
 
+  const approveRunMutation = api.players.approveRun.useMutation({
+    onSuccess: async () => {
+      setDeletingRunId(null);
+      await Promise.all([
+        utils.players.profile.invalidate({ userId }),
+        utils.players.list.invalidate(),
+        utils.leaderboard.getLeaderboard.invalidate(),
+        utils.stats.getHomeStats.invalidate(),
+      ]);
+    },
+    onError: () => {
+      setDeletingRunId(null);
+    },
+  });
+
+  const rejectRunMutation = api.players.rejectRun.useMutation({
+    onSuccess: async () => {
+      setDeletingRunId(null);
+      await Promise.all([
+        utils.players.profile.invalidate({ userId }),
+        utils.players.list.invalidate(),
+        utils.leaderboard.getLeaderboard.invalidate(),
+        utils.stats.getHomeStats.invalidate(),
+        utils.players.submitOptions.invalidate(),
+      ]);
+    },
+    onError: () => {
+      setDeletingRunId(null);
+    },
+  });
+
   const addTag = (rawTag: string) => {
     const tag = rawTag.trim();
     if (!tag) return;
+
+    if (tag.length > MAX_SUBMIT_TAG_LENGTH) {
+      setFormError(`Tags can be at most ${MAX_SUBMIT_TAG_LENGTH} characters.`);
+      return;
+    }
+
     setForm((current) => {
       if (current.tags.includes(tag)) return current;
-      if (current.tags.length >= 10) return current;
+      if (current.tags.length >= MAX_SUBMIT_TAGS) {
+        setFormError(`You can add at most ${MAX_SUBMIT_TAGS} tags.`);
+        return current;
+      }
+
+      setFormError(null);
       return { ...current, tags: [...current.tags, tag] };
     });
   };
@@ -499,6 +568,14 @@ export default function PlayerProfileView({
   const allRuns = [...profile.pendingRuns, ...profile.approvedRuns].sort(
     (a, b) => b.submittedAtMs - a.submittedAtMs || b.runTimeMs - a.runTimeMs,
   );
+  const approvedRunsCount = profile.approvedRuns.length;
+
+  const hasAnyRunActions = allRuns.some((run) => {
+    const canDeleteRun = isAdmin || (isCurrentUser && run.status === "pending");
+    const canApproveRun = canModerateRuns && run.status !== "approved";
+    const canRejectRun = canModerateRuns && run.status !== "rejected";
+    return canDeleteRun || canApproveRun || canRejectRun;
+  });
 
   return (
     <div className="space-y-4">
@@ -537,7 +614,7 @@ export default function PlayerProfileView({
                 </Link>
               </div>
               <p className="mt-2 text-sm text-gray-400">
-                {allRuns.length} total runs
+                {approvedRunsCount} total runs
               </p>
             </div>
           </div>
@@ -559,37 +636,10 @@ export default function PlayerProfileView({
         </div>
       </AnimatedCard>
 
-      {profile.pendingRuns.length > 0 ? (
-        <AnimatedCard key="profile-pending-runs-card" className="p-6">
-          <div className="mb-4 flex items-center gap-2">
-            <Clock3 className="h-4 w-4 text-amber-300" />
-            <h2 className="text-lg font-semibold text-white">Pending Runs</h2>
-          </div>
-          <div className="space-y-2">
-            {profile.pendingRuns.map((run) => (
-              <div
-                key={run.runId}
-                className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-amber-300/20 bg-amber-400/5 px-3 py-2 text-sm"
-              >
-                <div className="text-gray-200">
-                  <span className="font-medium">{run.questTitle}</span>
-                  <span className="text-gray-400"> · {run.hunterName}</span>
-                </div>
-                <div className="inline-flex items-center gap-2 text-gray-300">
-                  <span
-                    className={`rounded-full border px-2 py-0.5 text-xs ${statusBadge(false)}`}
-                  >
-                    Pending
-                  </span>
-                  <span>{formatRunTime(run.runTimeMs)}</span>
-                </div>
-              </div>
-            ))}
-          </div>
-        </AnimatedCard>
-      ) : null}
-
-      <AnimatedCard key="profile-runs-card" className="p-6 shadow-2xl shadow-black/20">
+      <AnimatedCard
+        key="profile-runs-card"
+        className="p-6 shadow-2xl shadow-black/20"
+      >
         <DataTable
           title="Runs"
           description="All submitted runs by this player."
@@ -607,7 +657,7 @@ export default function PlayerProfileView({
             ...(canModerateRuns
               ? [{ key: "approved-by", label: "Approved by" as const }]
               : []),
-            ...(canViewRunActions
+            ...(hasAnyRunActions
               ? [{ key: "actions", label: "Actions" as const }]
               : []),
           ]}
@@ -622,7 +672,8 @@ export default function PlayerProfileView({
             {allRuns.map((run, index) => {
               const category = categoryById[run.categoryId] ?? categoryById.fs;
               const CategoryIcon = categoryIconMap[category.icon] ?? Flame;
-              const tone = categoryToneClasses[category.tone] ?? categoryToneClasses.amber;
+              const tone =
+                categoryToneClasses[category.tone] ?? categoryToneClasses.amber;
               const relativeSubmittedAt = capitalizeFirst(
                 getRelativeTime(run.submittedAtMs),
               );
@@ -633,7 +684,15 @@ export default function PlayerProfileView({
                 ? formatFullDateTime(run.approvedAtMs)
                 : null;
               const canDeleteRun =
-                canModerateRuns || (isCurrentUser && !run.isApproved);
+                isAdmin || (isCurrentUser && run.status === "pending");
+              const canApproveRun = canModerateRuns && run.status !== "approved";
+              const canRejectRun = canModerateRuns && run.status !== "rejected";
+              const statusLabel =
+                run.status === "approved"
+                  ? "Approved"
+                  : run.status === "rejected"
+                    ? "Rejected"
+                    : "Pending";
 
               return (
                 <motion.tr
@@ -646,9 +705,9 @@ export default function PlayerProfileView({
                 >
                   <td className="px-3 py-4 align-middle">
                     <span
-                      className={`inline-flex rounded-full border px-2 py-0.5 text-xs ${statusBadge(run.isApproved)}`}
+                      className={`inline-flex rounded-full border px-2 py-0.5 text-xs ${statusBadge(run.status)}`}
                     >
-                      {run.isApproved ? "Approved" : "Pending"}
+                      {statusLabel}
                     </span>
                   </td>
                   <td className="px-3 py-4 align-middle">
@@ -732,7 +791,7 @@ export default function PlayerProfileView({
                   </td>
                   {canModerateRuns ? (
                     <td className="px-3 py-4 align-middle">
-                      {run.isApproved && run.approvedByDisplayName ? (
+                      {run.status === "approved" && run.approvedByDisplayName ? (
                         <div className="min-w-0">
                           <div className="truncate text-sm font-semibold text-white">
                             {run.approvedByDisplayName}
@@ -746,34 +805,94 @@ export default function PlayerProfileView({
                       )}
                     </td>
                   ) : null}
-                  {canViewRunActions ? (
+                  {hasAnyRunActions ? (
                     <td className="px-3 py-4 text-center align-middle">
-                      {canDeleteRun ? (
-                        <button
-                          type="button"
-                          disabled={deletingRunId === run.runId}
-                          aria-label={
-                            deletingRunId === run.runId
-                              ? "Deleting run"
-                              : "Delete run"
-                          }
-                          title={
-                            deletingRunId === run.runId
-                              ? "Deleting run"
-                              : "Delete run"
-                          }
-                          onClick={() => {
-                            setDeletingRunId(run.runId);
-                            deleteRunMutation.mutate({ runId: run.runId });
-                          }}
-                          className="mx-auto inline-flex h-9 w-9 cursor-pointer items-center justify-center rounded-lg border border-red-400/25 bg-red-400/10 text-red-200 transition-colors hover:border-red-300 hover:bg-red-400/20 hover:text-red-100 disabled:cursor-not-allowed disabled:opacity-60"
-                        >
-                          {deletingRunId === run.runId ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                          ) : (
-                            <Trash2 className="h-4 w-4" />
-                          )}
-                        </button>
+                      {canApproveRun || canRejectRun || canDeleteRun ? (
+                        <div className="mx-auto flex w-fit items-center gap-2">
+                          {canApproveRun ? (
+                            <button
+                              type="button"
+                              disabled={deletingRunId === run.runId}
+                              aria-label={
+                                deletingRunId === run.runId
+                                  ? "Approving run"
+                                  : "Approve run"
+                              }
+                              title={
+                                deletingRunId === run.runId
+                                  ? "Approving run"
+                                  : "Approve run"
+                              }
+                              onClick={() => {
+                                setDeletingRunId(run.runId);
+                                approveRunMutation.mutate({ runId: run.runId });
+                              }}
+                              className="inline-flex h-9 w-9 cursor-pointer items-center justify-center rounded-lg border border-emerald-400/25 bg-emerald-400/10 text-emerald-200 transition-colors hover:border-emerald-300 hover:bg-emerald-400/20 hover:text-emerald-100 disabled:cursor-not-allowed disabled:opacity-60"
+                            >
+                              {deletingRunId === run.runId ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <Check className="h-4 w-4" />
+                              )}
+                            </button>
+                          ) : null}
+
+                          {canRejectRun ? (
+                            <button
+                              type="button"
+                              disabled={deletingRunId === run.runId}
+                              aria-label={
+                                deletingRunId === run.runId
+                                  ? "Rejecting run"
+                                  : "Reject run"
+                              }
+                              title={
+                                deletingRunId === run.runId
+                                  ? "Rejecting run"
+                                  : "Reject run"
+                              }
+                              onClick={() => {
+                                setDeletingRunId(run.runId);
+                                rejectRunMutation.mutate({ runId: run.runId });
+                              }}
+                              className="inline-flex h-9 w-9 cursor-pointer items-center justify-center rounded-lg border border-red-400/25 bg-red-400/10 text-red-200 transition-colors hover:border-red-300 hover:bg-red-400/20 hover:text-red-100 disabled:cursor-not-allowed disabled:opacity-60"
+                            >
+                              {deletingRunId === run.runId ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <Ban className="h-4 w-4" />
+                              )}
+                            </button>
+                          ) : null}
+
+                          {canDeleteRun ? (
+                            <button
+                              type="button"
+                              disabled={deletingRunId === run.runId}
+                              aria-label={
+                                deletingRunId === run.runId
+                                  ? "Deleting run"
+                                  : "Delete run"
+                              }
+                              title={
+                                deletingRunId === run.runId
+                                  ? "Deleting run"
+                                  : "Delete run"
+                              }
+                              onClick={() => {
+                                setDeletingRunId(run.runId);
+                                deleteRunMutation.mutate({ runId: run.runId });
+                              }}
+                              className="inline-flex h-9 w-9 cursor-pointer items-center justify-center rounded-lg border border-red-400/25 bg-red-400/10 text-red-200 transition-colors hover:border-red-300 hover:bg-red-400/20 hover:text-red-100 disabled:cursor-not-allowed disabled:opacity-60"
+                            >
+                              {deletingRunId === run.runId ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <Trash2 className="h-4 w-4" />
+                              )}
+                            </button>
+                          ) : null}
+                        </div>
                       ) : (
                         <span className="text-xs text-gray-500">-</span>
                       )}
@@ -806,6 +925,7 @@ export default function PlayerProfileView({
               <h2 className="text-2xl font-bold text-white">Submit New Run</h2>
               <p className="mt-1 text-sm text-gray-400">
                 Pending runs are reviewed before being shown on the leaderboard.
+                Please also post a screenshot of the endscreen in the discord.
               </p>
             </div>
           </div>
@@ -814,32 +934,77 @@ export default function PlayerProfileView({
             onSubmit={submitForm}
             className="grid grid-cols-1 gap-4 md:grid-cols-2"
           >
-            <label className="space-y-1">
+            <div className="space-y-1">
               <span className="text-xs tracking-[0.16em] text-gray-500 uppercase">
                 Quest
               </span>
-              <select
-                className="w-full rounded-lg border border-gray-700 bg-gray-900/70 px-3 py-2 text-sm text-gray-100 transition-colors outline-none focus:border-amber-400"
-                value={formWithDefaultQuest.questId}
-                onChange={(event) =>
-                  setForm((current) => ({
-                    ...current,
-                    questId: event.target.value,
-                  }))
-                }
-                required
-              >
-                {(submitOptionsQuery.data?.quests ?? []).map((quest) => {
-                  const id =
-                    submitOptionsQuery.data?.questIdsBySlug[quest.slug] ?? "";
-                  return (
-                    <option key={quest.slug} value={id}>
-                      {quest.title} · {quest.difficultyStars}★ {quest.monster}
-                    </option>
-                  );
-                })}
-              </select>
-            </label>
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() =>
+                    setOpenDropdown(openDropdown === "quest" ? null : "quest")
+                  }
+                  className="relative w-full rounded-lg border border-gray-700 bg-gray-900/70 px-3 py-2 pr-10 text-left text-sm text-gray-100 transition-colors outline-none hover:border-amber-400 focus-visible:border-amber-400"
+                >
+                  <span className="block truncate">
+                    {(() => {
+                      const quest = (submitOptionsQuery.data?.quests ?? []).find(
+                        (q) =>
+                          (submitOptionsQuery.data?.questIdsBySlug[q.slug] ??
+                            "") === formWithDefaultQuest.questId
+                      );
+                      return quest
+                        ? `${quest.title} · ${quest.difficultyStars}★ ${quest.monster}`
+                        : "Select quest";
+                    })()}
+                  </span>
+                  <ChevronDown
+                    className={`pointer-events-none absolute top-1/2 right-3 h-4 w-4 -translate-y-1/2 text-gray-400 transition-transform duration-200 ${
+                      openDropdown === "quest"
+                        ? "rotate-180 text-amber-300"
+                        : ""
+                    }`}
+                  />
+                </button>
+                {openDropdown === "quest" && (
+                  <motion.div
+                    role="listbox"
+                    initial={{ opacity: 0, y: -4, scale: 0.99 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: -4, scale: 0.99 }}
+                    transition={{ duration: 0.16 }}
+                    className="absolute z-30 mt-2 max-h-64 w-full overflow-y-auto rounded-lg border border-gray-700 bg-gray-900/95 p-1 shadow-2xl shadow-black/35 backdrop-blur-sm"
+                  >
+                    {(submitOptionsQuery.data?.quests ?? []).map((quest) => {
+                      const id =
+                        submitOptionsQuery.data?.questIdsBySlug[quest.slug] ??
+                        "";
+                      return (
+                        <button
+                          key={quest.slug}
+                          type="button"
+                          role="option"
+                          onClick={() => {
+                            setForm((current) => ({
+                              ...current,
+                              questId: id,
+                            }));
+                            setOpenDropdown(null);
+                          }}
+                          className={`flex w-full rounded-md px-3 py-2 text-left text-sm transition-colors ${
+                            formWithDefaultQuest.questId === id
+                              ? "bg-amber-400/15 text-amber-100"
+                              : "text-gray-200 hover:bg-white/7"
+                          }`}
+                        >
+                          {quest.title} · {quest.difficultyStars}★ {quest.monster}
+                        </button>
+                      );
+                    })}
+                  </motion.div>
+                )}
+              </div>
+            </div>
 
             <label className="space-y-1">
               <span className="text-xs tracking-[0.16em] text-gray-500 uppercase">
@@ -849,6 +1014,7 @@ export default function PlayerProfileView({
                 type="text"
                 className="w-full rounded-lg border border-gray-700 bg-gray-900/70 px-3 py-2 text-sm text-gray-100 transition-colors outline-none focus:border-amber-400"
                 value={formWithDefaultQuest.hunterName}
+                maxLength={MAX_SUBMIT_HUNTER_NAME_LENGTH}
                 onChange={(event) =>
                   setForm((current) => ({
                     ...current,
@@ -868,87 +1034,218 @@ export default function PlayerProfileView({
                 type="text"
                 className="w-full rounded-lg border border-gray-700 bg-gray-900/70 px-3 py-2 text-sm text-gray-100 transition-colors outline-none focus:border-amber-400"
                 value={formWithDefaultQuest.runTime}
-                onChange={(event) =>
+                onChange={(event) => {
+                  const filtered = event.target.value.replace(/[^0-9':"]/g, "");
                   setForm((current) => ({
                     ...current,
-                    runTime: event.target.value,
-                  }))
-                }
-                placeholder="mm:ss.cc"
+                    runTime: filtered,
+                  }));
+                }}
+                placeholder={"mm'ss\"cc"}
+                maxLength={11}
                 required
               />
             </label>
 
-            <label className="space-y-1">
+            <div className="space-y-1">
               <span className="text-xs tracking-[0.16em] text-gray-500 uppercase">
                 Category
               </span>
-              <select
-                className="w-full rounded-lg border border-gray-700 bg-gray-900/70 px-3 py-2 text-sm text-gray-100 transition-colors outline-none focus:border-amber-400"
-                value={formWithDefaultQuest.category}
-                onChange={(event) =>
-                  setForm((current) => ({
-                    ...current,
-                    category: event.target.value as RunCategoryId,
-                  }))
-                }
-                required
-              >
-                <option value="">Select category</option>
-                {(submitOptionsQuery.data?.categories ?? []).map((category) => (
-                  <option key={category.id} value={category.id}>
-                    {category.label}
-                  </option>
-                ))}
-              </select>
-            </label>
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() =>
+                    setOpenDropdown(
+                      openDropdown === "category" ? null : "category"
+                    )
+                  }
+                  className="relative w-full rounded-lg border border-gray-700 bg-gray-900/70 px-3 py-2 pr-10 text-left text-sm text-gray-100 transition-colors outline-none hover:border-amber-400 focus-visible:border-amber-400"
+                >
+                  <span className="block truncate">
+                    {(submitOptionsQuery.data?.categories ?? []).find(
+                      (c) => c.id === formWithDefaultQuest.category
+                    )?.label || "Select category"}
+                  </span>
+                  <ChevronDown
+                    className={`pointer-events-none absolute top-1/2 right-3 h-4 w-4 -translate-y-1/2 text-gray-400 transition-transform duration-200 ${
+                      openDropdown === "category"
+                        ? "rotate-180 text-amber-300"
+                        : ""
+                    }`}
+                  />
+                </button>
+                {openDropdown === "category" && (
+                  <motion.div
+                    role="listbox"
+                    initial={{ opacity: 0, y: -4, scale: 0.99 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: -4, scale: 0.99 }}
+                    transition={{ duration: 0.16 }}
+                    className="absolute z-30 mt-2 w-full overflow-y-auto rounded-lg border border-gray-700 bg-gray-900/95 p-1 shadow-2xl shadow-black/35 backdrop-blur-sm"
+                  >
+                    {(submitOptionsQuery.data?.categories ?? []).map(
+                      (category) => (
+                        <button
+                          key={category.id}
+                          type="button"
+                          role="option"
+                          onClick={() => {
+                            setForm((current) => ({
+                              ...current,
+                              category: category.id,
+                            }));
+                            setOpenDropdown(null);
+                          }}
+                          className={`flex w-full rounded-md px-3 py-2 text-left text-sm transition-colors ${
+                            formWithDefaultQuest.category === category.id
+                              ? "bg-amber-400/15 text-amber-100"
+                              : "text-gray-200 hover:bg-white/7"
+                          }`}
+                        >
+                          {category.label}
+                        </button>
+                      )
+                    )}
+                  </motion.div>
+                )}
+              </div>
+            </div>
 
-            <label className="space-y-1">
+            <div className="space-y-1">
               <span className="text-xs tracking-[0.16em] text-gray-500 uppercase">
                 Primary Weapon
               </span>
-              <select
-                className="w-full rounded-lg border border-gray-700 bg-gray-900/70 px-3 py-2 text-sm text-gray-100 transition-colors outline-none focus:border-amber-400"
-                value={formWithDefaultQuest.primaryWeaponKey}
-                onChange={(event) =>
-                  setForm((current) => ({
-                    ...current,
-                    primaryWeaponKey: event.target.value,
-                  }))
-                }
-                required
-              >
-                <option value="">Select primary weapon</option>
-                {(submitOptionsQuery.data?.weapons ?? []).map((weapon) => (
-                  <option key={weapon.key} value={weapon.key}>
-                    {weapon.label}
-                  </option>
-                ))}
-              </select>
-            </label>
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() =>
+                    setOpenDropdown(
+                      openDropdown === "primary" ? null : "primary"
+                    )
+                  }
+                  className="relative w-full rounded-lg border border-gray-700 bg-gray-900/70 px-3 py-2 pr-10 text-left text-sm text-gray-100 transition-colors outline-none hover:border-amber-400 focus-visible:border-amber-400"
+                >
+                  <span className="block truncate">
+                    {(submitOptionsQuery.data?.weapons ?? []).find(
+                      (w) => w.key === formWithDefaultQuest.primaryWeaponKey
+                    )?.label || "Select primary weapon"}
+                  </span>
+                  <ChevronDown
+                    className={`pointer-events-none absolute top-1/2 right-3 h-4 w-4 -translate-y-1/2 text-gray-400 transition-transform duration-200 ${
+                      openDropdown === "primary"
+                        ? "rotate-180 text-amber-300"
+                        : ""
+                    }`}
+                  />
+                </button>
+                {openDropdown === "primary" && (
+                  <motion.div
+                    role="listbox"
+                    initial={{ opacity: 0, y: -4, scale: 0.99 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: -4, scale: 0.99 }}
+                    transition={{ duration: 0.16 }}
+                    className="absolute z-30 mt-2 max-h-64 w-full overflow-y-auto rounded-lg border border-gray-700 bg-gray-900/95 p-1 shadow-2xl shadow-black/35 backdrop-blur-sm"
+                  >
+                    {(submitOptionsQuery.data?.weapons ?? []).map((weapon) => (
+                      <button
+                        key={weapon.key}
+                        type="button"
+                        role="option"
+                        onClick={() => {
+                          setForm((current) => ({
+                            ...current,
+                            primaryWeaponKey: weapon.key,
+                          }));
+                          setOpenDropdown(null);
+                        }}
+                        className={`flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm transition-colors ${
+                          formWithDefaultQuest.primaryWeaponKey === weapon.key
+                            ? "bg-amber-400/15 text-amber-100"
+                            : "text-gray-200 hover:bg-white/7"
+                        }`}
+                      >
+                        <img
+                          src={`/weapons/${weapon.key}.png`}
+                          alt={weapon.key.toUpperCase()}
+                          title={weapon.key.toUpperCase()}
+                          className="h-5 w-5 object-contain"
+                        />
+                        {weapon.label}
+                      </button>
+                    ))}
+                  </motion.div>
+                )}
+              </div>
+            </div>
 
-            <label className="space-y-1">
+            <div className="space-y-1">
               <span className="text-xs tracking-[0.16em] text-gray-500 uppercase">
-                Secondary Weapon (optional)
+                Secondary Weapon
               </span>
-              <select
-                className="w-full rounded-lg border border-gray-700 bg-gray-900/70 px-3 py-2 text-sm text-gray-100 transition-colors outline-none focus:border-amber-400"
-                value={formWithDefaultQuest.secondaryWeaponKey}
-                onChange={(event) =>
-                  setForm((current) => ({
-                    ...current,
-                    secondaryWeaponKey: event.target.value,
-                  }))
-                }
-              >
-                <option value="">No secondary weapon</option>
-                {(submitOptionsQuery.data?.weapons ?? []).map((weapon) => (
-                  <option key={weapon.key} value={weapon.key}>
-                    {weapon.label}
-                  </option>
-                ))}
-              </select>
-            </label>
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() =>
+                    setOpenDropdown(
+                      openDropdown === "secondary" ? null : "secondary"
+                    )
+                  }
+                  className="relative w-full rounded-lg border border-gray-700 bg-gray-900/70 px-3 py-2 pr-10 text-left text-sm text-gray-100 transition-colors outline-none hover:border-amber-400 focus-visible:border-amber-400"
+                >
+                  <span className="block truncate">
+                    {(submitOptionsQuery.data?.weapons ?? []).find(
+                      (w) => w.key === formWithDefaultQuest.secondaryWeaponKey
+                    )?.label || "Select secondary weapon"}
+                  </span>
+                  <ChevronDown
+                    className={`pointer-events-none absolute top-1/2 right-3 h-4 w-4 -translate-y-1/2 text-gray-400 transition-transform duration-200 ${
+                      openDropdown === "secondary"
+                        ? "rotate-180 text-amber-300"
+                        : ""
+                    }`}
+                  />
+                </button>
+                {openDropdown === "secondary" && (
+                  <motion.div
+                    role="listbox"
+                    initial={{ opacity: 0, y: -4, scale: 0.99 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: -4, scale: 0.99 }}
+                    transition={{ duration: 0.16 }}
+                    className="absolute z-30 mt-2 max-h-64 w-full overflow-y-auto rounded-lg border border-gray-700 bg-gray-900/95 p-1 shadow-2xl shadow-black/35 backdrop-blur-sm"
+                  >
+                    {(submitOptionsQuery.data?.weapons ?? []).map((weapon) => (
+                      <button
+                        key={weapon.key}
+                        type="button"
+                        role="option"
+                        onClick={() => {
+                          setForm((current) => ({
+                            ...current,
+                            secondaryWeaponKey: weapon.key,
+                          }));
+                          setOpenDropdown(null);
+                        }}
+                        className={`flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm transition-colors ${
+                          formWithDefaultQuest.secondaryWeaponKey === weapon.key
+                            ? "bg-amber-400/15 text-amber-100"
+                            : "text-gray-200 hover:bg-white/7"
+                        }`}
+                      >
+                        <img
+                          src={`/weapons/${weapon.key}.png`}
+                          alt={weapon.key.toUpperCase()}
+                          title={weapon.key.toUpperCase()}
+                          className="h-5 w-5 object-contain"
+                        />
+                        {weapon.label}
+                      </button>
+                    ))}
+                  </motion.div>
+                )}
+              </div>
+            </div>
 
             <div className="space-y-2 md:col-span-2">
               <span className="text-xs tracking-[0.16em] text-gray-500 uppercase">
@@ -977,6 +1274,7 @@ export default function PlayerProfileView({
                 <input
                   type="text"
                   value={tagInput}
+                  maxLength={MAX_SUBMIT_TAG_LENGTH}
                   onChange={(event) => setTagInput(event.target.value)}
                   onKeyDown={(event) => {
                     if (event.key !== "Enter") return;

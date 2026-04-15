@@ -1,4 +1,4 @@
-import type { RunCategoryId } from "~/server/types/leaderboard";
+import type { RunCategoryId, UserRole } from "~/server/types/leaderboard";
 
 export type PlayerOverviewRow = {
   userId: string;
@@ -32,11 +32,13 @@ export type PlayerProfileRunRow = {
   runTimeMs: number;
   categoryId: RunCategoryId;
   tagLabels: string[];
+  status: "pending" | "approved" | "rejected";
   primaryWeaponKey: string;
   secondaryWeaponKey: string | null;
   isApproved: boolean;
   approvedByDisplayName: string | null;
   approvedAtMs: number | null;
+  rejectedAtMs: number | null;
 };
 
 export type PlayerProfileData = {
@@ -57,6 +59,7 @@ export type PlayerProfileData = {
   pendingRuns: PlayerProfileRunRow[];
   approvedRuns: PlayerProfileRunRow[];
   isCurrentUser: boolean;
+  viewerRole: UserRole | null;
   leaderboardPlacement: number | null;
 };
 

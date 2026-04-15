@@ -6,6 +6,8 @@ import {
   publicProcedure,
 } from "~/server/api/trpc";
 import {
+  approveRun,
+  rejectRun,
   getPlayerProfile,
   getPlayersOverview,
   getSubmitRunOptions,
@@ -45,5 +47,25 @@ export const playersRouter = createTRPCRouter({
     )
     .mutation(({ input, ctx }) =>
       deleteRun(input.runId, ctx.session.user.id, ctx.session.user.role),
+    ),
+
+  approveRun: protectedProcedure
+    .input(
+      z.object({
+        runId: z.string().trim().min(1),
+      }),
+    )
+    .mutation(({ input, ctx }) =>
+      approveRun(input.runId, ctx.session.user.id, ctx.session.user.role),
+    ),
+
+  rejectRun: protectedProcedure
+    .input(
+      z.object({
+        runId: z.string().trim().min(1),
+      }),
+    )
+    .mutation(({ input, ctx }) =>
+      rejectRun(input.runId, ctx.session.user.id, ctx.session.user.role),
     ),
 });

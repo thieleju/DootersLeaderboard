@@ -1,4 +1,4 @@
-export const RUN_TIME_INPUT_REGEX = /^([0-5]?\d):([0-5]\d)\.([0-9]{2})$/;
+export const RUN_TIME_INPUT_REGEX = /^([0-5]?\d)'([0-5]\d)"([0-9]{2})$/;
 
 export function parseRunTimeInputToMs(runTime: string) {
   const match = runTime.match(RUN_TIME_INPUT_REGEX);

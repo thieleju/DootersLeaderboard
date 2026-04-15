@@ -7,11 +7,7 @@ import {
 } from "drizzle-orm/sqlite-core";
 import type { AdapterAccount } from "next-auth/adapters";
 
-import {
-  type QuestType,
-  type RunCategoryId,
-  type UserRole,
-} from "~/server/types/leaderboard";
+import type { QuestType, RunCategoryId, UserRole } from "../types/leaderboard";
 
 export const createTable = sqliteTableCreator(
   (name) => `dootersleaderboard_${name}`,
@@ -135,11 +131,14 @@ export const runs = createTable(
     secondaryWeapon: d.text({ length: 255 }),
     approvedByUserId: d.text({ length: 255 }).references(() => users.id),
     approvedAt: d.integer({ mode: "timestamp" }),
+    rejectedByUserId: d.text({ length: 255 }).references(() => users.id),
+    rejectedAt: d.integer({ mode: "timestamp" }),
   }),
   (t) => [
     index("run_user_id_idx").on(t.userId),
     index("run_quest_id_idx").on(t.questId),
     index("run_approved_by_user_id_idx").on(t.approvedByUserId),
+    index("run_rejected_by_user_id_idx").on(t.rejectedByUserId),
   ],
 );
 
@@ -152,6 +151,10 @@ export const runsRelations = relations(runs, ({ one }) => ({
   quest: one(quests, { fields: [runs.questId], references: [quests.id] }),
   approvedBy: one(users, {
     fields: [runs.approvedByUserId],
+    references: [users.id],
+  }),
+  rejectedBy: one(users, {
+    fields: [runs.rejectedByUserId],
     references: [users.id],
   }),
 }));

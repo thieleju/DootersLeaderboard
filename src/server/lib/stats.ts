@@ -3,7 +3,7 @@ import "server-only";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 
-import { asc, desc, eq } from "drizzle-orm";
+import { asc, desc, eq, isNotNull } from "drizzle-orm";
 import { parse } from "jsonc-parser";
 
 import { db } from "~/server/db";
@@ -40,7 +40,8 @@ export async function getHomeStats(): Promise<HomeStats> {
       primaryWeaponKey: runsTable.primaryWeapon,
       secondaryWeaponKey: runsTable.secondaryWeapon,
     })
-    .from(runsTable);
+    .from(runsTable)
+    .where(isNotNull(runsTable.approvedByUserId));
 
   const uploadedRunCount = uploadedRuns.length;
   const activeRunnerCount = new Set(uploadedRuns.map((run) => run.userId)).size;

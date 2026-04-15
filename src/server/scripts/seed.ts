@@ -5,12 +5,12 @@ import { createClient } from "@libsql/client";
 import { parse } from "jsonc-parser";
 import { drizzle } from "drizzle-orm/libsql";
 
-import { quests, runs, users } from "~/server/db/schema";
-import {
-  type LeaderboardQuestResource,
-  type LeaderboardRunResource,
-  type LeaderboardUserResource,
-} from "~/server/types/leaderboard";
+import { quests, runs, users } from "../db/schema";
+import type {
+  LeaderboardQuestResource,
+  LeaderboardRunResource,
+  LeaderboardUserResource,
+} from "../types/leaderboard";
 
 const resourceDir = path.join(process.cwd(), "src/server/resources");
 

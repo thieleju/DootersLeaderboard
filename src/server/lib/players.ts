@@ -229,6 +229,7 @@ export async function getPlayerProfile(
       pendingRuns: [],
       approvedRuns: [],
       isCurrentUser: false,
+      viewerRole: viewerRole ?? null,
       leaderboardPlacement: null,
     };
   }
@@ -270,6 +271,8 @@ export async function getPlayerProfile(
       secondaryWeaponKey: runsTable.secondaryWeapon,
       approvedByUserId: runsTable.approvedByUserId,
       approvedAt: runsTable.approvedAt,
+      rejectedByUserId: runsTable.rejectedByUserId,
+      rejectedAt: runsTable.rejectedAt,
       questTitle: questsTable.title,
       monster: questsTable.monster,
       difficultyStars: questsTable.difficultyStars,
@@ -318,6 +321,16 @@ export async function getPlayerProfile(
         ? run.approvedAt.getTime()
         : new Date(run.approvedAt).getTime()
       : null;
+    const rejectedAtMs = run.rejectedAt
+      ? run.rejectedAt instanceof Date
+        ? run.rejectedAt.getTime()
+        : new Date(run.rejectedAt).getTime()
+      : null;
+    const status = run.approvedByUserId
+      ? "approved"
+      : run.rejectedByUserId
+        ? "rejected"
+        : "pending";
 
     return {
       runId: run.runId,
@@ -331,6 +344,7 @@ export async function getPlayerProfile(
       runTimeMs: run.runTimeMs,
       categoryId: run.categoryId,
       tagLabels: parseRunTags(run.tags),
+      status,
       primaryWeaponKey: run.primaryWeaponKey,
       secondaryWeaponKey: run.secondaryWeaponKey,
       isApproved: Boolean(run.approvedByUserId),
@@ -338,6 +352,7 @@ export async function getPlayerProfile(
         ? (approverNameById.get(run.approvedByUserId) ?? "Moderator")
         : null,
       approvedAtMs,
+      rejectedAtMs,
     };
   });
 
@@ -351,15 +366,15 @@ export async function getPlayerProfile(
       displayName: user.displayName ?? user.username ?? "Player",
     },
     performance: {
-      score:
-        userScore && userScore.count > 0 ? userScore.sum / userScore.count : 0,
+      score: userScore ? userScore.sum : 0,
       top3Placements: userPlacements,
     },
     pendingRuns: canViewPendingRuns
-      ? rows.filter((run) => !run.isApproved)
+      ? rows.filter((run) => run.status !== "approved")
       : [],
-    approvedRuns: rows.filter((run) => run.isApproved),
+    approvedRuns: rows.filter((run) => run.status === "approved"),
     isCurrentUser,
+    viewerRole: viewerRole ?? null,
     leaderboardPlacement: leaderboardIndex >= 0 ? leaderboardIndex + 1 : null,
   };
 }
@@ -473,6 +488,8 @@ export async function submitRun(input: SubmitRunInput, userId: string) {
     secondaryWeapon: secondaryWeaponKey,
     approvedByUserId: null,
     approvedAt: null,
+    rejectedByUserId: null,
+    rejectedAt: null,
   });
 
   return { runId };
@@ -498,15 +515,96 @@ export async function deleteRun(
     throw new TRPCError({ code: "NOT_FOUND", message: "Run not found" });
   }
 
-  const canModerateRuns = viewerRole === "moderator" || viewerRole === "admin";
+  const isAdmin = viewerRole === "admin";
   const isOwner = run.userId === viewerUserId;
-  const canDeleteRun = canModerateRuns || (isOwner && !run.approvedByUserId);
+  const canDeleteRun = isAdmin || (isOwner && !run.approvedByUserId);
 
   if (!canDeleteRun) {
     throw new TRPCError({ code: "FORBIDDEN", message: "Cannot delete run" });
   }
 
   await db.delete(runsTable).where(eq(runsTable.id, runId));
+
+  return { runId };
+}
+
+export async function rejectRun(
+  runId: string,
+  viewerUserId: string,
+  viewerRole: UserRole,
+) {
+  const canModerateRuns = viewerRole === "moderator" || viewerRole === "admin";
+  if (!canModerateRuns) {
+    throw new TRPCError({ code: "FORBIDDEN", message: "Cannot reject run" });
+  }
+
+  const run = await db
+    .select({
+      id: runsTable.id,
+      approvedByUserId: runsTable.approvedByUserId,
+    })
+    .from(runsTable)
+    .where(eq(runsTable.id, runId))
+    .limit(1)
+    .then((rows) => rows[0] ?? null);
+
+  if (!run) {
+    throw new TRPCError({ code: "NOT_FOUND", message: "Run not found" });
+  }
+
+  await db
+    .update(runsTable)
+    .set({
+      approvedByUserId: null,
+      approvedAt: null,
+      rejectedByUserId: viewerUserId,
+      rejectedAt: new Date(),
+    })
+    .where(eq(runsTable.id, runId));
+
+  return { runId };
+}
+
+export async function approveRun(
+  runId: string,
+  viewerUserId: string,
+  viewerRole: UserRole,
+) {
+  const canModerateRuns = viewerRole === "moderator" || viewerRole === "admin";
+  if (!canModerateRuns) {
+    throw new TRPCError({ code: "FORBIDDEN", message: "Cannot approve run" });
+  }
+
+  const run = await db
+    .select({
+      id: runsTable.id,
+      approvedByUserId: runsTable.approvedByUserId,
+    })
+    .from(runsTable)
+    .where(eq(runsTable.id, runId))
+    .limit(1)
+    .then((rows) => rows[0] ?? null);
+
+  if (!run) {
+    throw new TRPCError({ code: "NOT_FOUND", message: "Run not found" });
+  }
+
+  if (run.approvedByUserId) {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message: "Run is already approved",
+    });
+  }
+
+  await db
+    .update(runsTable)
+    .set({
+      approvedByUserId: viewerUserId,
+      approvedAt: new Date(),
+      rejectedByUserId: null,
+      rejectedAt: null,
+    })
+    .where(eq(runsTable.id, runId));
 
   return { runId };
 }
