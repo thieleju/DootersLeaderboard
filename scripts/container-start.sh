@@ -1,12 +1,20 @@
 #!/bin/sh
 set -eu
 
-echo "[startup] container-start.sh booting"
+log() {
+  printf '%s\n' "[startup] $*"
+}
+
+log "container-start.sh booting"
+
+if [ "${STARTUP_DEBUG:-0}" = "1" ]; then
+  set -x
+fi
 
 on_exit() {
   code=$?
   if [ "$code" -ne 0 ]; then
-    echo "[startup] exiting with error code $code"
+    log "exiting with error code $code"
   fi
 }
 
@@ -20,6 +28,10 @@ if [ -z "${DATABASE_URL:-}" ]; then
   export DATABASE_URL="file:${DB_FILE}"
 fi
 
+log "node version: $(node -v)"
+log "pnpm version: $(pnpm -v)"
+log "working directory: $(pwd)"
+
 missing=""
 for required_var in AUTH_SECRET AUTH_DISCORD_ID AUTH_DISCORD_SECRET DISCORD_ADMIN_ID; do
   eval "value=\${$required_var:-}"
@@ -29,29 +41,35 @@ for required_var in AUTH_SECRET AUTH_DISCORD_ID AUTH_DISCORD_SECRET DISCORD_ADMI
 done
 
 if [ -n "$missing" ]; then
-  echo "[startup] Missing required environment variables:$missing"
+  log "Missing required environment variables:$missing"
   exit 1
 fi
 
-echo "[startup] Environment looks valid"
+log "Environment looks valid"
 
 mkdir -p "$DB_DIR"
 
 if [ ! -f "$DB_FILE" ]; then
-  echo "[startup] Database file not found, creating ${DB_FILE}"
+  log "Database file not found, creating ${DB_FILE}"
   : > "$DB_FILE"
   DB_CREATED=1
 else
-  echo "[startup] Database file exists: ${DB_FILE}"
+  log "Database file exists: ${DB_FILE}"
 fi
 
-echo "[startup] Running schema sync: pnpm run db:push"
-pnpm run db:push
+log "Running schema sync: pnpm run db:push"
+if ! pnpm run db:push; then
+  log "Schema sync failed"
+  exit 1
+fi
 
 if [ "$DB_CREATED" -eq 1 ]; then
-  echo "[startup] Fresh database detected, running production seed"
-  pnpm run db:seed:production
+  log "Fresh database detected, running production seed"
+  if ! pnpm run db:seed:production; then
+    log "Production seed failed"
+    exit 1
+  fi
 fi
 
-echo "[startup] Starting Next.js standalone server"
+log "Starting Next.js standalone server"
 exec node server.js
