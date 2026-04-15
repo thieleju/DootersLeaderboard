@@ -15,7 +15,7 @@ export const submitRunInputSchema = z.object({
     .min(2, "Hunter name is required")
     .max(
       MAX_SUBMIT_HUNTER_NAME_LENGTH,
-      `Hunter name must be at most ${MAX_SUBMIT_HUNTER_NAME_LENGTH} characters`,
+      `Hunter name must be at most ${MAX_SUBMIT_HUNTER_NAME_LENGTH} characters`
     ),
   runTime: z
     .string()
@@ -31,10 +31,10 @@ export const submitRunInputSchema = z.object({
         .trim()
         .max(
           MAX_SUBMIT_TAG_LENGTH,
-          `Tags can be at most ${MAX_SUBMIT_TAG_LENGTH} characters`,
-        ),
+          `Tags can be at most ${MAX_SUBMIT_TAG_LENGTH} characters`
+        )
     )
     .max(MAX_SUBMIT_TAGS, `You can add at most ${MAX_SUBMIT_TAGS} tags`)
     .optional()
-    .default([]),
+    .default([])
 });

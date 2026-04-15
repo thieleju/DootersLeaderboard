@@ -18,13 +18,13 @@ interface AdminUsersTableProps {
 const roleLabelByRole = {
   runner: "Runner",
   moderator: "Moderator",
-  admin: "Admin",
+  admin: "Admin"
 } as const;
 
 const roleToneClassByRole = {
   runner: "border-gray-700 bg-white/5 text-gray-300",
   moderator: "border-amber-300/30 bg-amber-400/10 text-amber-300",
-  admin: "border-cyan-300/30 bg-cyan-400/10 text-cyan-200",
+  admin: "border-cyan-300/30 bg-cyan-400/10 text-cyan-200"
 } as const;
 
 const roleButtonClassByRole = {
@@ -33,15 +33,15 @@ const roleButtonClassByRole = {
   moderator:
     "border-amber-300/30 bg-amber-400/10 text-amber-300 hover:border-amber-200 hover:bg-amber-400/20",
   admin:
-    "border-cyan-300/30 bg-cyan-400/10 text-cyan-200 hover:border-cyan-200 hover:bg-cyan-400/20",
+    "border-cyan-300/30 bg-cyan-400/10 text-cyan-200 hover:border-cyan-200 hover:bg-cyan-400/20"
 } as const;
 
 export default function AdminUsersTable({
   delay = 0,
-  onInitialReady,
+  onInitialReady
 }: AdminUsersTableProps) {
   const adminQuery = api.admin.listUsers.useQuery(undefined, {
-    staleTime: Infinity,
+    staleTime: Infinity
   });
   const utils = api.useUtils();
   const [updatingUserId, setUpdatingUserId] = useState<string | null>(null);
@@ -63,12 +63,12 @@ export default function AdminUsersTable({
       await Promise.all([
         utils.admin.listUsers.invalidate(),
         utils.players.list.invalidate(),
-        utils.players.profile.invalidate(),
+        utils.players.profile.invalidate()
       ]);
     },
     onError: () => {
       setUpdatingUserId(null);
-    },
+    }
   });
 
   return (
@@ -81,7 +81,7 @@ export default function AdminUsersTable({
         columns={[
           { key: "user", label: "User" },
           { key: "role", label: "Role", className: "text-center" },
-          { key: "actions", label: "Actions", className: "text-center" },
+          { key: "actions", label: "Actions", className: "text-center" }
         ]}
       >
         {adminQuery.isLoading ? (
@@ -156,7 +156,7 @@ export default function AdminUsersTable({
                           setUpdatingUserId(user.id);
                           updateRoleMutation.mutate({
                             userId: user.id,
-                            role,
+                            role
                           });
                         }}
                         className={`inline-flex min-w-[5.5rem] items-center justify-center rounded-lg border px-3 py-2 text-xs font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${

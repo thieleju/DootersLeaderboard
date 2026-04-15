@@ -12,7 +12,7 @@ import {
   Layers,
   Shield,
   Tag,
-  Trophy,
+  Trophy
 } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
@@ -22,19 +22,19 @@ import type {
   LeaderboardCategoryFilterKey,
   LeaderboardCategoryOption,
   LeaderboardQuestOption,
-  LeaderboardRow,
+  LeaderboardRow
 } from "~/server/types/leaderboard";
 import AnimatedCard from "./animated-card";
 import DataTable, {
   DataTableLoadingState,
-  getRankBadgeClass,
+  getRankBadgeClass
 } from "./data-table";
 import { categoryToneClasses } from "./theme-classes";
 
 const categoryIconMap = {
   flame: Flame,
   shield: Shield,
-  "book-open": BookOpen,
+  "book-open": BookOpen
 } as const;
 
 function formatRunTime(ms: number) {
@@ -57,7 +57,7 @@ function formatFullDateTime(timestampMs: number) {
     day: "numeric",
     hour: "2-digit",
     minute: "2-digit",
-    hour12: false,
+    hour12: false
   }).format(timestampMs);
 }
 
@@ -68,7 +68,7 @@ interface LeaderboardTableProps {
 export default function LeaderboardTable({ delay = 0 }: LeaderboardTableProps) {
   const questSelectRef = useRef<HTMLDivElement | null>(null);
   const filtersQuery = api.leaderboard.filters.useQuery(undefined, {
-    staleTime: Infinity,
+    staleTime: Infinity
   });
   const [questId, setQuestId] = useState("");
   const [selectedCategoryId, setSelectedCategoryId] =
@@ -82,7 +82,7 @@ export default function LeaderboardTable({ delay = 0 }: LeaderboardTableProps) {
   }, [filtersQuery.data?.defaultQuestId, questId]);
 
   const leaderboardQuery = api.leaderboard.getLeaderboard.useQuery(undefined, {
-    staleTime: Infinity,
+    staleTime: Infinity
   });
 
   const questOptions: LeaderboardQuestOption[] =
@@ -95,7 +95,7 @@ export default function LeaderboardTable({ delay = 0 }: LeaderboardTableProps) {
     return allRows.filter(
       (row) =>
         row.questId === questId &&
-        (selectedCategoryId === "all" || row.categoryId === selectedCategoryId),
+        (selectedCategoryId === "all" || row.categoryId === selectedCategoryId)
     );
   }, [leaderboardQuery.data?.rows, questId, selectedCategoryId]);
 
@@ -206,12 +206,12 @@ export default function LeaderboardTable({ delay = 0 }: LeaderboardTableProps) {
                 {(
                   [
                     "all",
-                    ...availableCategories.map((category) => category.id),
+                    ...availableCategories.map((category) => category.id)
                   ] as const
                 ).map((categoryId) => {
                   const isActive = selectedCategoryId === categoryId;
                   const category = availableCategories.find(
-                    (item) => item.id === categoryId,
+                    (item) => item.id === categoryId
                   );
                   const label =
                     categoryId === "all"
@@ -225,7 +225,7 @@ export default function LeaderboardTable({ delay = 0 }: LeaderboardTableProps) {
                           active:
                             "border-amber-300 bg-amber-300 text-gray-950 shadow-lg shadow-amber-400/20",
                           inactive:
-                            "border-gray-700 bg-white/5 text-gray-300 hover:border-amber-300 hover:bg-amber-400/15 hover:text-amber-100",
+                            "border-gray-700 bg-white/5 text-gray-300 hover:border-amber-300 hover:bg-amber-400/15 hover:text-amber-100"
                         }
                       : categoryToneClasses[category.color];
                   const CategoryIcon =
@@ -236,7 +236,7 @@ export default function LeaderboardTable({ delay = 0 }: LeaderboardTableProps) {
                     categoryId === "all"
                       ? null
                       : availableCategories.find(
-                          (item) => item.id === categoryId,
+                          (item) => item.id === categoryId
                         );
 
                   return (
@@ -293,7 +293,7 @@ export default function LeaderboardTable({ delay = 0 }: LeaderboardTableProps) {
           { key: "category", label: "Category" },
           { key: "tags", label: "Tags" },
           { key: "score", label: "Score", align: "right" },
-          { key: "time", label: "Time", align: "right" },
+          { key: "time", label: "Time", align: "right" }
         ]}
       >
         {leaderboardQuery.isLoading ? (
@@ -311,7 +311,7 @@ export default function LeaderboardTable({ delay = 0 }: LeaderboardTableProps) {
           >
             {rows.map((row, index) => {
               const category = availableCategories.find(
-                (item) => item.id === row.categoryId,
+                (item) => item.id === row.categoryId
               );
               const CategoryIcon = category
                 ? (categoryIconMap[category.icon] ?? Layers)

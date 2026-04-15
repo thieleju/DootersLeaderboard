@@ -11,7 +11,7 @@ import { db } from "~/server/db";
 import {
   quests as questsTable,
   runs as runsTable,
-  users as usersTable,
+  users as usersTable
 } from "~/server/db/schema";
 import type {
   LeaderboardAreaKey,
@@ -20,13 +20,13 @@ import type {
   LeaderboardQuestOption,
   UserRole,
   LeaderboardWeaponKey,
-  LeaderboardWeaponResource,
+  LeaderboardWeaponResource
 } from "~/server/types/leaderboard";
 import {
   type PlayerOverviewRow,
   type PlayerProfileData,
   type PlayerProfileRunRow,
-  type SubmitRunInput,
+  type SubmitRunInput
 } from "~/server/types/players";
 import { calculateUserScoreAndTop3Placements } from "~/server/lib/score";
 import { parseRunTimeInputToMs } from "~/server/lib/run-time";
@@ -91,7 +91,7 @@ export async function getPlayersOverview(): Promise<PlayerOverviewRow[]> {
       primaryWeapon: runsTable.primaryWeapon,
       secondaryWeapon: runsTable.secondaryWeapon,
       displayName: usersTable.displayName,
-      avatar: usersTable.image,
+      avatar: usersTable.image
     })
     .from(runsTable)
     .innerJoin(usersTable, eq(runsTable.userId, usersTable.id))
@@ -110,7 +110,7 @@ export async function getPlayersOverview(): Promise<PlayerOverviewRow[]> {
   for (const run of approvedRuns) {
     submittedRunsCount.set(
       run.userId,
-      (submittedRunsCount.get(run.userId) ?? 0) + 1,
+      (submittedRunsCount.get(run.userId) ?? 0) + 1
     );
 
     const submittedAtMs =
@@ -128,8 +128,8 @@ export async function getPlayersOverview(): Promise<PlayerOverviewRow[]> {
       weaponUsageByUser.get(run.userId) ?? new Map<string, number>();
     const weaponKeys = new Set(
       [run.primaryWeapon, run.secondaryWeapon].filter((key): key is string =>
-        Boolean(key),
-      ),
+        Boolean(key)
+      )
     );
     for (const key of weaponKeys) {
       usage.set(key, (usage.get(key) ?? 0) + 1);
@@ -139,7 +139,7 @@ export async function getPlayersOverview(): Promise<PlayerOverviewRow[]> {
     if (!userMeta.has(run.userId)) {
       userMeta.set(run.userId, {
         displayName: run.displayName ?? run.hunterName,
-        avatar: run.avatar ?? null,
+        avatar: run.avatar ?? null
       });
     }
   }
@@ -156,19 +156,19 @@ export async function getPlayersOverview(): Promise<PlayerOverviewRow[]> {
           mostUsedWeapon = {
             key,
             label: weaponByKey.get(key as LeaderboardWeaponKey)?.label ?? key,
-            count,
+            count
           };
         }
       }
 
       const meta = userMeta.get(userId) ?? {
         displayName: "Unknown Runner",
-        avatar: null,
+        avatar: null
       };
       const top3 = top3PlacementsByUser.get(userId) ?? {
         first: 0,
         second: 0,
-        third: 0,
+        third: 0
       };
       const score = scoreByUser.get(userId);
 
@@ -183,33 +183,33 @@ export async function getPlayersOverview(): Promise<PlayerOverviewRow[]> {
           first: top3.first,
           second: top3.second,
           third: top3.third,
-          total: top3.first + top3.second + top3.third,
+          total: top3.first + top3.second + top3.third
         },
         lastSubmittedAtMs: latestSubmittedAtByUser.get(userId) ?? 0,
-        mostUsedWeapon,
+        mostUsedWeapon
       };
-    },
+    }
   );
 
   return rows.sort(
     (a, b) =>
       b.score - a.score ||
       b.top3Placements.total - a.top3Placements.total ||
-      a.displayName.localeCompare(b.displayName),
+      a.displayName.localeCompare(b.displayName)
   );
 }
 
 export async function getPlayerProfile(
   userId: string,
   viewerUserId?: string,
-  viewerRole?: UserRole,
+  viewerRole?: UserRole
 ): Promise<PlayerProfileData> {
   const user = await db
     .select({
       id: usersTable.id,
       displayName: usersTable.displayName,
       username: usersTable.name,
-      avatar: usersTable.image,
+      avatar: usersTable.image
     })
     .from(usersTable)
     .where(eq(usersTable.id, userId))
@@ -221,12 +221,12 @@ export async function getPlayerProfile(
       user: null,
       performance: {
         score: 0,
-        top3Placements: { first: 0, second: 0, third: 0 },
+        top3Placements: { first: 0, second: 0, third: 0 }
       },
       runs: [],
       isCurrentUser: false,
       viewerRole: viewerRole ?? null,
-      leaderboardPlacement: null,
+      leaderboardPlacement: null
     };
   }
 
@@ -236,7 +236,7 @@ export async function getPlayerProfile(
       questId: runsTable.questId,
       runTimeMs: runsTable.runTimeMs,
       submittedAt: runsTable.submittedAt,
-      approvedByUserId: runsTable.approvedByUserId,
+      approvedByUserId: runsTable.approvedByUserId
     })
     .from(runsTable)
     .where(isNotNull(runsTable.approvedByUserId));
@@ -248,11 +248,11 @@ export async function getPlayerProfile(
   const userPlacements = top3PlacementsByUser.get(userId) ?? {
     first: 0,
     second: 0,
-    third: 0,
+    third: 0
   };
   const leaderboardRows = await getPlayersOverview();
   const leaderboardIndex = leaderboardRows.findIndex(
-    (row) => row.userId === userId,
+    (row) => row.userId === userId
   );
 
   const runRows = await db
@@ -272,7 +272,7 @@ export async function getPlayerProfile(
       questTitle: questsTable.title,
       monster: questsTable.monster,
       difficultyStars: questsTable.difficultyStars,
-      areaKey: questsTable.area,
+      areaKey: questsTable.area
     })
     .from(runsTable)
     .innerJoin(questsTable, eq(runsTable.questId, questsTable.id))
@@ -284,8 +284,8 @@ export async function getPlayerProfile(
     ...new Set(
       runRows
         .map((run) => run.approvedByUserId)
-        .filter((value): value is string => Boolean(value)),
-    ),
+        .filter((value): value is string => Boolean(value))
+    )
   ];
 
   const approverNameById = new Map<string, string>();
@@ -294,7 +294,7 @@ export async function getPlayerProfile(
       .select({
         id: usersTable.id,
         displayName: usersTable.displayName,
-        name: usersTable.name,
+        name: usersTable.name
       })
       .from(usersTable)
       .where(inArray(usersTable.id, approverUserIds));
@@ -302,7 +302,7 @@ export async function getPlayerProfile(
     for (const approver of approverUsers) {
       approverNameById.set(
         approver.id,
-        approver.displayName ?? approver.name ?? "Moderator",
+        approver.displayName ?? approver.name ?? "Moderator"
       );
     }
   }
@@ -348,7 +348,7 @@ export async function getPlayerProfile(
         ? (approverNameById.get(run.approvedByUserId) ?? "Moderator")
         : null,
       approvedAtMs,
-      rejectedAtMs,
+      rejectedAtMs
     };
   });
 
@@ -359,18 +359,18 @@ export async function getPlayerProfile(
   return {
     user: {
       ...user,
-      displayName: user.displayName ?? user.username ?? "Player",
+      displayName: user.displayName ?? user.username ?? "Player"
     },
     performance: {
       score: userScore ? userScore.sum : 0,
-      top3Placements: userPlacements,
+      top3Placements: userPlacements
     },
     runs: canViewPendingRuns
       ? rows
       : rows.filter((run) => run.status === "approved"),
     isCurrentUser,
     viewerRole: viewerRole ?? null,
-    leaderboardPlacement: leaderboardIndex >= 0 ? leaderboardIndex + 1 : null,
+    leaderboardPlacement: leaderboardIndex >= 0 ? leaderboardIndex + 1 : null
   };
 }
 
@@ -382,7 +382,7 @@ export async function getSubmitRunOptions() {
       monster: questsTable.monster,
       difficultyStars: questsTable.difficultyStars,
       type: questsTable.type,
-      areaKey: questsTable.area,
+      areaKey: questsTable.area
     })
     .from(questsTable)
     .orderBy(desc(questsTable.difficultyStars), asc(questsTable.title));
@@ -391,7 +391,7 @@ export async function getSubmitRunOptions() {
     .select({ tags: runsTable.tags })
     .from(runsTable)
     .where(
-      and(isNotNull(runsTable.approvedByUserId), isNotNull(runsTable.tags)),
+      and(isNotNull(runsTable.approvedByUserId), isNotNull(runsTable.tags))
     );
 
   const existingTags = new Set<string>();
@@ -411,18 +411,18 @@ export async function getSubmitRunOptions() {
         type: quest.type,
         areaKey,
         areaLabel: areaByKey.get(areaKey)?.label ?? areaKey,
-        difficultyStars: quest.difficultyStars,
+        difficultyStars: quest.difficultyStars
       };
     }),
     categories: categories.map((category) => ({
       id: category.id,
-      label: category.label,
+      label: category.label
     })),
     weapons: weapons.map((weapon) => ({
       key: weapon.key,
-      label: weapon.label,
+      label: weapon.label
     })),
-    existingTags: [...existingTags].sort((a, b) => a.localeCompare(b)),
+    existingTags: [...existingTags].sort((a, b) => a.localeCompare(b))
   };
 }
 
@@ -448,7 +448,7 @@ export async function submitRun(input: SubmitRunInput, userId: string) {
   if (!weaponByKey.has(value.primaryWeaponKey as LeaderboardWeaponKey)) {
     throw new TRPCError({
       code: "BAD_REQUEST",
-      message: "Invalid primary weapon",
+      message: "Invalid primary weapon"
     });
   }
 
@@ -459,7 +459,7 @@ export async function submitRun(input: SubmitRunInput, userId: string) {
   ) {
     throw new TRPCError({
       code: "BAD_REQUEST",
-      message: "Invalid secondary weapon",
+      message: "Invalid secondary weapon"
     });
   }
 
@@ -480,7 +480,7 @@ export async function submitRun(input: SubmitRunInput, userId: string) {
     approvedByUserId: null,
     approvedAt: null,
     rejectedByUserId: null,
-    rejectedAt: null,
+    rejectedAt: null
   });
 
   return { runId };
@@ -489,13 +489,13 @@ export async function submitRun(input: SubmitRunInput, userId: string) {
 export async function deleteRun(
   runId: string,
   viewerUserId: string,
-  viewerRole: UserRole,
+  viewerRole: UserRole
 ) {
   const run = await db
     .select({
       id: runsTable.id,
       userId: runsTable.userId,
-      approvedByUserId: runsTable.approvedByUserId,
+      approvedByUserId: runsTable.approvedByUserId
     })
     .from(runsTable)
     .where(eq(runsTable.id, runId))
@@ -522,7 +522,7 @@ export async function deleteRun(
 export async function rejectRun(
   runId: string,
   viewerUserId: string,
-  viewerRole: UserRole,
+  viewerRole: UserRole
 ) {
   const canModerateRuns = viewerRole === "moderator" || viewerRole === "admin";
   if (!canModerateRuns) {
@@ -533,7 +533,7 @@ export async function rejectRun(
     .select({
       id: runsTable.id,
       userId: runsTable.userId,
-      approvedByUserId: runsTable.approvedByUserId,
+      approvedByUserId: runsTable.approvedByUserId
     })
     .from(runsTable)
     .where(eq(runsTable.id, runId))
@@ -547,7 +547,7 @@ export async function rejectRun(
   if (viewerRole === "moderator" && run.userId === viewerUserId) {
     throw new TRPCError({
       code: "FORBIDDEN",
-      message: "Moderators cannot reject their own runs",
+      message: "Moderators cannot reject their own runs"
     });
   }
 
@@ -557,7 +557,7 @@ export async function rejectRun(
       approvedByUserId: null,
       approvedAt: null,
       rejectedByUserId: viewerUserId,
-      rejectedAt: new Date(),
+      rejectedAt: new Date()
     })
     .where(eq(runsTable.id, runId));
 
@@ -567,7 +567,7 @@ export async function rejectRun(
 export async function approveRun(
   runId: string,
   viewerUserId: string,
-  viewerRole: UserRole,
+  viewerRole: UserRole
 ) {
   const canModerateRuns = viewerRole === "moderator" || viewerRole === "admin";
   if (!canModerateRuns) {
@@ -578,7 +578,7 @@ export async function approveRun(
     .select({
       id: runsTable.id,
       userId: runsTable.userId,
-      approvedByUserId: runsTable.approvedByUserId,
+      approvedByUserId: runsTable.approvedByUserId
     })
     .from(runsTable)
     .where(eq(runsTable.id, runId))
@@ -592,14 +592,14 @@ export async function approveRun(
   if (viewerRole === "moderator" && run.userId === viewerUserId) {
     throw new TRPCError({
       code: "FORBIDDEN",
-      message: "Moderators cannot approve their own runs",
+      message: "Moderators cannot approve their own runs"
     });
   }
 
   if (run.approvedByUserId) {
     throw new TRPCError({
       code: "BAD_REQUEST",
-      message: "Run is already approved",
+      message: "Run is already approved"
     });
   }
 
@@ -609,7 +609,7 @@ export async function approveRun(
       approvedByUserId: viewerUserId,
       approvedAt: new Date(),
       rejectedByUserId: null,
-      rejectedAt: null,
+      rejectedAt: null
     })
     .where(eq(runsTable.id, runId));
 

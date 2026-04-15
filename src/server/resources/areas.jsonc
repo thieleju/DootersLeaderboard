@@ -1,30 +1,30 @@
 [
-    {
-        "key": "plains",
-        "label": "Windward Plains"
-    },
-    {
-        "key": "forest",
-        "label": "Scarlet Forest"
-    },
-    {
-        "key": "basin",
-        "label": "Oilwell Basin"
-    },
-    {
-        "key": "cliffs",
-        "label": "Iceshard Cliffs"
-    },
-    {
-        "key": "wyveria",
-        "label": "Ruins of Wyveria"
-    },
-    {
-        "key": "arena",
-        "label": "Wounded Hollow"
-    },
-    {
-        "key": "other",
-        "label": "Other"
-    }
+  {
+    "key": "plains",
+    "label": "Plains"
+  },
+  {
+    "key": "forest",
+    "label": "Forest"
+  },
+  {
+    "key": "basin",
+    "label": "Basin"
+  },
+  {
+    "key": "cliffs",
+    "label": "Cliffs"
+  },
+  {
+    "key": "wyveria",
+    "label": "Wyveria"
+  },
+  {
+    "key": "arena",
+    "label": "Wounded Hollow"
+  },
+  {
+    "key": "other",
+    "label": "Other"
+  }
 ]

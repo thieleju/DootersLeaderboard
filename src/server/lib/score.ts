@@ -2,7 +2,7 @@ export const MAX_PLACEMENT_SCORE = 1000;
 import type {
   ScoreAggregate,
   ScoreEligibleRun,
-  Top3Placements,
+  Top3Placements
 } from "~/server/types/score";
 
 function toTimestamp(value: Date | string | number) {
@@ -16,12 +16,12 @@ export function calculatePlacementScore(rank: number, participants: number) {
 
   const boundedRank = Math.min(Math.max(rank, 1), participants);
   return Math.ceil(
-    (MAX_PLACEMENT_SCORE * (participants - boundedRank + 1)) / participants,
+    (MAX_PLACEMENT_SCORE * (participants - boundedRank + 1)) / participants
   );
 }
 
 export function calculateUserScoreAndTop3Placements<T extends ScoreEligibleRun>(
-  runs: T[],
+  runs: T[]
 ) {
   const bestRunByQuestAndUser = new Map<string, T>();
 
@@ -62,7 +62,7 @@ export function calculateUserScoreAndTop3Placements<T extends ScoreEligibleRun>(
       .sort(
         (a, b) =>
           a.runTimeMs - b.runTimeMs ||
-          toTimestamp(a.submittedAt) - toTimestamp(b.submittedAt),
+          toTimestamp(a.submittedAt) - toTimestamp(b.submittedAt)
       );
 
     const participants = sorted.length;
@@ -78,7 +78,7 @@ export function calculateUserScoreAndTop3Placements<T extends ScoreEligibleRun>(
       const placementsCurrent = top3PlacementsByUser.get(run.userId) ?? {
         first: 0,
         second: 0,
-        third: 0,
+        third: 0
       };
       if (index === 0) placementsCurrent.first += 1;
       if (index === 1) placementsCurrent.second += 1;
@@ -89,6 +89,6 @@ export function calculateUserScoreAndTop3Placements<T extends ScoreEligibleRun>(
 
   return {
     scoreByUser,
-    top3PlacementsByUser,
+    top3PlacementsByUser
   };
 }

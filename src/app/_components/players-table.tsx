@@ -11,7 +11,7 @@ import AnimatedCard from "./animated-card";
 import DataTable, {
   DataTableLoadingState,
   getRankBadgeClass,
-  getRelativeTime,
+  getRelativeTime
 } from "./data-table";
 import PlacementBadges from "./placement-badges";
 
@@ -27,11 +27,11 @@ function capitalizeFirst(value: string) {
 
 export default function PlayersTable({
   delay = 0,
-  onInitialReady,
+  onInitialReady
 }: PlayersTableProps) {
   const router = useRouter();
   const playersQuery = api.players.list.useQuery(undefined, {
-    staleTime: Infinity,
+    staleTime: Infinity
   });
 
   useEffect(() => {
@@ -59,9 +59,9 @@ export default function PlayersTable({
           {
             key: "last-submitted",
             label: "Last Submitted Run",
-            className: "text-center",
+            className: "text-center"
           },
-          { key: "score", label: "Overall Score", className: "text-center" },
+          { key: "score", label: "Overall Score", className: "text-center" }
         ]}
       >
         {playersQuery.isLoading ? (
@@ -154,7 +154,7 @@ export default function PlayersTable({
                     <div>
                       <div className="text-sm text-gray-200">
                         {capitalizeFirst(
-                          getRelativeTime(player.lastSubmittedAtMs),
+                          getRelativeTime(player.lastSubmittedAtMs)
                         )}
                       </div>
                       <div className="text-xs text-gray-500">
@@ -163,8 +163,8 @@ export default function PlayersTable({
                           {
                             month: "short",
                             day: "numeric",
-                            year: "numeric",
-                          },
+                            year: "numeric"
+                          }
                         )}
                       </div>
                     </div>

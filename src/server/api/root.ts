@@ -13,7 +13,7 @@ export const appRouter = createTRPCRouter({
   admin: adminRouter,
   leaderboard: leaderboardRouter,
   players: playersRouter,
-  stats: statsRouter,
+  stats: statsRouter
 });
 
 // export type definition of API

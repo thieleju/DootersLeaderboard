@@ -6,7 +6,7 @@ import { db } from "~/server/db";
 import {
   quests as questsTable,
   runs as runsTable,
-  users as usersTable,
+  users as usersTable
 } from "~/server/db/schema";
 
 import {
@@ -16,7 +16,7 @@ import {
   type LeaderboardCategoryOption,
   type LeaderboardQuestOption,
   type LeaderboardRow,
-  type LeaderboardWeaponKey,
+  type LeaderboardWeaponKey
 } from "~/server/types/leaderboard";
 import { calculatePlacementScore } from "~/server/lib/score";
 
@@ -43,7 +43,7 @@ const categories =
 
 const areaByKey = new Map(areas.map((area) => [area.key, area]));
 const categoryById = new Map(
-  categories.map((category) => [category.id, category]),
+  categories.map((category) => [category.id, category])
 );
 
 export async function getLeaderboardFilters(): Promise<{
@@ -54,17 +54,14 @@ export async function getLeaderboardFilters(): Promise<{
   const approvedQuestStats = await db
     .select({
       questId: runsTable.questId,
-      approvedRunCount: sql<number>`count(*)`,
+      approvedRunCount: sql<number>`count(*)`
     })
     .from(runsTable)
     .where(isNotNull(runsTable.approvedByUserId))
     .groupBy(runsTable.questId);
 
   const approvedRunCountByQuestId = new Map(
-    approvedQuestStats.map((row) => [
-      row.questId,
-      Number(row.approvedRunCount),
-    ]),
+    approvedQuestStats.map((row) => [row.questId, Number(row.approvedRunCount)])
   );
   const approvedQuestIds = approvedQuestStats.map((row) => row.questId);
 
@@ -77,7 +74,7 @@ export async function getLeaderboardFilters(): Promise<{
             monster: questsTable.monster,
             type: questsTable.type,
             areaKey: questsTable.area,
-            difficultyStars: questsTable.difficultyStars,
+            difficultyStars: questsTable.difficultyStars
           })
           .from(questsTable)
           .where(inArray(questsTable.id, approvedQuestIds))
@@ -93,7 +90,7 @@ export async function getLeaderboardFilters(): Promise<{
       icon: category.icon,
       color: category.color,
       description: category.description,
-      link: category.link,
+      link: category.link
     }));
 
   const sortedQuests = quests
@@ -109,20 +106,20 @@ export async function getLeaderboardFilters(): Promise<{
         areaKey,
         areaLabel: areaByKey.get(areaKey)?.label ?? areaKey,
         difficultyStars: quest.difficultyStars,
-        approvedRunCount,
+        approvedRunCount
       };
     })
     .sort(
       (a, b) =>
         (b.approvedRunCount ?? 0) - (a.approvedRunCount ?? 0) ||
         b.difficultyStars - a.difficultyStars ||
-        a.title.localeCompare(b.title),
+        a.title.localeCompare(b.title)
     );
 
   return {
     quests: sortedQuests,
     categories: availableCategories,
-    defaultQuestId: sortedQuests[0]?.id ?? "",
+    defaultQuestId: sortedQuests[0]?.id ?? ""
   };
 }
 
@@ -150,7 +147,7 @@ export async function getLeaderboardRows(): Promise<{
       monster: questsTable.monster,
       type: questsTable.type,
       areaKey: questsTable.area,
-      difficultyStars: questsTable.difficultyStars,
+      difficultyStars: questsTable.difficultyStars
     })
     .from(questsTable);
 
@@ -174,14 +171,14 @@ export async function getLeaderboardRows(): Promise<{
       secondaryWeaponKey: runsTable.secondaryWeapon,
       approvedAt: runsTable.approvedAt,
       userName: usersTable.displayName,
-      userImage: usersTable.image,
+      userImage: usersTable.image
     })
     .from(runsTable)
     .innerJoin(usersTable, eq(runsTable.userId, usersTable.id))
     .orderBy(
       asc(runsTable.questId),
       asc(runsTable.runTimeMs),
-      asc(runsTable.submittedAt),
+      asc(runsTable.submittedAt)
     );
 
   const approvedRunRows = runRows.filter((row) => row.approvedAt !== null);
@@ -225,7 +222,7 @@ export async function getLeaderboardRows(): Promise<{
       primaryWeaponKey: run.primaryWeaponKey as LeaderboardWeaponKey,
       secondaryWeaponKey: run.secondaryWeaponKey
         ? (run.secondaryWeaponKey as LeaderboardWeaponKey)
-        : null,
+        : null
     });
     rowsByQuestId.set(run.questId, existingRows);
   }
@@ -236,15 +233,14 @@ export async function getLeaderboardRows(): Promise<{
     const sorted = questRows
       .slice()
       .sort(
-        (a, b) =>
-          a.runTimeMs - b.runTimeMs || a.submittedAtMs - b.submittedAtMs,
+        (a, b) => a.runTimeMs - b.runTimeMs || a.submittedAtMs - b.submittedAtMs
       )
       .map((row, index) => {
         const rank = index + 1;
         return {
           ...row,
           rank,
-          score: calculatePlacementScore(rank, participants),
+          score: calculatePlacementScore(rank, participants)
         };
       });
     rows.push(...sorted);
@@ -264,9 +260,9 @@ export async function getLeaderboardRows(): Promise<{
           areaLabel:
             areaByKey.get(selectedQuest.areaKey as LeaderboardAreaKey)?.label ??
             (selectedQuest.areaKey as LeaderboardAreaKey),
-          difficultyStars: selectedQuest.difficultyStars,
+          difficultyStars: selectedQuest.difficultyStars
         }
       : null,
-    rows,
+    rows
   };
 }

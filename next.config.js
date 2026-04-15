@@ -6,20 +6,20 @@ import "./src/env.js";
 
 /** @type {import("next").NextConfig} */
 const config = {
-    output: "standalone",
-    images: {
-        remotePatterns: [
-            {
-                protocol: "https",
-                hostname: "cdn.discordapp.com",
-                pathname: "/avatars/**",
-            },
-            {
-                protocol: "https",
-                hostname: "cdn.discordapp.com",
-                pathname: "/embed/avatars/**",
-            },
-        ],
-    },
+  output: "standalone",
+  images: {
+    remotePatterns: [
+      {
+        protocol: "https",
+        hostname: "cdn.discordapp.com",
+        pathname: "/avatars/**"
+      },
+      {
+        protocol: "https",
+        hostname: "cdn.discordapp.com",
+        pathname: "/embed/avatars/**"
+      }
+    ]
+  }
 };
 export default config;

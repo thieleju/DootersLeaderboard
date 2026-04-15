@@ -19,7 +19,7 @@ export default function AnimatedCard({
   delay = 0,
   onClick,
   href,
-  interactive = false,
+  interactive = false
 }: AnimatedCardProps) {
   const router = useRouter();
 
@@ -33,9 +33,9 @@ export default function AnimatedCard({
       transition: {
         duration: 0.36,
         ease: [0.22, 1, 0.36, 1] as const,
-        delay: delay * 0.08,
-      },
-    },
+        delay: delay * 0.08
+      }
+    }
   };
 
   const content = (

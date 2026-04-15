@@ -18,7 +18,7 @@ import {
   UserRound,
   X,
   Ban,
-  Trash2,
+  Trash2
 } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
@@ -29,7 +29,7 @@ import {
   MAX_SUBMIT_HUNTER_NAME_LENGTH,
   MAX_SUBMIT_TAG_LENGTH,
   MAX_SUBMIT_TAGS,
-  submitRunInputSchema,
+  submitRunInputSchema
 } from "~/server/validation/players";
 import { api } from "~/trpc/react";
 import AnimatedCard from "./animated-card";
@@ -55,7 +55,7 @@ interface FormState {
 const categoryIconMap = {
   flame: Flame,
   shield: Shield,
-  "book-open": BookOpen,
+  "book-open": BookOpen
 } as const;
 
 const categoryById: Record<
@@ -68,7 +68,7 @@ const categoryById: Record<
 > = {
   fs: { label: "Freestyle", icon: "flame", tone: "cyan" },
   rr: { label: "Rules", icon: "shield", tone: "emerald" },
-  "ta-wiki": { label: "TA Wiki", icon: "book-open", tone: "violet" },
+  "ta-wiki": { label: "TA Wiki", icon: "book-open", tone: "violet" }
 };
 
 function capitalizeFirst(value: string) {
@@ -82,7 +82,7 @@ function formatFullDateTime(timestampMs: number) {
     day: "numeric",
     hour: "2-digit",
     minute: "2-digit",
-    hour12: false,
+    hour12: false
   }).format(timestampMs);
 }
 
@@ -108,7 +108,7 @@ function emptyFormState(questId: string): FormState {
     category: "",
     primaryWeaponKey: "",
     secondaryWeaponKey: "",
-    tags: [],
+    tags: []
   };
 }
 
@@ -142,7 +142,7 @@ function getProfileRankBadgeClass(rank: number | null) {
 
 export default function PlayerProfileView({
   userId,
-  onInitialReady,
+  onInitialReady
 }: PlayerProfileViewProps) {
   const utils = api.useUtils();
   const [tagInput, setTagInput] = useState("");
@@ -153,8 +153,8 @@ export default function PlayerProfileView({
   const profileQuery = api.players.profile.useQuery(
     { userId },
     {
-      staleTime: 30_000,
-    },
+      staleTime: 30_000
+    }
   );
 
   const isCurrentUser = profileQuery.data?.isCurrentUser ?? false;
@@ -165,7 +165,7 @@ export default function PlayerProfileView({
 
   const submitOptionsQuery = api.players.submitOptions.useQuery(undefined, {
     staleTime: Infinity,
-    enabled: isCurrentUser,
+    enabled: isCurrentUser
   });
 
   useEffect(() => {
@@ -179,7 +179,7 @@ export default function PlayerProfileView({
     isCurrentUser,
     onInitialReady,
     profileQuery.isLoading,
-    submitOptionsQuery.isLoading,
+    submitOptionsQuery.isLoading
   ]);
 
   const defaultQuestId: string = useMemo(() => {
@@ -196,7 +196,7 @@ export default function PlayerProfileView({
       if (
         openDropdown &&
         !(event.target as HTMLElement).closest(
-          '[role="button"], [role="listbox"]',
+          '[role="button"], [role="listbox"]'
         )
       ) {
         setOpenDropdown(null);
@@ -221,12 +221,12 @@ export default function PlayerProfileView({
         utils.players.profile.invalidate({ userId }),
         utils.players.list.invalidate(),
         utils.leaderboard.getLeaderboard.invalidate(),
-        utils.stats.getHomeStats.invalidate(),
+        utils.stats.getHomeStats.invalidate()
       ]);
     },
     onError: (error) => {
       setFormError(error.message || "Could not submit run.");
-    },
+    }
   });
 
   const deleteRunMutation = api.players.deleteRun.useMutation({
@@ -237,12 +237,12 @@ export default function PlayerProfileView({
         utils.players.list.invalidate(),
         utils.leaderboard.getLeaderboard.invalidate(),
         utils.stats.getHomeStats.invalidate(),
-        utils.players.submitOptions.invalidate(),
+        utils.players.submitOptions.invalidate()
       ]);
     },
     onError: () => {
       setDeletingRunId(null);
-    },
+    }
   });
 
   const approveRunMutation = api.players.approveRun.useMutation({
@@ -252,12 +252,12 @@ export default function PlayerProfileView({
         utils.players.profile.invalidate({ userId }),
         utils.players.list.invalidate(),
         utils.leaderboard.getLeaderboard.invalidate(),
-        utils.stats.getHomeStats.invalidate(),
+        utils.stats.getHomeStats.invalidate()
       ]);
     },
     onError: () => {
       setDeletingRunId(null);
-    },
+    }
   });
 
   const rejectRunMutation = api.players.rejectRun.useMutation({
@@ -268,12 +268,12 @@ export default function PlayerProfileView({
         utils.players.list.invalidate(),
         utils.leaderboard.getLeaderboard.invalidate(),
         utils.stats.getHomeStats.invalidate(),
-        utils.players.submitOptions.invalidate(),
+        utils.players.submitOptions.invalidate()
       ]);
     },
     onError: () => {
       setDeletingRunId(null);
-    },
+    }
   });
 
   const addTag = (rawTag: string) => {
@@ -300,7 +300,7 @@ export default function PlayerProfileView({
   const removeTag = (tag: string) => {
     setForm((current) => ({
       ...current,
-      tags: current.tags.filter((existing) => existing !== tag),
+      tags: current.tags.filter((existing) => existing !== tag)
     }));
   };
 
@@ -314,7 +314,7 @@ export default function PlayerProfileView({
       category: formWithDefaultQuest.category || "fs",
       primaryWeaponKey: formWithDefaultQuest.primaryWeaponKey,
       secondaryWeaponKey: formWithDefaultQuest.secondaryWeaponKey,
-      tags: formWithDefaultQuest.tags,
+      tags: formWithDefaultQuest.tags
     };
 
     const validated = submitRunInputSchema.safeParse(payload);
@@ -339,12 +339,12 @@ export default function PlayerProfileView({
                 initial={{ opacity: 0.35, scale: 0.96 }}
                 animate={{
                   opacity: [0.35, 0.85, 0.35],
-                  scale: [0.96, 1, 0.96],
+                  scale: [0.96, 1, 0.96]
                 }}
                 transition={{
                   duration: 1.15,
                   repeat: Infinity,
-                  ease: "easeInOut",
+                  ease: "easeInOut"
                 }}
               />
               <div className="space-y-3">
@@ -355,7 +355,7 @@ export default function PlayerProfileView({
                   transition={{
                     duration: 1.15,
                     repeat: Infinity,
-                    ease: "easeInOut",
+                    ease: "easeInOut"
                   }}
                 />
                 <motion.div
@@ -366,7 +366,7 @@ export default function PlayerProfileView({
                     duration: 1.15,
                     repeat: Infinity,
                     ease: "easeInOut",
-                    delay: 0.1,
+                    delay: 0.1
                   }}
                 />
                 <motion.div
@@ -377,7 +377,7 @@ export default function PlayerProfileView({
                     duration: 1.15,
                     repeat: Infinity,
                     ease: "easeInOut",
-                    delay: 0.2,
+                    delay: 0.2
                   }}
                 />
               </div>
@@ -389,12 +389,12 @@ export default function PlayerProfileView({
                 initial={{ opacity: 0.35, scaleX: 0.94 }}
                 animate={{
                   opacity: [0.35, 0.82, 0.35],
-                  scaleX: [0.94, 1, 0.94],
+                  scaleX: [0.94, 1, 0.94]
                 }}
                 transition={{
                   duration: 1.15,
                   repeat: Infinity,
-                  ease: "easeInOut",
+                  ease: "easeInOut"
                 }}
               />
               <motion.div
@@ -405,7 +405,7 @@ export default function PlayerProfileView({
                   duration: 1.15,
                   repeat: Infinity,
                   ease: "easeInOut",
-                  delay: 0.08,
+                  delay: 0.08
                 }}
               />
               <div className="flex gap-2">
@@ -417,7 +417,7 @@ export default function PlayerProfileView({
                     duration: 1.15,
                     repeat: Infinity,
                     ease: "easeInOut",
-                    delay: 0.1,
+                    delay: 0.1
                   }}
                 />
                 <motion.div
@@ -428,7 +428,7 @@ export default function PlayerProfileView({
                     duration: 1.15,
                     repeat: Infinity,
                     ease: "easeInOut",
-                    delay: 0.2,
+                    delay: 0.2
                   }}
                 />
                 <motion.div
@@ -439,7 +439,7 @@ export default function PlayerProfileView({
                     duration: 1.15,
                     repeat: Infinity,
                     ease: "easeInOut",
-                    delay: 0.3,
+                    delay: 0.3
                   }}
                 />
               </div>
@@ -456,7 +456,7 @@ export default function PlayerProfileView({
               transition={{
                 duration: 1.15,
                 repeat: Infinity,
-                ease: "easeInOut",
+                ease: "easeInOut"
               }}
             />
             <div className="space-y-3">
@@ -467,7 +467,7 @@ export default function PlayerProfileView({
                 transition={{
                   duration: 1.15,
                   repeat: Infinity,
-                  ease: "easeInOut",
+                  ease: "easeInOut"
                 }}
               />
               <motion.div
@@ -478,7 +478,7 @@ export default function PlayerProfileView({
                   duration: 1.15,
                   repeat: Infinity,
                   ease: "easeInOut",
-                  delay: 0.12,
+                  delay: 0.12
                 }}
               />
             </div>
@@ -495,7 +495,7 @@ export default function PlayerProfileView({
                   duration: 1.15,
                   repeat: Infinity,
                   ease: "easeInOut",
-                  delay: index * 0.12,
+                  delay: index * 0.12
                 }}
               >
                 <div className="flex items-center gap-3">
@@ -507,7 +507,7 @@ export default function PlayerProfileView({
                       duration: 1.15,
                       repeat: Infinity,
                       ease: "easeInOut",
-                      delay: index * 0.08,
+                      delay: index * 0.08
                     }}
                   />
                   <div className="space-y-2">
@@ -519,7 +519,7 @@ export default function PlayerProfileView({
                         duration: 1.15,
                         repeat: Infinity,
                         ease: "easeInOut",
-                        delay: index * 0.08,
+                        delay: index * 0.08
                       }}
                     />
                     <motion.div
@@ -530,7 +530,7 @@ export default function PlayerProfileView({
                         duration: 1.15,
                         repeat: Infinity,
                         ease: "easeInOut",
-                        delay: index * 0.08 + 0.08,
+                        delay: index * 0.08 + 0.08
                       }}
                     />
                   </div>
@@ -544,7 +544,7 @@ export default function PlayerProfileView({
                     duration: 1.15,
                     repeat: Infinity,
                     ease: "easeInOut",
-                    delay: index * 0.08 + 0.04,
+                    delay: index * 0.08 + 0.04
                   }}
                 />
               </motion.div>
@@ -568,10 +568,10 @@ export default function PlayerProfileView({
   }
 
   const allRuns = [...profile.runs].sort(
-    (a, b) => b.submittedAtMs - a.submittedAtMs || b.runTimeMs - a.runTimeMs,
+    (a, b) => b.submittedAtMs - a.submittedAtMs || b.runTimeMs - a.runTimeMs
   );
   const approvedRunsCount = allRuns.filter(
-    (run) => run.status === "approved",
+    (run) => run.status === "approved"
   ).length;
 
   const hasAnyRunActions = allRuns.some((run) => {
@@ -667,7 +667,7 @@ export default function PlayerProfileView({
               : []),
             ...(hasAnyRunActions
               ? [{ key: "actions", label: "Actions" as const }]
-              : []),
+              : [])
           ]}
         >
           <motion.tbody
@@ -683,10 +683,10 @@ export default function PlayerProfileView({
               const tone =
                 categoryToneClasses[category.tone] ?? categoryToneClasses.amber;
               const relativeSubmittedAt = capitalizeFirst(
-                getRelativeTime(run.submittedAtMs),
+                getRelativeTime(run.submittedAtMs)
               );
               const submittedAtDateTimeLabel = formatFullDateTime(
-                run.submittedAtMs,
+                run.submittedAtMs
               );
               const approvedAtDateTimeLabel = run.approvedAtMs
                 ? formatFullDateTime(run.approvedAtMs)
@@ -1004,7 +1004,7 @@ export default function PlayerProfileView({
                           onClick={() => {
                             setForm((current) => ({
                               ...current,
-                              questId: quest.id,
+                              questId: quest.id
                             }));
                             setOpenDropdown(null);
                           }}
@@ -1036,7 +1036,7 @@ export default function PlayerProfileView({
                 onChange={(event) =>
                   setForm((current) => ({
                     ...current,
-                    hunterName: event.target.value,
+                    hunterName: event.target.value
                   }))
                 }
                 placeholder="Your in-game hunter name"
@@ -1056,7 +1056,7 @@ export default function PlayerProfileView({
                   const filtered = event.target.value.replace(/[^0-9':"]/g, "");
                   setForm((current) => ({
                     ...current,
-                    runTime: filtered,
+                    runTime: filtered
                   }));
                 }}
                 placeholder={"mm'ss\"cc"}
@@ -1074,14 +1074,14 @@ export default function PlayerProfileView({
                   type="button"
                   onClick={() =>
                     setOpenDropdown(
-                      openDropdown === "category" ? null : "category",
+                      openDropdown === "category" ? null : "category"
                     )
                   }
                   className="relative w-full rounded-lg border border-gray-700 bg-gray-900/70 px-3 py-2 pr-10 text-left text-sm text-gray-100 transition-colors outline-none hover:border-amber-400 focus-visible:border-amber-400"
                 >
                   <span className="block truncate">
                     {(submitOptionsQuery.data?.categories ?? []).find(
-                      (c) => c.id === formWithDefaultQuest.category,
+                      (c) => c.id === formWithDefaultQuest.category
                     )?.label ?? "Select category"}
                   </span>
                   <ChevronDown
@@ -1113,7 +1113,7 @@ export default function PlayerProfileView({
                           onClick={() => {
                             setForm((current) => ({
                               ...current,
-                              category: category.id,
+                              category: category.id
                             }));
                             setOpenDropdown(null);
                           }}
@@ -1125,7 +1125,7 @@ export default function PlayerProfileView({
                         >
                           {category.label}
                         </button>
-                      ),
+                      )
                     )}
                   </motion.div>
                 )}
@@ -1141,14 +1141,14 @@ export default function PlayerProfileView({
                   type="button"
                   onClick={() =>
                     setOpenDropdown(
-                      openDropdown === "primary" ? null : "primary",
+                      openDropdown === "primary" ? null : "primary"
                     )
                   }
                   className="relative w-full rounded-lg border border-gray-700 bg-gray-900/70 px-3 py-2 pr-10 text-left text-sm text-gray-100 transition-colors outline-none hover:border-amber-400 focus-visible:border-amber-400"
                 >
                   <span className="block truncate">
                     {(submitOptionsQuery.data?.weapons ?? []).find(
-                      (w) => w.key === formWithDefaultQuest.primaryWeaponKey,
+                      (w) => w.key === formWithDefaultQuest.primaryWeaponKey
                     )?.label ?? "Select primary weapon"}
                   </span>
                   <ChevronDown
@@ -1179,7 +1179,7 @@ export default function PlayerProfileView({
                         onClick={() => {
                           setForm((current) => ({
                             ...current,
-                            primaryWeaponKey: weapon.key,
+                            primaryWeaponKey: weapon.key
                           }));
                           setOpenDropdown(null);
                         }}
@@ -1214,14 +1214,14 @@ export default function PlayerProfileView({
                   type="button"
                   onClick={() =>
                     setOpenDropdown(
-                      openDropdown === "secondary" ? null : "secondary",
+                      openDropdown === "secondary" ? null : "secondary"
                     )
                   }
                   className="relative w-full rounded-lg border border-gray-700 bg-gray-900/70 px-3 py-2 pr-10 text-left text-sm text-gray-100 transition-colors outline-none hover:border-amber-400 focus-visible:border-amber-400"
                 >
                   <span className="block truncate">
                     {(submitOptionsQuery.data?.weapons ?? []).find(
-                      (w) => w.key === formWithDefaultQuest.secondaryWeaponKey,
+                      (w) => w.key === formWithDefaultQuest.secondaryWeaponKey
                     )?.label ?? "Select secondary weapon"}
                   </span>
                   <ChevronDown
@@ -1252,7 +1252,7 @@ export default function PlayerProfileView({
                         onClick={() => {
                           setForm((current) => ({
                             ...current,
-                            secondaryWeaponKey: weapon.key,
+                            secondaryWeaponKey: weapon.key
                           }));
                           setOpenDropdown(null);
                         }}

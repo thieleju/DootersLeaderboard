@@ -13,7 +13,7 @@ interface ErrorCardProps {
 export default function ErrorCard({
   title = "Something went wrong",
   description = "We're sorry, but an unexpected error has occurred.",
-  onAction: onAction,
+  onAction: onAction
 }: ErrorCardProps) {
   return (
     <AnimatedCard className="mx-auto w-full max-w-md p-6 text-center shadow-2xl shadow-black/20">

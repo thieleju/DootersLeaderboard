@@ -4,7 +4,7 @@ import ErrorCard from "./_components/error-card";
 
 export default function GlobalError({
   error: _error,
-  reset,
+  reset
 }: {
   error: Error & { digest?: string };
   reset: () => void;

@@ -1,11 +1,11 @@
 import { createTRPCRouter, publicProcedure } from "~/server/api/trpc";
 import {
   getLeaderboardFilters,
-  getLeaderboardRows,
+  getLeaderboardRows
 } from "~/server/lib/leaderboard";
 
 export const leaderboardRouter = createTRPCRouter({
   filters: publicProcedure.query(() => getLeaderboardFilters()),
 
-  getLeaderboard: publicProcedure.query(() => getLeaderboardRows()),
+  getLeaderboard: publicProcedure.query(() => getLeaderboardRows())
 });

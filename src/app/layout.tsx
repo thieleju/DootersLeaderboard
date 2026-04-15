@@ -10,11 +10,11 @@ import Footer from "./_components/footer";
 export const metadata: Metadata = {
   title: "Dooters Leaderboard",
   description: "Leaderboard and statistics",
-  icons: [{ rel: "icon", url: "/favicon.ico" }],
+  icons: [{ rel: "icon", url: "/favicon.ico" }]
 };
 
 export default async function RootLayout({
-  children,
+  children
 }: Readonly<{ children: React.ReactNode }>) {
   const session = await auth();
 

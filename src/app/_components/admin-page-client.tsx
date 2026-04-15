@@ -10,7 +10,7 @@ interface AdminPageClientProps {
 }
 
 export default function AdminPageClient({
-  onInitialReady,
+  onInitialReady
 }: AdminPageClientProps) {
   const [showBackLink, setShowBackLink] = useState(false);
 

@@ -20,8 +20,8 @@ export const adminRouter = createTRPCRouter({
     .input(
       z.object({
         userId: z.string().trim().min(1),
-        role: userRoleSchema,
-      }),
+        role: userRoleSchema
+      })
     )
     .mutation(({ input, ctx }) => {
       if (ctx.session.user.role !== "admin") {
@@ -29,5 +29,5 @@ export const adminRouter = createTRPCRouter({
       }
 
       return updateUserRole(input.userId, input.role);
-    }),
+    })
 });

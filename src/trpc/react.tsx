@@ -52,7 +52,7 @@ export function TRPCReactProvider(props: {
         loggerLink({
           enabled: (op) =>
             process.env.NODE_ENV === "development" ||
-            (op.direction === "down" && op.result instanceof Error),
+            (op.direction === "down" && op.result instanceof Error)
         }),
         httpBatchStreamLink({
           transformer: SuperJSON,
@@ -61,10 +61,10 @@ export function TRPCReactProvider(props: {
             const headers = new Headers();
             headers.set("x-trpc-source", "nextjs-react");
             return headers;
-          },
-        }),
-      ],
-    }),
+          }
+        })
+      ]
+    })
   );
 
   return (

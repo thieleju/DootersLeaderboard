@@ -7,11 +7,11 @@ const errorMessages: Record<string, string> = {
   Configuration: "There is a problem with the server configuration.",
   AccessDenied: "You do not have access to sign in.",
   Verification: "The sign-in link is invalid or has expired.",
-  Default: "Something went wrong while signing you in.",
+  Default: "Something went wrong while signing you in."
 };
 
 export default async function AuthErrorPage({
-  searchParams,
+  searchParams
 }: {
   searchParams: Promise<{ error?: string }>;
 }) {

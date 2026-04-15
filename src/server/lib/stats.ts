@@ -10,7 +10,7 @@ import { db } from "~/server/db";
 import {
   quests as questsTable,
   runs as runsTable,
-  users as usersTable,
+  users as usersTable
 } from "~/server/db/schema";
 import type { LeaderboardWeaponResource } from "~/server/types/leaderboard";
 import type { HomeStats } from "~/server/types/stats";
@@ -38,7 +38,7 @@ export async function getHomeStats(): Promise<HomeStats> {
     .select({
       userId: runsTable.userId,
       primaryWeaponKey: runsTable.primaryWeapon,
-      secondaryWeaponKey: runsTable.secondaryWeapon,
+      secondaryWeaponKey: runsTable.secondaryWeapon
     })
     .from(runsTable)
     .where(isNotNull(runsTable.approvedByUserId));
@@ -50,14 +50,14 @@ export async function getHomeStats(): Promise<HomeStats> {
   for (const run of uploadedRuns) {
     const weaponKeys = new Set(
       [run.primaryWeaponKey, run.secondaryWeaponKey].filter(
-        (weaponKey): weaponKey is string => Boolean(weaponKey),
-      ),
+        (weaponKey): weaponKey is string => Boolean(weaponKey)
+      )
     );
 
     for (const weaponKey of weaponKeys) {
       weaponUsageCount.set(
         weaponKey,
-        (weaponUsageCount.get(weaponKey) ?? 0) + 1,
+        (weaponUsageCount.get(weaponKey) ?? 0) + 1
       );
     }
   }
@@ -85,18 +85,18 @@ export async function getHomeStats(): Promise<HomeStats> {
       runTimeMs: runsTable.runTimeMs,
       approvedAt: runsTable.approvedAt,
       userName: usersTable.displayName,
-      userImage: usersTable.image,
+      userImage: usersTable.image
     })
     .from(runsTable)
     .innerJoin(usersTable, eq(runsTable.userId, usersTable.id))
     .orderBy(
       asc(runsTable.questId),
       asc(runsTable.runTimeMs),
-      asc(runsTable.submittedAt),
+      asc(runsTable.submittedAt)
     );
 
   const approvedRuns = runRows.filter(
-    (row) => row.approvedAt !== null && questById.has(row.questId),
+    (row) => row.approvedAt !== null && questById.has(row.questId)
   );
 
   const { scoreByUser } = calculateUserScoreAndTop3Placements(approvedRuns);
@@ -123,7 +123,7 @@ export async function getHomeStats(): Promise<HomeStats> {
       userImage: run.userImage ?? null,
       scoreSum: 0,
       scoredQuestCount: 0,
-      score: 0,
+      score: 0
     };
 
     existing.scoreSum = score.sum;
@@ -152,8 +152,8 @@ export async function getHomeStats(): Promise<HomeStats> {
           userId: topRunnerRecord.userId,
           userName: topRunnerRecord.userName,
           userImage: topRunnerRecord.userImage,
-          score: topRunnerRecord.score,
+          score: topRunnerRecord.score
         }
-      : null,
+      : null
   };
 }

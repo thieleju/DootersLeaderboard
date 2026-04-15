@@ -10,7 +10,7 @@ export default {
   schema: "./src/server/db/schema.ts",
   dialect: "sqlite",
   dbCredentials: {
-    url: databaseUrl,
+    url: databaseUrl
   },
-  tablesFilter: ["dootersleaderboard_*"],
+  tablesFilter: ["dootersleaderboard_*"]
 } satisfies Config;

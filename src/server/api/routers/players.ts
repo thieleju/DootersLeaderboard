@@ -3,7 +3,7 @@ import { z } from "zod";
 import {
   createTRPCRouter,
   protectedProcedure,
-  publicProcedure,
+  publicProcedure
 } from "~/server/api/trpc";
 import {
   approveRun,
@@ -12,7 +12,7 @@ import {
   getPlayersOverview,
   getSubmitRunOptions,
   deleteRun,
-  submitRun,
+  submitRun
 } from "~/server/lib/players";
 import { submitRunInputSchema } from "~/server/validation/players";
 
@@ -22,15 +22,15 @@ export const playersRouter = createTRPCRouter({
   profile: publicProcedure
     .input(
       z.object({
-        userId: z.string().trim().min(1),
-      }),
+        userId: z.string().trim().min(1)
+      })
     )
     .query(({ input, ctx }) =>
       getPlayerProfile(
         input.userId,
         ctx.session?.user?.id,
-        ctx.session?.user?.role,
-      ),
+        ctx.session?.user?.role
+      )
     ),
 
   submitOptions: publicProcedure.query(() => getSubmitRunOptions()),
@@ -42,30 +42,30 @@ export const playersRouter = createTRPCRouter({
   deleteRun: protectedProcedure
     .input(
       z.object({
-        runId: z.string().trim().min(1),
-      }),
+        runId: z.string().trim().min(1)
+      })
     )
     .mutation(({ input, ctx }) =>
-      deleteRun(input.runId, ctx.session.user.id, ctx.session.user.role),
+      deleteRun(input.runId, ctx.session.user.id, ctx.session.user.role)
     ),
 
   approveRun: protectedProcedure
     .input(
       z.object({
-        runId: z.string().trim().min(1),
-      }),
+        runId: z.string().trim().min(1)
+      })
     )
     .mutation(({ input, ctx }) =>
-      approveRun(input.runId, ctx.session.user.id, ctx.session.user.role),
+      approveRun(input.runId, ctx.session.user.id, ctx.session.user.role)
     ),
 
   rejectRun: protectedProcedure
     .input(
       z.object({
-        runId: z.string().trim().min(1),
-      }),
+        runId: z.string().trim().min(1)
+      })
     )
     .mutation(({ input, ctx }) =>
-      rejectRun(input.runId, ctx.session.user.id, ctx.session.user.role),
-    ),
+      rejectRun(input.runId, ctx.session.user.id, ctx.session.user.role)
+    )
 });

@@ -42,7 +42,7 @@ function formatScore(value: number) {
 export default function HomeStatsCards() {
   const router = useRouter();
   const statsQuery = api.stats.getHomeStats.useQuery(undefined, {
-    staleTime: Infinity,
+    staleTime: Infinity
   });
 
   const stats = statsQuery.data;
@@ -122,7 +122,7 @@ export default function HomeStatsCards() {
                 transition={{
                   duration: 1.15,
                   repeat: Infinity,
-                  ease: "easeInOut",
+                  ease: "easeInOut"
                 }}
               />
               <motion.div
@@ -133,7 +133,7 @@ export default function HomeStatsCards() {
                   duration: 1.15,
                   repeat: Infinity,
                   ease: "easeInOut",
-                  delay: 0.12,
+                  delay: 0.12
                 }}
               />
             </div>
@@ -196,7 +196,7 @@ export default function HomeStatsCards() {
                 transition={{
                   duration: 1.15,
                   repeat: Infinity,
-                  ease: "easeInOut",
+                  ease: "easeInOut"
                 }}
               />
               <motion.div
@@ -207,7 +207,7 @@ export default function HomeStatsCards() {
                   duration: 1.15,
                   repeat: Infinity,
                   ease: "easeInOut",
-                  delay: 0.12,
+                  delay: 0.12
                 }}
               />
             </div>

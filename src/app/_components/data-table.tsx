@@ -27,7 +27,7 @@ interface DataTableProps {
 const podiumBadgeClassByPlace = {
   1: "border-amber-300/40 bg-amber-300/10 text-amber-300",
   2: "border-gray-300/40 bg-gray-300/10 text-gray-200",
-  3: "border-orange-400/40 bg-orange-400/10 text-orange-300",
+  3: "border-orange-400/40 bg-orange-400/10 text-orange-300"
 } as const;
 
 function getPodiumBadgeClass(value: number) {
@@ -75,7 +75,7 @@ interface DataTableLoadingStateProps {
 
 export function DataTableLoadingState({
   columnCount,
-  label = "Loading...",
+  label = "Loading..."
 }: DataTableLoadingStateProps) {
   return (
     <motion.tbody
@@ -111,7 +111,7 @@ export default function DataTable({
   icon,
   iconColor = "amber",
   headerContent,
-  children,
+  children
 }: DataTableProps) {
   return (
     <>

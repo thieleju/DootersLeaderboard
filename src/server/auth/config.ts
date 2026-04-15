@@ -8,7 +8,7 @@ import {
   accounts,
   sessions,
   users,
-  verificationTokens,
+  verificationTokens
 } from "~/server/db/schema";
 import type { UserRole } from "~/server/types/leaderboard";
 
@@ -54,7 +54,7 @@ type DiscordProfilePayload = {
 export const authConfig = {
   // debug: process.env.NODE_ENV !== "production",
   pages: {
-    error: "/auth/error",
+    error: "/auth/error"
   },
   providers: [
     DiscordProvider({
@@ -62,8 +62,8 @@ export const authConfig = {
       clientSecret: env.AUTH_DISCORD_SECRET,
       authorization: {
         params: {
-          scope: "identify",
-        },
+          scope: "identify"
+        }
       },
       profile(profile) {
         const discordProfile = profile as DiscordProfilePayload;
@@ -84,10 +84,10 @@ export const authConfig = {
           name: discordProfile.username ?? discordProfile.id,
           email: null,
           image: avatar,
-          role,
+          role
         };
-      },
-    }),
+      }
+    })
     /**
      * ...add more providers here.
      *
@@ -102,7 +102,7 @@ export const authConfig = {
     usersTable: users,
     accountsTable: accounts,
     sessionsTable: sessions,
-    verificationTokensTable: verificationTokens,
+    verificationTokensTable: verificationTokens
   }),
   callbacks: {
     session: ({ session, user }) => ({
@@ -112,9 +112,9 @@ export const authConfig = {
         id: user.id,
         displayName: user.displayName ?? session.user.name ?? "Profile",
         name: user.username ?? "",
-        role: user.role ?? "runner",
-      },
-    }),
+        role: user.role ?? "runner"
+      }
+    })
   },
   events: {
     async signIn({ user, profile, account }) {
@@ -148,7 +148,7 @@ export const authConfig = {
           name: username,
           displayName,
           image: avatar,
-          role,
+          role
         })
         .onConflictDoUpdate({
           target: users.id,
@@ -156,9 +156,9 @@ export const authConfig = {
             name: username,
             displayName,
             image: avatar,
-            role,
-          },
+            role
+          }
         });
-    },
-  },
+    }
+  }
 } satisfies NextAuthConfig;

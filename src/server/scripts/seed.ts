@@ -12,7 +12,7 @@ import type {
   LeaderboardQuestResource,
   LeaderboardRunResource,
   LeaderboardUserResource,
-  LeaderboardWeaponResource,
+  LeaderboardWeaponResource
 } from "../types/leaderboard";
 
 const resourceDir = path.join(process.cwd(), "src/server/resources");
@@ -77,7 +77,7 @@ function validateResources(params: {
   for (const quest of quests) {
     if (!areaKeys.has(quest.areaKey)) {
       throw new Error(
-        `Quest ${quest.id} references unknown areaKey: ${quest.areaKey}`,
+        `Quest ${quest.id} references unknown areaKey: ${quest.areaKey}`
       );
     }
   }
@@ -95,7 +95,7 @@ function validateResources(params: {
     }
     if (run.approvedByUserId && !userIds.has(run.approvedByUserId)) {
       errors.push(
-        `Run ${run.id} references unknown approvedByUserId: ${run.approvedByUserId}`,
+        `Run ${run.id} references unknown approvedByUserId: ${run.approvedByUserId}`
       );
     }
     if (!categoryIds.has(run.category)) {
@@ -103,12 +103,12 @@ function validateResources(params: {
     }
     if (!weaponKeys.has(run.primaryWeaponKey)) {
       errors.push(
-        `Run ${run.id} references unknown primaryWeaponKey: ${run.primaryWeaponKey}`,
+        `Run ${run.id} references unknown primaryWeaponKey: ${run.primaryWeaponKey}`
       );
     }
     if (run.secondaryWeaponKey && !weaponKeys.has(run.secondaryWeaponKey)) {
       errors.push(
-        `Run ${run.id} references unknown secondaryWeaponKey: ${run.secondaryWeaponKey}`,
+        `Run ${run.id} references unknown secondaryWeaponKey: ${run.secondaryWeaponKey}`
       );
     }
   }
@@ -123,7 +123,7 @@ function validateResources(params: {
 
 const client = createClient({ url: getDatabaseUrl() });
 const db = drizzle(client, {
-  schema: { quests, runs, users },
+  schema: { quests, runs, users }
 });
 
 async function main() {
@@ -148,7 +148,7 @@ async function main() {
     quests: seedQuests,
     users: seedUsers,
     runs: seedRuns,
-    mode,
+    mode
   });
 
   await db.transaction(async (tx) => {
@@ -164,7 +164,7 @@ async function main() {
             name: user.username,
             displayName: user.displayName,
             image: user.image,
-            role: user.role,
+            role: user.role
           })
           .onConflictDoUpdate({
             target: users.id,
@@ -172,8 +172,8 @@ async function main() {
               name: user.username,
               displayName: user.displayName,
               image: user.image,
-              role: user.role,
-            },
+              role: user.role
+            }
           });
       }
     }
@@ -186,8 +186,8 @@ async function main() {
         monster: quest.monster,
         type: quest.type,
         area: quest.areaKey,
-        difficultyStars: quest.difficultyStars,
-      })),
+        difficultyStars: quest.difficultyStars
+      }))
     );
 
     if (isDemoMode) {
@@ -204,19 +204,19 @@ async function main() {
           primaryWeapon: run.primaryWeaponKey,
           secondaryWeapon: run.secondaryWeaponKey,
           approvedByUserId: run.approvedByUserId,
-          approvedAt: run.approvedAtMs ? new Date(run.approvedAtMs) : null,
-        })),
+          approvedAt: run.approvedAtMs ? new Date(run.approvedAtMs) : null
+        }))
       );
     }
   });
 
   if (isDemoMode) {
     console.log(
-      `[seed:demo] Loaded ${seedAreas.length} areas, ${seedCategories.length} categories, ${seedWeapons.length} weapons, ${seedUsers.length} users, ${seedQuests.length} quests and ${seedRuns.length} runs.`,
+      `[seed:demo] Loaded ${seedAreas.length} areas, ${seedCategories.length} categories, ${seedWeapons.length} weapons, ${seedUsers.length} users, ${seedQuests.length} quests and ${seedRuns.length} runs.`
     );
   } else {
     console.log(
-      `[seed:production] Loaded ${seedAreas.length} areas, ${seedCategories.length} categories, ${seedWeapons.length} weapons and ${seedQuests.length} quests (mockusers/mockruns skipped).`,
+      `[seed:production] Loaded ${seedAreas.length} areas, ${seedCategories.length} categories, ${seedWeapons.length} weapons and ${seedQuests.length} quests (mockusers/mockruns skipped).`
     );
   }
 }
