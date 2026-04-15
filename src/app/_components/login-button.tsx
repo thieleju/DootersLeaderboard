@@ -10,12 +10,19 @@ export default function LoginButton() {
   if (session?.user) {
     return (
       <div className="flex items-center gap-3">
-        <div className="flex items-center gap-2 text-gray-300">
+        <Link
+          href={`/player/${session.user.id}`}
+          className="flex items-center gap-2 text-gray-300 transition-colors hover:text-amber-300"
+        >
           <span className="relative flex h-8 w-8 items-center justify-center overflow-hidden rounded-full border border-gray-600 bg-white/5">
             {session.user.image ? (
               <img
                 src={session.user.image}
-                alt={session.user.name ?? "Profile picture"}
+                alt={
+                  session.user.displayName ??
+                  session.user.name ??
+                  "Profile picture"
+                }
                 className="h-full w-full object-cover"
               />
             ) : (
@@ -23,9 +30,9 @@ export default function LoginButton() {
             )}
           </span>
           <span className="hidden text-sm font-medium sm:inline">
-            {session.user.name ?? "Profile"}
+            {session.user.displayName ?? session.user.username ?? "Profile"}
           </span>
-        </div>
+        </Link>
 
         <button
           type="button"

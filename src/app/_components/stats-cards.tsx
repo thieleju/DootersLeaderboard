@@ -34,7 +34,7 @@ function SubtitleSkeleton() {
 }
 
 export default function HomeStatsCards() {
-  const statsQuery = api.leaderboard.stats.useQuery(undefined, {
+  const statsQuery = api.stats.getHomeStats.useQuery(undefined, {
     staleTime: Infinity,
   });
 

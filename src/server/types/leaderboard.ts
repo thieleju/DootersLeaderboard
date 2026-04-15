@@ -1,14 +1,13 @@
 import { z } from "zod";
 
-export const userRoleValues = ["runner", "runner", "admin"] as const;
+export const userRoleValues = ["runner", "moderator", "admin"] as const;
 export type UserRole = (typeof userRoleValues)[number];
 
 export const questTypeValues = [
   "event",
   "optional",
   "arena",
-  "story",
-  "special",
+  "investigation",
 ] as const;
 export type QuestType = (typeof questTypeValues)[number];
 
@@ -73,7 +72,8 @@ export type LeaderboardAreaKey = (typeof leaderboardAreaKeys)[number];
 
 export interface LeaderboardUserResource {
   id: string;
-  name: string;
+  displayName: string;
+  username: string;
   image: string | null;
   role: UserRole;
 }
@@ -155,6 +155,8 @@ export interface LeaderboardCategoryOption {
   label: string;
   icon: LeaderboardCategoryIcon;
   color: LeaderboardCategoryColor;
+  description: string;
+  link: string | null;
 }
 
 export interface LeaderboardRow {

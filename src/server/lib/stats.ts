@@ -100,7 +100,7 @@ export async function getHomeStats(): Promise<HomeStats> {
       submittedAt: runsTable.submittedAt,
       runTimeMs: runsTable.runTimeMs,
       approvedAt: runsTable.approvedAt,
-      userName: usersTable.name,
+      userName: usersTable.displayName,
       userImage: usersTable.image,
     })
     .from(runsTable)

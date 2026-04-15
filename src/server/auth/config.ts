@@ -23,12 +23,20 @@ declare module "next-auth" {
     user: {
       id: string;
       role: UserRole;
+      displayName: string;
+      username: string;
     } & DefaultSession["user"];
   }
 
   interface User {
+    displayName?: string;
+    username?: string;
     role?: UserRole;
   }
+}
+
+function isDiscordAdminAccount(accountId?: string | null) {
+  return Boolean(env.DISCORD_ADMIN_ID && accountId === env.DISCORD_ADMIN_ID);
 }
 
 /**
@@ -37,6 +45,7 @@ declare module "next-auth" {
  * @see https://next-auth.js.org/configuration/options
  */
 export const authConfig = {
+  // debug: process.env.NODE_ENV !== "production",
   pages: {
     error: "/auth/error",
   },
@@ -45,10 +54,25 @@ export const authConfig = {
       clientId: env.AUTH_DISCORD_ID,
       clientSecret: env.AUTH_DISCORD_SECRET,
       authorization: {
-        url: "https://discord.com/oauth2/authorize",
         params: {
           scope: "identify",
         },
+      },
+      profile(profile) {
+        const avatar = profile.avatar
+          ? `https://cdn.discordapp.com/avatars/${profile.id}/${profile.avatar}.png?size=128`
+          : null;
+        const displayName = profile.global_name || profile.username;
+        const role = isDiscordAdminAccount(profile.id) ? "admin" : "runner";
+
+        return {
+          id: profile.id,
+          displayName,
+          name: profile.username,
+          email: null,
+          image: avatar,
+          role,
+        };
       },
     }),
     /**
@@ -73,8 +97,55 @@ export const authConfig = {
       user: {
         ...session.user,
         id: user.id,
+        displayName: user.displayName ?? session.user.name ?? "Profile",
+        name: user.username ?? "",
         role: user.role ?? "runner",
       },
     }),
+  },
+  events: {
+    async signIn({ user, profile, account }) {
+      if (account?.provider !== "discord") return;
+      const discordProfile = profile as
+        | {
+            id: string;
+            global_name?: string | null;
+            username?: string | null;
+            avatar?: string | null;
+          }
+        | undefined;
+
+      const displayName =
+        discordProfile?.global_name ??
+        discordProfile?.username ??
+        user.name ??
+        "Profile";
+      const username = discordProfile?.username ?? user.name ?? displayName;
+      const avatar = discordProfile?.avatar
+        ? `https://cdn.discordapp.com/avatars/${discordProfile.id}/${discordProfile.avatar}.png?size=128`
+        : null;
+      const role = isDiscordAdminAccount(account.providerAccountId)
+        ? "admin"
+        : (user.role ?? "runner");
+
+      await db
+        .insert(users)
+        .values({
+          id: user.id,
+          name: username,
+          displayName,
+          image: avatar,
+          role,
+        })
+        .onConflictDoUpdate({
+          target: users.id,
+          set: {
+            name: username,
+            displayName,
+            image: avatar,
+            role,
+          },
+        });
+    },
   },
 } satisfies NextAuthConfig;

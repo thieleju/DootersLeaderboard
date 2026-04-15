@@ -10,12 +10,13 @@ const errorMessages: Record<string, string> = {
   Default: "Something went wrong while signing you in.",
 };
 
-export default function AuthErrorPage({
+export default async function AuthErrorPage({
   searchParams,
 }: {
-  searchParams: { error?: string };
+  searchParams: Promise<{ error?: string }>;
 }) {
-  const errorKey = searchParams.error ?? "Default";
+  const resolvedSearchParams = await searchParams;
+  const errorKey = resolvedSearchParams.error ?? "Default";
   const message = errorMessages[errorKey] ?? errorMessages.Default;
 
   return (

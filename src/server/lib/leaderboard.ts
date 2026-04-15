@@ -18,7 +18,6 @@ import {
   type LeaderboardCategoryOption,
   type LeaderboardQuestOption,
   type LeaderboardRow,
-  type LeaderboardTagResource,
   type LeaderboardWeaponKey,
   type LeaderboardWeaponResource,
   formatRunTime,
@@ -43,7 +42,6 @@ function readJsonResource<T>(fileName: string) {
 
 const areas = readJsonResource<LeaderboardAreaResource[]>("areas.jsonc");
 const weapons = readJsonResource<LeaderboardWeaponResource[]>("weapons.jsonc");
-const tags = readJsonResource<LeaderboardTagResource[]>("tags.jsonc");
 const categories =
   readJsonResource<LeaderboardCategoryResource[]>("categories.jsonc");
 
@@ -51,9 +49,6 @@ const areaByKey = new Map(areas.map((area) => [area.key, area]));
 const weaponByKey = new Map(weapons.map((weapon) => [weapon.key, weapon]));
 const categoryById = new Map(
   categories.map((category) => [category.id, category]),
-);
-const tagByLabel = new Map(
-  tags.map((tag) => [tag.label.trim().toLowerCase(), tag]),
 );
 
 export async function getLeaderboardFilters(): Promise<{
@@ -81,6 +76,8 @@ export async function getLeaderboardFilters(): Promise<{
       label: category.label,
       icon: category.icon,
       color: category.color,
+      description: category.description,
+      link: category.link,
     }));
 
   return {
@@ -150,7 +147,7 @@ export async function getLeaderboardRows(): Promise<{
       primaryWeaponKey: runsTable.primaryWeapon,
       secondaryWeaponKey: runsTable.secondaryWeapon,
       approvedAt: runsTable.approvedAt,
-      userName: usersTable.name,
+      userName: usersTable.displayName,
       userImage: usersTable.image,
     })
     .from(runsTable)
@@ -179,9 +176,7 @@ export async function getLeaderboardRows(): Promise<{
   for (const run of bestRunByQuestAndUser.values()) {
     const quest = questById.get(run.questId);
     if (!quest) continue;
-    const runTags = parseRunTags(run.tags)
-      .map((tagLabel) => tagByLabel.get(tagLabel.trim().toLowerCase()))
-      .filter((tag): tag is NonNullable<typeof tag> => Boolean(tag));
+    const runTags = parseRunTags(run.tags);
     const category = categoryById.get(run.category);
     const categoryLabel = category?.label ?? (run.category as string);
     const categoryIcon = (category?.icon ?? "flame") as LeaderboardCategoryIcon;
@@ -220,7 +215,7 @@ export async function getLeaderboardRows(): Promise<{
       categoryLabel,
       categoryIcon,
       categoryColor,
-      tagLabels: runTags.map((tag) => tag.label),
+      tagLabels: runTags,
       primaryWeaponKey: run.primaryWeaponKey as LeaderboardWeaponKey,
       primaryWeaponLabel:
         weaponByKey.get(run.primaryWeaponKey as LeaderboardWeaponKey)?.label ??

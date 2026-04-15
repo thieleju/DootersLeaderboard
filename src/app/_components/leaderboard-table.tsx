@@ -6,6 +6,7 @@ import {
   BookOpen,
   CalendarDays,
   ChevronDown,
+  ExternalLink,
   Filter,
   Flame,
   Layers,
@@ -237,7 +238,7 @@ export default function LeaderboardTable({ delay = 0 }: LeaderboardTableProps) {
                   categoryId === "all" || !category
                     ? {
                         active:
-                          "border-amber-300 bg-amber-400 text-gray-950 shadow-lg shadow-amber-400/20",
+                          "border-amber-300 bg-amber-300 text-gray-950 shadow-lg shadow-amber-400/20",
                         inactive:
                           "border-gray-700 bg-white/5 text-gray-300 hover:border-amber-300 hover:bg-amber-400/15 hover:text-amber-100",
                       }
@@ -246,23 +247,54 @@ export default function LeaderboardTable({ delay = 0 }: LeaderboardTableProps) {
                   categoryId === "all" || !category
                     ? Filter
                     : categoryIconMap[category.icon];
+                const tooltipCategory =
+                  categoryId === "all"
+                    ? null
+                    : availableCategories.find(
+                        (item) => item.id === categoryId,
+                      );
 
                 return (
-                  <button
-                    key={categoryId}
-                    type="button"
-                    role="radio"
-                    aria-checked={isActive}
-                    onClick={() => setSelectedCategoryId(categoryId)}
-                    className={`inline-flex h-8 cursor-pointer items-center justify-center gap-1.5 rounded-full border px-2.5 text-xs leading-none font-medium transition-all duration-200 ${
-                      isActive ? colorClasses.active : colorClasses.inactive
-                    }`}
-                  >
-                    {showCategoryIcon ? (
-                      <CategoryIcon className="h-3.5 w-3.5 shrink-0" />
+                  <div key={categoryId} className="group relative">
+                    <button
+                      type="button"
+                      role="radio"
+                      aria-checked={isActive}
+                      onClick={() => setSelectedCategoryId(categoryId)}
+                      className={`inline-flex h-8 cursor-pointer items-center justify-center gap-1.5 rounded-full border px-2.5 text-xs leading-none font-medium transition-all duration-200 ${
+                        isActive ? colorClasses.active : colorClasses.inactive
+                      }`}
+                    >
+                      {showCategoryIcon ? (
+                        <CategoryIcon className="h-3.5 w-3.5 shrink-0" />
+                      ) : null}
+                      {label}
+                    </button>
+
+                    {tooltipCategory ? (
+                      <div className="pointer-events-none absolute top-full left-1/2 z-30 w-72 -translate-x-1/2 pt-2 opacity-0 transition-all delay-0 duration-200 group-focus-within:pointer-events-auto group-focus-within:opacity-100 group-focus-within:delay-[700ms] group-hover:pointer-events-auto group-hover:opacity-100 group-hover:delay-[700ms]">
+                        <div className="pointer-events-auto rounded-lg border border-gray-700 bg-gray-900/95 p-3 text-left shadow-2xl shadow-black/35 backdrop-blur-sm">
+                          <div className="mb-1 text-xs font-semibold tracking-[0.14em] text-gray-500 uppercase">
+                            {tooltipCategory.label}
+                          </div>
+                          <p className="text-xs leading-relaxed text-gray-300">
+                            {tooltipCategory.description}
+                          </p>
+                          {tooltipCategory.link ? (
+                            <a
+                              href={tooltipCategory.link}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="mt-2 inline-flex items-center gap-1.5 text-xs font-medium text-amber-300 transition-colors hover:text-amber-200"
+                            >
+                              Rules
+                              <ExternalLink className="h-3.5 w-3.5" />
+                            </a>
+                          ) : null}
+                        </div>
+                      </div>
                     ) : null}
-                    {label}
-                  </button>
+                  </div>
                 );
               })}
             </div>

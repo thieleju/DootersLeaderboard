@@ -38,9 +38,10 @@ function getDatabaseUrl() {
   return (match[1] ?? match[2]) as string;
 }
 
-const seedUsers = readJsonResource<LeaderboardUserResource[]>("users.jsonc");
+const seedUsers =
+  readJsonResource<LeaderboardUserResource[]>("mockusers.jsonc");
 const seedQuests = readJsonResource<LeaderboardQuestResource[]>("quests.jsonc");
-const seedRuns = readJsonResource<LeaderboardRunResource[]>("runs.jsonc");
+const seedRuns = readJsonResource<LeaderboardRunResource[]>("mockruns.jsonc");
 
 const client = createClient({ url: getDatabaseUrl() });
 const db = drizzle(client, {
@@ -57,14 +58,16 @@ async function main() {
         .insert(users)
         .values({
           id: user.id,
-          name: user.name,
+          name: user.username,
+          displayName: user.displayName,
           image: user.image,
           role: user.role,
         })
         .onConflictDoUpdate({
           target: users.id,
           set: {
-            name: user.name,
+            name: user.username,
+            displayName: user.displayName,
             image: user.image,
             role: user.role,
           },

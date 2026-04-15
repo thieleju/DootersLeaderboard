@@ -24,6 +24,7 @@ export const users = createTable("user", (d) => ({
     .primaryKey()
     .$defaultFn(() => crypto.randomUUID()),
   name: d.text({ length: 255 }),
+  displayName: d.text({ length: 255 }),
   email: d.text({ length: 255 }),
   emailVerified: d.integer({ mode: "timestamp" }).default(sql`(unixepoch())`),
   image: d.text({ length: 255 }),
