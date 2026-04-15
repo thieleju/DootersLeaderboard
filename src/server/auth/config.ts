@@ -53,6 +53,7 @@ type DiscordProfilePayload = {
  */
 export const authConfig = {
   // debug: process.env.NODE_ENV !== "production",
+  trustHost: process.env.NODE_ENV === "production",
   pages: {
     error: "/auth/error",
   },
