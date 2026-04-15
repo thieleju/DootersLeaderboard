@@ -5,7 +5,7 @@ import LoginButton from "./login-button";
 
 export default async function Header() {
   const session = await auth();
-  const isAdmin = session?.user.role === "admin";
+  const isAdmin = session?.user?.role === "admin";
 
   return (
     <header className="sticky top-0 z-50 border-b border-black bg-gray-800/80 backdrop-blur-sm">
