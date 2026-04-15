@@ -1,0 +1,47 @@
+[
+    {
+        "id": "q_rusted_horn",
+        "slug": "rusted-horn",
+        "title": "Rusted Horn Showdown",
+        "monster": "Rathalos",
+        "type": "event",
+        "areaKey": "forest",
+        "difficultyStars": 5
+    },
+    {
+        "id": "q_pearl_abyss",
+        "slug": "pearl-abyss",
+        "title": "Pearl Abyss Pursuit",
+        "monster": "Balahara",
+        "type": "optional",
+        "areaKey": "plains",
+        "difficultyStars": 4
+    },
+    {
+        "id": "q_sundered_gorge",
+        "slug": "sundered-gorge",
+        "title": "Sundered Gorge Contract",
+        "monster": "Ajarakan",
+        "type": "arena",
+        "areaKey": "basin",
+        "difficultyStars": 4
+    },
+    {
+        "id": "q_whispering_gale",
+        "slug": "whispering-gale",
+        "title": "Whispering Gale Trial",
+        "monster": "Lala Barina",
+        "type": "special",
+        "areaKey": "cliffs",
+        "difficultyStars": 5
+    },
+    {
+        "id": "q_blood_moon",
+        "slug": "blood-moon",
+        "title": "Blood Moon Relay",
+        "monster": "Rey Dau",
+        "type": "story",
+        "areaKey": "wyveria",
+        "difficultyStars": 6
+    }
+]

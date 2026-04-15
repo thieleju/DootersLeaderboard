@@ -1,6 +1,17 @@
 import { relations, sql } from "drizzle-orm";
-import { index, primaryKey, sqliteTableCreator } from "drizzle-orm/sqlite-core";
-import { type AdapterAccount } from "next-auth/adapters";
+import {
+  index,
+  primaryKey,
+  sqliteTableCreator,
+  uniqueIndex,
+} from "drizzle-orm/sqlite-core";
+import type { AdapterAccount } from "next-auth/adapters";
+
+import {
+  type QuestType,
+  type RunCategoryId,
+  type UserRole,
+} from "~/server/types/leaderboard";
 
 export const createTable = sqliteTableCreator(
   (name) => `dootersleaderboard_${name}`,
@@ -16,6 +27,7 @@ export const users = createTable("user", (d) => ({
   email: d.text({ length: 255 }),
   emailVerified: d.integer({ mode: "timestamp" }).default(sql`(unixepoch())`),
   image: d.text({ length: 255 }),
+  role: d.text({ length: 32 }).$type<UserRole>().notNull().default("runner"),
 }));
 
 export const usersRelations = relations(users, ({ many }) => ({
@@ -78,3 +90,67 @@ export const verificationTokens = createTable(
   }),
   (t) => [primaryKey({ columns: [t.identifier, t.token] })],
 );
+
+export const quests = createTable(
+  "quest",
+  (d) => ({
+    id: d
+      .text({ length: 255 })
+      .notNull()
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    slug: d.text({ length: 255 }).notNull(),
+    title: d.text({ length: 255 }).notNull(),
+    monster: d.text({ length: 255 }).notNull(),
+    type: d.text({ length: 32 }).$type<QuestType>().notNull(),
+    area: d.text({ length: 255 }).notNull(),
+    difficultyStars: d.integer().notNull(),
+  }),
+  (t) => [uniqueIndex("quest_slug_idx").on(t.slug)],
+);
+
+export const runs = createTable(
+  "run",
+  (d) => ({
+    id: d
+      .text({ length: 255 })
+      .notNull()
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    userId: d
+      .text({ length: 255 })
+      .notNull()
+      .references(() => users.id),
+    questId: d
+      .text({ length: 255 })
+      .notNull()
+      .references(() => quests.id),
+    hunterName: d.text({ length: 255 }).notNull(),
+    submittedAt: d.integer({ mode: "timestamp" }).notNull(),
+    runTimeMs: d.integer().notNull(),
+    category: d.text({ length: 64 }).$type<RunCategoryId>().notNull(),
+    tags: d.text({ length: 4000 }).notNull().default("null"),
+    primaryWeapon: d.text({ length: 255 }).notNull(),
+    secondaryWeapon: d.text({ length: 255 }),
+    approvedByUserId: d.text({ length: 255 }).references(() => users.id),
+    approvedAt: d.integer({ mode: "timestamp" }),
+  }),
+  (t) => [
+    index("run_user_id_idx").on(t.userId),
+    index("run_quest_id_idx").on(t.questId),
+    index("run_approved_by_user_id_idx").on(t.approvedByUserId),
+  ],
+);
+
+export const questsRelations = relations(quests, ({ many }) => ({
+  runs: many(runs),
+}));
+
+export const runsRelations = relations(runs, ({ one }) => ({
+  runner: one(users, { fields: [runs.userId], references: [users.id] }),
+  quest: one(quests, { fields: [runs.questId], references: [quests.id] }),
+  approvedBy: one(users, {
+    fields: [runs.approvedByUserId],
+    references: [users.id],
+  }),
+}));

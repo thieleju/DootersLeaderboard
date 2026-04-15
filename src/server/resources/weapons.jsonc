@@ -1,0 +1,58 @@
+[
+    {
+        "key": "gs",
+        "label": "Great Sword"
+    },
+    {
+        "key": "ls",
+        "label": "Long Sword"
+    },
+    {
+        "key": "db",
+        "label": "Dual Blades"
+    },
+    {
+        "key": "sns",
+        "label": "Sword & Shield"
+    },
+    {
+        "key": "sa",
+        "label": "Switch Axe"
+    },
+    {
+        "key": "hh",
+        "label": "Hunting Horn"
+    },
+    {
+        "key": "lbg",
+        "label": "Light Bowgun"
+    },
+    {
+        "key": "hbg",
+        "label": "Heavy Bowgun"
+    },
+    {
+        "key": "lan",
+        "label": "Lance"
+    },
+    {
+        "key": "ham",
+        "label": "Hammer"
+    },
+    {
+        "key": "cb",
+        "label": "Charge Blade"
+    },
+    {
+        "key": "gl",
+        "label": "Gunlance"
+    },
+    {
+        "key": "ig",
+        "label": "Insect Glaive"
+    },
+    {
+        "key": "bow",
+        "label": "Bow"
+    }
+]

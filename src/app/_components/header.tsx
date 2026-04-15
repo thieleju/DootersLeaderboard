@@ -12,7 +12,7 @@ export default function Header() {
           </div>
         </Link>
 
-        <div className="flex items-center gap-6">
+        <div className="flex items-center gap-1">
           <Link
             href="/players"
             className="flex items-center gap-2 text-gray-300 transition-colors hover:text-amber-300"
@@ -21,13 +21,13 @@ export default function Header() {
             <span>Players</span>
           </Link>
 
-          <Link
+          {/* <Link
             href="/info"
             className="flex items-center gap-2 text-gray-300 transition-colors hover:text-amber-300"
           >
             <CircleHelp className="h-4 w-4" />
             <span className="hidden min-[400px]:inline">Info</span>
-          </Link>
+          </Link> */}
 
           <div className="ml-4 hidden items-center gap-2 border-l border-gray-600 pl-4 md:flex">
             <LoginButton />
