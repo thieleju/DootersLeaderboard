@@ -9,6 +9,8 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:seed": "tsx src/server/scripts/seed.ts",
+    "db:seed:demo": "tsx src/server/scripts/seed.ts --mode=demo",
+    "db:seed:production": "tsx src/server/scripts/seed.ts --mode=production",
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio",
     "dev": "next dev --turbo",
