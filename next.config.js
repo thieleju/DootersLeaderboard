@@ -8,7 +8,18 @@ import "./src/env.js";
 const config = {
     output: "standalone",
     images: {
-        domains: ["cdn.discordapp.com"],
+        remotePatterns: [
+            {
+                protocol: "https",
+                hostname: "cdn.discordapp.com",
+                pathname: "/avatars/**",
+            },
+            {
+                protocol: "https",
+                hostname: "cdn.discordapp.com",
+                pathname: "/embed/avatars/**",
+            },
+        ],
     },
 };
 export default config;
