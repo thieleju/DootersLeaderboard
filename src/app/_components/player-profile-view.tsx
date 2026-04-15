@@ -607,7 +607,7 @@ export default function PlayerProfileView({
                     "Player"}
                 </h1>
                 <Link
-                  href="/players"
+                  href="/rankings"
                   className={`inline-flex cursor-pointer items-center rounded-full border px-2.5 py-1 text-xs font-semibold tracking-[0.12em] uppercase transition-colors hover:brightness-110 ${
                     profile.leaderboardPlacement
                       ? getProfileRankBadgeClass(profile.leaderboardPlacement)

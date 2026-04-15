@@ -3,7 +3,7 @@
 import { useEffect } from "react";
 import Image from "next/image";
 import { motion } from "framer-motion";
-import { CalendarDays, UserRound, Users } from "lucide-react";
+import { CalendarDays, Trophy, UserRound } from "lucide-react";
 import { useRouter } from "next/navigation";
 
 import { api } from "~/trpc/react";
@@ -48,9 +48,9 @@ export default function PlayersTable({
   return (
     <AnimatedCard delay={delay} className="p-6 shadow-2xl shadow-black/20">
       <DataTable
-        title="Players"
+        title="Global Ranking"
         description="All Dooters are ranked by their overall score, calculated as the sum of their scores from each quest."
-        icon={<Users className="h-6 w-6" />}
+        icon={<Trophy className="h-6 w-6" />}
         columns={[
           { key: "rank", label: "Rank" },
           { key: "runner", label: "Runner" },
@@ -65,7 +65,7 @@ export default function PlayersTable({
         ]}
       >
         {playersQuery.isLoading ? (
-          <DataTableLoadingState columnCount={6} label="Loading players..." />
+          <DataTableLoadingState columnCount={6} label="Loading ranking..." />
         ) : (
           <motion.tbody
             key="players-rows"
@@ -79,11 +79,11 @@ export default function PlayersTable({
                 key={player.userId}
                 role="button"
                 tabIndex={0}
-                onClick={() => router.push(`/player/${player.userId}`)}
+                onClick={() => router.push(`/profile/${player.userId}`)}
                 onKeyDown={(event) => {
                   if (event.key === "Enter" || event.key === " ") {
                     event.preventDefault();
-                    router.push(`/player/${player.userId}`);
+                    router.push(`/profile/${player.userId}`);
                   }
                 }}
                 initial={{ opacity: 0, y: 10 }}
@@ -187,8 +187,8 @@ export default function PlayersTable({
 
       {!playersQuery.isLoading && (playersQuery.data?.length ?? 0) === 0 ? (
         <div className="rounded-lg border border-dashed border-gray-700 bg-white/2 p-6 text-center text-sm text-gray-400">
-          No players found. Only players with at least one approved run are
-          shown here.
+          No ranking entries found. Only players with at least one approved run
+          are shown here.
         </div>
       ) : null}
     </AnimatedCard>

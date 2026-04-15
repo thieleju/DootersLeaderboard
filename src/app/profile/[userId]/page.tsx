@@ -11,7 +11,7 @@ interface PlayerPageProps {
   }>;
 }
 
-export default function PlayerPage({ params }: PlayerPageProps) {
+export default function ProfilePage({ params }: PlayerPageProps) {
   const [showBackLink, setShowBackLink] = useState(false);
   const { userId } = use(params);
 

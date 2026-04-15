@@ -16,7 +16,7 @@ export default async function HomeCtaCard({ delay = 0 }: HomeCtaCardProps) {
     ? "Click the button below to submit your run."
     : "To submit a run, log in with your discord account.";
 
-  const primaryHref = isLoggedIn ? `/player/${session?.user.id}` : "/login";
+  const primaryHref = isLoggedIn ? `/profile/${session?.user.id}` : "/login";
   const primaryLabel = isLoggedIn ? "Submit a run" : "Login";
 
   return (
@@ -30,10 +30,10 @@ export default async function HomeCtaCard({ delay = 0 }: HomeCtaCardProps) {
           {primaryLabel}
         </Link>
         <Link
-          href="/players"
+          href="/rankings"
           className="rounded border border-gray-600 px-6 py-2 font-semibold text-gray-300 transition-colors hover:border-amber-400 hover:text-amber-400"
         >
-          View Players
+          View Rankings
         </Link>
       </div>
     </AnimatedCard>

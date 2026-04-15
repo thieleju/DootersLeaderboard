@@ -121,7 +121,7 @@ export default function LeaderboardTable({ delay = 0 }: LeaderboardTableProps) {
   return (
     <AnimatedCard delay={delay} className="p-6 shadow-2xl shadow-black/20">
       <DataTable
-        title="Leaderboard"
+        title="Quest Leaderboard"
         description="Every quest has one leaderboard, use the filters to change the quest and category."
         icon={<Trophy className="h-6 w-6" />}
         headerContent={
@@ -338,7 +338,7 @@ export default function LeaderboardTable({ delay = 0 }: LeaderboardTableProps) {
 
                   <td className="px-3 py-4 align-middle">
                     <Link
-                      href={`/player/${row.userId}`}
+                      href={`/profile/${row.userId}`}
                       className="flex items-center gap-3 rounded-md transition-colors hover:text-amber-300 focus-visible:ring-2 focus-visible:ring-amber-300/40 focus-visible:outline-none"
                     >
                       <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full border border-gray-700 bg-white/5 text-sm font-semibold text-gray-300">

@@ -12,7 +12,7 @@ export default function LoginButton() {
     return (
       <div className="flex items-center gap-3">
         <Link
-          href={`/player/${session.user.id}`}
+          href={`/profile/${session.user.id}`}
           className="flex items-center gap-2 text-gray-300 transition-colors hover:text-amber-300"
         >
           <span className="relative flex h-8 w-8 items-center justify-center overflow-hidden rounded-full border border-gray-600 bg-white/5">

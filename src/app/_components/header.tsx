@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ShieldCheck, Users } from "lucide-react";
+import { ShieldCheck, Trophy } from "lucide-react";
 import { auth } from "~/server/auth";
 import LoginButton from "./login-button";
 
@@ -28,11 +28,11 @@ export default async function Header() {
           ) : null}
 
           <Link
-            href="/players"
+            href="/rankings"
             className="flex items-center gap-2 text-gray-300 transition-colors hover:text-amber-300"
           >
-            <Users className="h-4 w-4" />
-            <span>Players</span>
+            <Trophy className="h-4 w-4" />
+            <span>Rankings</span>
           </Link>
 
           {/* <Link

@@ -21,7 +21,7 @@ export default function BackHomeLink({ className = "" }: BackHomeLinkProps) {
       <button
         type="button"
         onClick={() => {
-          if (pathname === "/players") {
+          if (pathname === "/rankings") {
             router.push("/");
             return;
           }

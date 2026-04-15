@@ -104,7 +104,7 @@ export default function AdminUsersTable({
               >
                 <td className="px-3 py-4 align-middle">
                   <Link
-                    href={`/player/${user.id}`}
+                    href={`/profile/${user.id}`}
                     className="inline-flex items-center gap-3 text-gray-200 transition-colors hover:text-amber-300"
                   >
                     <span className="relative flex h-10 w-10 items-center justify-center overflow-hidden rounded-full border border-gray-700 bg-white/5">

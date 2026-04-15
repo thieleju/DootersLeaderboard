@@ -5,7 +5,7 @@ import { useState } from "react";
 import BackHomeLink from "../_components/back-home-link";
 import PlayersTable from "../_components/players-table";
 
-export default function PlayersPage() {
+export default function RankingPage() {
   const [showBackLink, setShowBackLink] = useState(false);
 
   return (

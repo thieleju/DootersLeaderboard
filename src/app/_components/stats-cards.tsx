@@ -50,7 +50,7 @@ export default function HomeStatsCards() {
 
   return (
     <div className="grid grid-cols-1 gap-4 min-[640px]:grid-cols-2 min-[1024px]:grid-cols-4">
-      <AnimatedCard interactive className="p-6 text-center" href="/players">
+      <AnimatedCard interactive className="p-6 text-center" href="/rankings">
         <div className="mb-3 flex justify-center">
           <Users className="h-8 w-8 text-cyan-400" />
         </div>
@@ -64,10 +64,10 @@ export default function HomeStatsCards() {
           </div>
         ) : (
           <Link
-            href="/players"
+            href="/rankings"
             className="mt-3 inline-flex text-xs text-cyan-300 transition-colors hover:text-cyan-200"
           >
-            View players
+            View rankings
           </Link>
         )}
       </AnimatedCard>
@@ -154,7 +154,7 @@ export default function HomeStatsCards() {
         className="p-6 text-center"
         onClick={() => {
           if (stats?.topRunner) {
-            router.push(`/player/${stats.topRunner.userId}`);
+            router.push(`/profile/${stats.topRunner.userId}`);
           }
         }}
       >
