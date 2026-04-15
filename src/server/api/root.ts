@@ -1,4 +1,5 @@
 import { leaderboardRouter } from "~/server/api/routers/leaderboard";
+import { adminRouter } from "~/server/api/routers/admin";
 import { playersRouter } from "~/server/api/routers/players";
 import { statsRouter } from "~/server/api/routers/stats";
 import { createCallerFactory, createTRPCRouter } from "~/server/api/trpc";
@@ -9,6 +10,7 @@ import { createCallerFactory, createTRPCRouter } from "~/server/api/trpc";
  * All routers added in /api/routers should be manually added here.
  */
 export const appRouter = createTRPCRouter({
+  admin: adminRouter,
   leaderboard: leaderboardRouter,
   players: playersRouter,
   stats: statsRouter,

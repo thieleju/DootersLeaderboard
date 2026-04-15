@@ -47,7 +47,6 @@ export type LeaderboardUserResource = {
 
 export type LeaderboardQuestResource = {
   id: string;
-  slug: string;
   title: string;
   monster: string;
   type: QuestType;
@@ -96,12 +95,12 @@ export type LeaderboardRunResource = {
 };
 
 export type LeaderboardFilters = {
-  questSlug?: string;
+  questId?: string;
   categoryId: LeaderboardCategoryFilterKey;
 };
 
 export type LeaderboardQuestOption = {
-  slug: string;
+  id: string;
   title: string;
   monster: string;
   type: QuestType;
@@ -131,7 +130,7 @@ export type LeaderboardRow = {
   userName: string;
   userImage: string | null;
   hunterName: string;
-  questSlug: string;
+  questId: string;
   submittedAtMs: number;
   runTimeMs: number;
   score: number;

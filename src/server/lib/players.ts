@@ -383,7 +383,6 @@ export async function getSubmitRunOptions() {
   const quests = await db
     .select({
       id: questsTable.id,
-      slug: questsTable.slug,
       title: questsTable.title,
       monster: questsTable.monster,
       difficultyStars: questsTable.difficultyStars,
@@ -411,7 +410,7 @@ export async function getSubmitRunOptions() {
     quests: quests.map((quest): LeaderboardQuestOption => {
       const areaKey = quest.areaKey as LeaderboardAreaKey;
       return {
-        slug: quest.slug,
+        id: quest.id,
         title: quest.title,
         monster: quest.monster,
         type: quest.type,
@@ -420,9 +419,6 @@ export async function getSubmitRunOptions() {
         difficultyStars: quest.difficultyStars,
       };
     }),
-    questIdsBySlug: Object.fromEntries(
-      quests.map((quest) => [quest.slug, quest.id]),
-    ),
     categories: categories.map((category) => ({
       id: category.id,
       label: category.label,
@@ -541,6 +537,7 @@ export async function rejectRun(
   const run = await db
     .select({
       id: runsTable.id,
+      userId: runsTable.userId,
       approvedByUserId: runsTable.approvedByUserId,
     })
     .from(runsTable)
@@ -550,6 +547,13 @@ export async function rejectRun(
 
   if (!run) {
     throw new TRPCError({ code: "NOT_FOUND", message: "Run not found" });
+  }
+
+  if (viewerRole === "moderator" && run.userId === viewerUserId) {
+    throw new TRPCError({
+      code: "FORBIDDEN",
+      message: "Moderators cannot reject their own runs",
+    });
   }
 
   await db
@@ -578,6 +582,7 @@ export async function approveRun(
   const run = await db
     .select({
       id: runsTable.id,
+      userId: runsTable.userId,
       approvedByUserId: runsTable.approvedByUserId,
     })
     .from(runsTable)
@@ -587,6 +592,13 @@ export async function approveRun(
 
   if (!run) {
     throw new TRPCError({ code: "NOT_FOUND", message: "Run not found" });
+  }
+
+  if (viewerRole === "moderator" && run.userId === viewerUserId) {
+    throw new TRPCError({
+      code: "FORBIDDEN",
+      message: "Moderators cannot approve their own runs",
+    });
   }
 
   if (run.approvedByUserId) {

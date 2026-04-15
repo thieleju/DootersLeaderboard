@@ -160,6 +160,7 @@ export default function PlayerProfileView({
   const viewerRole = profileQuery.data?.viewerRole ?? null;
   const canModerateRuns = viewerRole === "moderator" || viewerRole === "admin";
   const isAdmin = viewerRole === "admin";
+  const canModerateOwnRuns = isAdmin || !isCurrentUser;
 
   const submitOptionsQuery = api.players.submitOptions.useQuery(undefined, {
     staleTime: Infinity,
@@ -184,7 +185,7 @@ export default function PlayerProfileView({
     const options = submitOptionsQuery.data;
     if (!options) return "";
     if (!options.quests[0]) return "";
-    return options.questIdsBySlug[options.quests[0].slug] ?? "";
+    return options.quests[0].id;
   }, [submitOptionsQuery.data]);
 
   const [form, setForm] = useState<FormState>(() => emptyFormState(""));
@@ -194,7 +195,7 @@ export default function PlayerProfileView({
       if (
         openDropdown &&
         !(event.target as HTMLElement).closest(
-          '[role="button"], [role="listbox"]'
+          '[role="button"], [role="listbox"]',
         )
       ) {
         setOpenDropdown(null);
@@ -572,8 +573,10 @@ export default function PlayerProfileView({
 
   const hasAnyRunActions = allRuns.some((run) => {
     const canDeleteRun = isAdmin || (isCurrentUser && run.status === "pending");
-    const canApproveRun = canModerateRuns && run.status !== "approved";
-    const canRejectRun = canModerateRuns && run.status !== "rejected";
+    const canApproveRun =
+      canModerateRuns && canModerateOwnRuns && run.status !== "approved";
+    const canRejectRun =
+      canModerateRuns && canModerateOwnRuns && run.status !== "rejected";
     return canDeleteRun || canApproveRun || canRejectRun;
   });
 
@@ -685,8 +688,14 @@ export default function PlayerProfileView({
                 : null;
               const canDeleteRun =
                 isAdmin || (isCurrentUser && run.status === "pending");
-              const canApproveRun = canModerateRuns && run.status !== "approved";
-              const canRejectRun = canModerateRuns && run.status !== "rejected";
+              const canApproveRun =
+                canModerateRuns &&
+                canModerateOwnRuns &&
+                run.status !== "approved";
+              const canRejectRun =
+                canModerateRuns &&
+                canModerateOwnRuns &&
+                run.status !== "rejected";
               const statusLabel =
                 run.status === "approved"
                   ? "Approved"
@@ -791,7 +800,8 @@ export default function PlayerProfileView({
                   </td>
                   {canModerateRuns ? (
                     <td className="px-3 py-4 align-middle">
-                      {run.status === "approved" && run.approvedByDisplayName ? (
+                      {run.status === "approved" &&
+                      run.approvedByDisplayName ? (
                         <div className="min-w-0">
                           <div className="truncate text-sm font-semibold text-white">
                             {run.approvedByDisplayName}
@@ -948,11 +958,9 @@ export default function PlayerProfileView({
                 >
                   <span className="block truncate">
                     {(() => {
-                      const quest = (submitOptionsQuery.data?.quests ?? []).find(
-                        (q) =>
-                          (submitOptionsQuery.data?.questIdsBySlug[q.slug] ??
-                            "") === formWithDefaultQuest.questId
-                      );
+                      const quest = (
+                        submitOptionsQuery.data?.quests ?? []
+                      ).find((q) => q.id === formWithDefaultQuest.questId);
                       return quest
                         ? `${quest.title} · ${quest.difficultyStars}★ ${quest.monster}`
                         : "Select quest";
@@ -976,28 +984,26 @@ export default function PlayerProfileView({
                     className="absolute z-30 mt-2 max-h-64 w-full overflow-y-auto rounded-lg border border-gray-700 bg-gray-900/95 p-1 shadow-2xl shadow-black/35 backdrop-blur-sm"
                   >
                     {(submitOptionsQuery.data?.quests ?? []).map((quest) => {
-                      const id =
-                        submitOptionsQuery.data?.questIdsBySlug[quest.slug] ??
-                        "";
                       return (
                         <button
-                          key={quest.slug}
+                          key={quest.id}
                           type="button"
                           role="option"
                           onClick={() => {
                             setForm((current) => ({
                               ...current,
-                              questId: id,
+                              questId: quest.id,
                             }));
                             setOpenDropdown(null);
                           }}
                           className={`flex w-full rounded-md px-3 py-2 text-left text-sm transition-colors ${
-                            formWithDefaultQuest.questId === id
+                            formWithDefaultQuest.questId === quest.id
                               ? "bg-amber-400/15 text-amber-100"
                               : "text-gray-200 hover:bg-white/7"
                           }`}
                         >
-                          {quest.title} · {quest.difficultyStars}★ {quest.monster}
+                          {quest.title} · {quest.difficultyStars}★{" "}
+                          {quest.monster}
                         </button>
                       );
                     })}
@@ -1056,14 +1062,14 @@ export default function PlayerProfileView({
                   type="button"
                   onClick={() =>
                     setOpenDropdown(
-                      openDropdown === "category" ? null : "category"
+                      openDropdown === "category" ? null : "category",
                     )
                   }
                   className="relative w-full rounded-lg border border-gray-700 bg-gray-900/70 px-3 py-2 pr-10 text-left text-sm text-gray-100 transition-colors outline-none hover:border-amber-400 focus-visible:border-amber-400"
                 >
                   <span className="block truncate">
                     {(submitOptionsQuery.data?.categories ?? []).find(
-                      (c) => c.id === formWithDefaultQuest.category
+                      (c) => c.id === formWithDefaultQuest.category,
                     )?.label || "Select category"}
                   </span>
                   <ChevronDown
@@ -1104,7 +1110,7 @@ export default function PlayerProfileView({
                         >
                           {category.label}
                         </button>
-                      )
+                      ),
                     )}
                   </motion.div>
                 )}
@@ -1120,14 +1126,14 @@ export default function PlayerProfileView({
                   type="button"
                   onClick={() =>
                     setOpenDropdown(
-                      openDropdown === "primary" ? null : "primary"
+                      openDropdown === "primary" ? null : "primary",
                     )
                   }
                   className="relative w-full rounded-lg border border-gray-700 bg-gray-900/70 px-3 py-2 pr-10 text-left text-sm text-gray-100 transition-colors outline-none hover:border-amber-400 focus-visible:border-amber-400"
                 >
                   <span className="block truncate">
                     {(submitOptionsQuery.data?.weapons ?? []).find(
-                      (w) => w.key === formWithDefaultQuest.primaryWeaponKey
+                      (w) => w.key === formWithDefaultQuest.primaryWeaponKey,
                     )?.label || "Select primary weapon"}
                   </span>
                   <ChevronDown
@@ -1188,14 +1194,14 @@ export default function PlayerProfileView({
                   type="button"
                   onClick={() =>
                     setOpenDropdown(
-                      openDropdown === "secondary" ? null : "secondary"
+                      openDropdown === "secondary" ? null : "secondary",
                     )
                   }
                   className="relative w-full rounded-lg border border-gray-700 bg-gray-900/70 px-3 py-2 pr-10 text-left text-sm text-gray-100 transition-colors outline-none hover:border-amber-400 focus-visible:border-amber-400"
                 >
                   <span className="block truncate">
                     {(submitOptionsQuery.data?.weapons ?? []).find(
-                      (w) => w.key === formWithDefaultQuest.secondaryWeaponKey
+                      (w) => w.key === formWithDefaultQuest.secondaryWeaponKey,
                     )?.label || "Select secondary weapon"}
                   </span>
                   <ChevronDown

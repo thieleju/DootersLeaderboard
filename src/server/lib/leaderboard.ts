@@ -51,11 +51,11 @@ const categoryById = new Map(
 export async function getLeaderboardFilters(): Promise<{
   quests: LeaderboardQuestOption[];
   categories: LeaderboardCategoryOption[];
-  defaultQuestSlug: string;
+  defaultQuestId: string;
 }> {
   const quests = await db
     .select({
-      slug: questsTable.slug,
+      id: questsTable.id,
       title: questsTable.title,
       monster: questsTable.monster,
       type: questsTable.type,
@@ -82,7 +82,7 @@ export async function getLeaderboardFilters(): Promise<{
       const areaKey = quest.areaKey as LeaderboardAreaKey;
 
       return {
-        slug: quest.slug,
+        id: quest.id,
         title: quest.title,
         monster: quest.monster,
         type: quest.type,
@@ -92,7 +92,7 @@ export async function getLeaderboardFilters(): Promise<{
       };
     }),
     categories: availableCategories,
-    defaultQuestSlug: quests[0]?.slug ?? "",
+    defaultQuestId: quests[0]?.id ?? "",
   };
 }
 
@@ -116,7 +116,6 @@ export async function getLeaderboardRows(): Promise<{
   const quests = await db
     .select({
       id: questsTable.id,
-      slug: questsTable.slug,
       title: questsTable.title,
       monster: questsTable.monster,
       type: questsTable.type,
@@ -184,7 +183,7 @@ export async function getLeaderboardRows(): Promise<{
       userName: run.userName ?? run.hunterName,
       userImage: run.userImage ?? null,
       hunterName: run.hunterName,
-      questSlug: quest.slug,
+      questId: quest.id,
       submittedAtMs:
         run.submittedAt instanceof Date
           ? run.submittedAt.getTime()
@@ -227,7 +226,7 @@ export async function getLeaderboardRows(): Promise<{
   return {
     quest: selectedQuest
       ? {
-          slug: selectedQuest.slug,
+          id: selectedQuest.id,
           title: selectedQuest.title,
           monster: selectedQuest.monster,
           type: selectedQuest.type,

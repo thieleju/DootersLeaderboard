@@ -1,8 +1,12 @@
 import Link from "next/link";
-import { Users, CircleHelp } from "lucide-react";
+import { ShieldCheck, Users, CircleHelp } from "lucide-react";
+import { auth } from "~/server/auth";
 import LoginButton from "./login-button";
 
-export default function Header() {
+export default async function Header() {
+  const session = await auth();
+  const isAdmin = session?.user.role === "admin";
+
   return (
     <header className="sticky top-0 z-50 border-b border-black bg-gray-800/80 backdrop-blur-sm">
       <nav className="container-max flex h-16 items-center justify-between">
@@ -13,6 +17,16 @@ export default function Header() {
         </Link>
 
         <div className="flex items-center gap-1">
+          {isAdmin ? (
+            <Link
+              href="/admin"
+              className="mr-5 flex items-center gap-2 text-gray-300 transition-colors hover:text-amber-300"
+            >
+              <ShieldCheck className="h-4 w-4" />
+              <span>Admin</span>
+            </Link>
+          ) : null}
+
           <Link
             href="/players"
             className="flex items-center gap-2 text-gray-300 transition-colors hover:text-amber-300"

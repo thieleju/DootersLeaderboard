@@ -182,7 +182,8 @@ export default function PlayersTable({
 
       {!playersQuery.isLoading && (playersQuery.data?.length ?? 0) === 0 ? (
         <div className="rounded-lg border border-dashed border-gray-700 bg-white/2 p-6 text-center text-sm text-gray-400">
-          No approved runs yet.
+          No players found. Only players with at least one approved run are
+          shown here.
         </div>
       ) : null}
     </AnimatedCard>

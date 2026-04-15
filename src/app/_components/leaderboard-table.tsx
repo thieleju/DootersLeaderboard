@@ -71,16 +71,16 @@ export default function LeaderboardTable({ delay = 0 }: LeaderboardTableProps) {
   const filtersQuery = api.leaderboard.filters.useQuery(undefined, {
     staleTime: Infinity,
   });
-  const [questSlug, setQuestSlug] = useState("");
+  const [questId, setQuestId] = useState("");
   const [selectedCategoryId, setSelectedCategoryId] =
     useState<LeaderboardCategoryFilterKey>("all");
   const [isQuestMenuOpen, setIsQuestMenuOpen] = useState(false);
 
   useEffect(() => {
-    if (!questSlug && filtersQuery.data?.defaultQuestSlug) {
-      setQuestSlug(filtersQuery.data.defaultQuestSlug);
+    if (!questId && filtersQuery.data?.defaultQuestId) {
+      setQuestId(filtersQuery.data.defaultQuestId);
     }
-  }, [filtersQuery.data?.defaultQuestSlug, questSlug]);
+  }, [filtersQuery.data?.defaultQuestId, questId]);
 
   const leaderboardQuery = api.leaderboard.getLeaderboard.useQuery(undefined, {
     staleTime: Infinity,
@@ -96,16 +96,16 @@ export default function LeaderboardTable({ delay = 0 }: LeaderboardTableProps) {
     () =>
       allRows.filter(
         (row) =>
-          row.questSlug === questSlug &&
+          row.questId === questId &&
           (selectedCategoryId === "all" ||
             row.categoryId === selectedCategoryId),
       ),
-    [allRows, questSlug, selectedCategoryId],
+    [allRows, questId, selectedCategoryId],
   );
 
-  const tableBodyKey = `${questSlug}-${selectedCategoryId}`;
+  const tableBodyKey = `${questId}-${selectedCategoryId}`;
   const selectedQuest =
-    questOptions.find((questOption) => questOption.slug === questSlug) ?? null;
+    questOptions.find((questOption) => questOption.id === questId) ?? null;
 
   useEffect(() => {
     const onPointerDown = (event: PointerEvent) => {
@@ -120,7 +120,7 @@ export default function LeaderboardTable({ delay = 0 }: LeaderboardTableProps) {
 
   useEffect(() => {
     setIsQuestMenuOpen(false);
-  }, [questSlug]);
+  }, [questId]);
 
   return (
     <AnimatedCard delay={delay} className="p-6 shadow-2xl shadow-black/20">
@@ -167,14 +167,14 @@ export default function LeaderboardTable({ delay = 0 }: LeaderboardTableProps) {
                       className="absolute z-30 mt-2 max-h-72 w-full overflow-y-auto rounded-lg border border-gray-700 bg-gray-900/95 p-1 shadow-2xl shadow-black/35 backdrop-blur-sm"
                     >
                       {questOptions.map((questOption) => {
-                        const isSelected = questOption.slug === questSlug;
+                        const isSelected = questOption.id === questId;
                         return (
                           <button
-                            key={questOption.slug}
+                            key={questOption.id}
                             type="button"
                             role="option"
                             aria-selected={isSelected}
-                            onClick={() => setQuestSlug(questOption.slug)}
+                            onClick={() => setQuestId(questOption.id)}
                             className={`flex w-full flex-col rounded-md px-3 py-2 text-left transition-colors ${
                               isSelected
                                 ? "bg-amber-400/15 text-amber-100"
@@ -446,7 +446,7 @@ export default function LeaderboardTable({ delay = 0 }: LeaderboardTableProps) {
                 colSpan={7}
                 className="px-3 py-8 text-center text-sm text-gray-400"
               >
-                No runs found :(
+                No runs found yet.
               </td>
             </tr>
           </motion.tbody>

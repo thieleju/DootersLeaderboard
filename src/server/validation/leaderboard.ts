@@ -8,6 +8,6 @@ export const leaderboardCategoryFilterValues = [
 ] as const;
 
 export const leaderboardFiltersSchema = z.object({
-  questSlug: z.string().optional(),
+  questId: z.string().optional(),
   categoryId: z.enum(leaderboardCategoryFilterValues).default("all"),
 });
