@@ -56,8 +56,7 @@ export type PlayerProfileData = {
       third: number;
     };
   };
-  pendingRuns: PlayerProfileRunRow[];
-  approvedRuns: PlayerProfileRunRow[];
+  runs: PlayerProfileRunRow[];
   isCurrentUser: boolean;
   viewerRole: UserRole | null;
   leaderboardPlacement: number | null;

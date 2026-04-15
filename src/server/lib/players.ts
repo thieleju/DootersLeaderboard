@@ -223,8 +223,7 @@ export async function getPlayerProfile(
         score: 0,
         top3Placements: { first: 0, second: 0, third: 0 },
       },
-      pendingRuns: [],
-      approvedRuns: [],
+      runs: [],
       isCurrentUser: false,
       viewerRole: viewerRole ?? null,
       leaderboardPlacement: null,
@@ -366,10 +365,9 @@ export async function getPlayerProfile(
       score: userScore ? userScore.sum : 0,
       top3Placements: userPlacements,
     },
-    pendingRuns: canViewPendingRuns
-      ? rows.filter((run) => run.status !== "approved")
-      : [],
-    approvedRuns: rows.filter((run) => run.status === "approved"),
+    runs: canViewPendingRuns
+      ? rows
+      : rows.filter((run) => run.status === "approved"),
     isCurrentUser,
     viewerRole: viewerRole ?? null,
     leaderboardPlacement: leaderboardIndex >= 0 ? leaderboardIndex + 1 : null,

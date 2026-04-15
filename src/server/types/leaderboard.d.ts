@@ -107,6 +107,7 @@ export type LeaderboardQuestOption = {
   areaKey: LeaderboardAreaKey;
   areaLabel: string;
   difficultyStars: number;
+  approvedRunCount?: number;
 };
 
 export type LeaderboardTagOption = {

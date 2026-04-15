@@ -1,6 +1,6 @@
 import "server-only";
 
-import { asc, desc, eq } from "drizzle-orm";
+import { asc, desc, eq, inArray, isNotNull, sql } from "drizzle-orm";
 
 import { db } from "~/server/db";
 import {
@@ -51,17 +51,38 @@ export async function getLeaderboardFilters(): Promise<{
   categories: LeaderboardCategoryOption[];
   defaultQuestId: string;
 }> {
-  const quests = await db
+  const approvedQuestStats = await db
     .select({
-      id: questsTable.id,
-      title: questsTable.title,
-      monster: questsTable.monster,
-      type: questsTable.type,
-      areaKey: questsTable.area,
-      difficultyStars: questsTable.difficultyStars,
+      questId: runsTable.questId,
+      approvedRunCount: sql<number>`count(*)`,
     })
-    .from(questsTable)
-    .orderBy(desc(questsTable.difficultyStars), asc(questsTable.title));
+    .from(runsTable)
+    .where(isNotNull(runsTable.approvedByUserId))
+    .groupBy(runsTable.questId);
+
+  const approvedRunCountByQuestId = new Map(
+    approvedQuestStats.map((row) => [
+      row.questId,
+      Number(row.approvedRunCount),
+    ]),
+  );
+  const approvedQuestIds = approvedQuestStats.map((row) => row.questId);
+
+  const quests =
+    approvedQuestIds.length > 0
+      ? await db
+          .select({
+            id: questsTable.id,
+            title: questsTable.title,
+            monster: questsTable.monster,
+            type: questsTable.type,
+            areaKey: questsTable.area,
+            difficultyStars: questsTable.difficultyStars,
+          })
+          .from(questsTable)
+          .where(inArray(questsTable.id, approvedQuestIds))
+          .orderBy(desc(questsTable.difficultyStars), asc(questsTable.title))
+      : [];
 
   const availableCategories = categories
     .slice()
@@ -75,9 +96,10 @@ export async function getLeaderboardFilters(): Promise<{
       link: category.link,
     }));
 
-  return {
-    quests: quests.map<LeaderboardQuestOption>((quest) => {
+  const sortedQuests = quests
+    .map<LeaderboardQuestOption>((quest) => {
       const areaKey = quest.areaKey as LeaderboardAreaKey;
+      const approvedRunCount = approvedRunCountByQuestId.get(quest.id) ?? 0;
 
       return {
         id: quest.id,
@@ -87,10 +109,20 @@ export async function getLeaderboardFilters(): Promise<{
         areaKey,
         areaLabel: areaByKey.get(areaKey)?.label ?? areaKey,
         difficultyStars: quest.difficultyStars,
+        approvedRunCount,
       };
-    }),
+    })
+    .sort(
+      (a, b) =>
+        (b.approvedRunCount ?? 0) - (a.approvedRunCount ?? 0) ||
+        b.difficultyStars - a.difficultyStars ||
+        a.title.localeCompare(b.title),
+    );
+
+  return {
+    quests: sortedQuests,
     categories: availableCategories,
-    defaultQuestId: quests[0]?.id ?? "",
+    defaultQuestId: sortedQuests[0]?.id ?? "",
   };
 }
 

@@ -567,10 +567,12 @@ export default function PlayerProfileView({
     );
   }
 
-  const allRuns = [...profile.pendingRuns, ...profile.approvedRuns].sort(
+  const allRuns = [...profile.runs].sort(
     (a, b) => b.submittedAtMs - a.submittedAtMs || b.runTimeMs - a.runTimeMs,
   );
-  const approvedRunsCount = profile.approvedRuns.length;
+  const approvedRunsCount = allRuns.filter(
+    (run) => run.status === "approved",
+  ).length;
 
   const hasAnyRunActions = allRuns.some((run) => {
     const canDeleteRun = isAdmin || (isCurrentUser && run.status === "pending");
