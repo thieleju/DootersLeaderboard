@@ -1,2 +1,1 @@
-# Monster Hunter WIlds Dooters Leaderboard
-
+# Monster Hunter Wilds Leaderboard
