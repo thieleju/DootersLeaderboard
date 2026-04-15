@@ -39,6 +39,13 @@ function isDiscordAdminAccount(accountId?: string | null) {
   return Boolean(env.DISCORD_ADMIN_ID && accountId === env.DISCORD_ADMIN_ID);
 }
 
+type DiscordProfilePayload = {
+  id: string;
+  avatar?: string | null;
+  global_name?: string | null;
+  username?: string | null;
+};
+
 /**
  * Options for NextAuth.js used to configure adapters, providers, callbacks, etc.
  *
@@ -59,16 +66,22 @@ export const authConfig = {
         },
       },
       profile(profile) {
-        const avatar = profile.avatar
-          ? `https://cdn.discordapp.com/avatars/${profile.id}/${profile.avatar}.png?size=128`
+        const discordProfile = profile as DiscordProfilePayload;
+        const avatar = discordProfile.avatar
+          ? `https://cdn.discordapp.com/avatars/${discordProfile.id}/${discordProfile.avatar}.png?size=128`
           : null;
-        const displayName = profile.global_name || profile.username;
-        const role = isDiscordAdminAccount(profile.id) ? "admin" : "runner";
+        const displayName =
+          discordProfile.global_name ??
+          discordProfile.username ??
+          discordProfile.id;
+        const role = isDiscordAdminAccount(discordProfile.id)
+          ? "admin"
+          : "runner";
 
         return {
-          id: profile.id,
+          id: discordProfile.id,
           displayName,
-          name: profile.username,
+          name: discordProfile.username ?? discordProfile.id,
           email: null,
           image: avatar,
           role,

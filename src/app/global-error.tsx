@@ -3,7 +3,7 @@
 import ErrorCard from "./_components/error-card";
 
 export default function GlobalError({
-  error,
+  error: _error,
   reset,
 }: {
   error: Error & { digest?: string };

@@ -21,7 +21,7 @@ const resourceDir = path.join(process.cwd(), "src/server/resources");
 function readJsonResource<T>(fileName: string) {
   const filePath = path.join(resourceDir, fileName);
   const fileContents = readFileSync(filePath, "utf8");
-  const parsed = parse(fileContents);
+  const parsed: unknown = parse(fileContents);
 
   if (parsed === undefined) {
     throw new Error(`Failed to parse JSONC resource: ${fileName}`);

@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Image from "next/image";
 import { motion } from "framer-motion";
-import { ShieldCheck, UserRound, Users } from "lucide-react";
+import { ShieldCheck, UserRound } from "lucide-react";
 import Link from "next/link";
 
 import { api } from "~/trpc/react";
@@ -108,9 +109,11 @@ export default function AdminUsersTable({
                   >
                     <span className="relative flex h-10 w-10 items-center justify-center overflow-hidden rounded-full border border-gray-700 bg-white/5">
                       {user.image ? (
-                        <img
+                        <Image
                           src={user.image}
                           alt={user.displayName}
+                          width={40}
+                          height={40}
                           className="h-full w-full object-cover"
                         />
                       ) : (

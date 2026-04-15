@@ -28,6 +28,6 @@ export const adminRouter = createTRPCRouter({
         throw new TRPCError({ code: "FORBIDDEN", message: "Admins only" });
       }
 
-      return updateUserRole(input.userId, input.role, ctx.session.user.role);
+      return updateUserRole(input.userId, input.role);
     }),
 });

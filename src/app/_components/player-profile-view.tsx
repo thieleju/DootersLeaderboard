@@ -21,6 +21,7 @@ import {
   Trash2,
 } from "lucide-react";
 import Link from "next/link";
+import Image from "next/image";
 
 import type { SubmitRunInput } from "~/server/types/players";
 import { type RunCategoryId } from "~/server/types/leaderboard";
@@ -587,9 +588,11 @@ export default function PlayerProfileView({
           <div className="flex flex-wrap items-center gap-4">
             <span className="relative flex h-14 w-14 items-center justify-center overflow-hidden rounded-full border border-gray-700 bg-white/5">
               {profile.user.avatar ? (
-                <img
+                <Image
                   src={profile.user.avatar}
                   alt={profile.user.displayName ?? "Player"}
+                  width={56}
+                  height={56}
                   className="h-full w-full object-cover"
                 />
               ) : (
@@ -738,17 +741,21 @@ export default function PlayerProfileView({
                   </td>
                   <td className="px-3 py-4 align-middle">
                     <div className="flex items-center gap-2">
-                      <img
+                      <Image
                         src={`/weapons/${run.primaryWeaponKey}.png`}
                         alt={run.primaryWeaponKey.toUpperCase()}
                         title={run.primaryWeaponKey.toUpperCase()}
+                        width={28}
+                        height={28}
                         className="h-7 w-7 object-contain"
                       />
                       {run.secondaryWeaponKey ? (
-                        <img
+                        <Image
                           src={`/weapons/${run.secondaryWeaponKey}.png`}
                           alt={run.secondaryWeaponKey.toUpperCase()}
                           title={run.secondaryWeaponKey.toUpperCase()}
+                          width={28}
+                          height={28}
                           className="h-7 w-7 object-contain"
                         />
                       ) : null}
@@ -989,6 +996,9 @@ export default function PlayerProfileView({
                           key={quest.id}
                           type="button"
                           role="option"
+                          aria-selected={
+                            formWithDefaultQuest.questId === quest.id
+                          }
                           onClick={() => {
                             setForm((current) => ({
                               ...current,
@@ -1070,7 +1080,7 @@ export default function PlayerProfileView({
                   <span className="block truncate">
                     {(submitOptionsQuery.data?.categories ?? []).find(
                       (c) => c.id === formWithDefaultQuest.category,
-                    )?.label || "Select category"}
+                    )?.label ?? "Select category"}
                   </span>
                   <ChevronDown
                     className={`pointer-events-none absolute top-1/2 right-3 h-4 w-4 -translate-y-1/2 text-gray-400 transition-transform duration-200 ${
@@ -1095,6 +1105,9 @@ export default function PlayerProfileView({
                           key={category.id}
                           type="button"
                           role="option"
+                          aria-selected={
+                            formWithDefaultQuest.category === category.id
+                          }
                           onClick={() => {
                             setForm((current) => ({
                               ...current,
@@ -1134,7 +1147,7 @@ export default function PlayerProfileView({
                   <span className="block truncate">
                     {(submitOptionsQuery.data?.weapons ?? []).find(
                       (w) => w.key === formWithDefaultQuest.primaryWeaponKey,
-                    )?.label || "Select primary weapon"}
+                    )?.label ?? "Select primary weapon"}
                   </span>
                   <ChevronDown
                     className={`pointer-events-none absolute top-1/2 right-3 h-4 w-4 -translate-y-1/2 text-gray-400 transition-transform duration-200 ${
@@ -1158,6 +1171,9 @@ export default function PlayerProfileView({
                         key={weapon.key}
                         type="button"
                         role="option"
+                        aria-selected={
+                          formWithDefaultQuest.primaryWeaponKey === weapon.key
+                        }
                         onClick={() => {
                           setForm((current) => ({
                             ...current,
@@ -1171,10 +1187,12 @@ export default function PlayerProfileView({
                             : "text-gray-200 hover:bg-white/7"
                         }`}
                       >
-                        <img
+                        <Image
                           src={`/weapons/${weapon.key}.png`}
                           alt={weapon.key.toUpperCase()}
                           title={weapon.key.toUpperCase()}
+                          width={20}
+                          height={20}
                           className="h-5 w-5 object-contain"
                         />
                         {weapon.label}
@@ -1202,7 +1220,7 @@ export default function PlayerProfileView({
                   <span className="block truncate">
                     {(submitOptionsQuery.data?.weapons ?? []).find(
                       (w) => w.key === formWithDefaultQuest.secondaryWeaponKey,
-                    )?.label || "Select secondary weapon"}
+                    )?.label ?? "Select secondary weapon"}
                   </span>
                   <ChevronDown
                     className={`pointer-events-none absolute top-1/2 right-3 h-4 w-4 -translate-y-1/2 text-gray-400 transition-transform duration-200 ${
@@ -1226,6 +1244,9 @@ export default function PlayerProfileView({
                         key={weapon.key}
                         type="button"
                         role="option"
+                        aria-selected={
+                          formWithDefaultQuest.secondaryWeaponKey === weapon.key
+                        }
                         onClick={() => {
                           setForm((current) => ({
                             ...current,
@@ -1239,10 +1260,12 @@ export default function PlayerProfileView({
                             : "text-gray-200 hover:bg-white/7"
                         }`}
                       >
-                        <img
+                        <Image
                           src={`/weapons/${weapon.key}.png`}
                           alt={weapon.key.toUpperCase()}
                           title={weapon.key.toUpperCase()}
+                          width={20}
+                          height={20}
                           className="h-5 w-5 object-contain"
                         />
                         {weapon.label}

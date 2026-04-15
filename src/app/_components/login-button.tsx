@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { LogOut, UserRound } from "lucide-react";
 import { signOut, useSession } from "next-auth/react";
 
@@ -16,13 +17,15 @@ export default function LoginButton() {
         >
           <span className="relative flex h-8 w-8 items-center justify-center overflow-hidden rounded-full border border-gray-600 bg-white/5">
             {session.user.image ? (
-              <img
+              <Image
                 src={session.user.image}
                 alt={
                   session.user.displayName ??
                   session.user.name ??
                   "Profile picture"
                 }
+                width={32}
+                height={32}
                 className="h-full w-full object-cover"
               />
             ) : (

@@ -17,7 +17,6 @@ import {
   type LeaderboardQuestOption,
   type LeaderboardRow,
   type LeaderboardWeaponKey,
-  type LeaderboardWeaponResource,
 } from "~/server/types/leaderboard";
 import { calculatePlacementScore } from "~/server/lib/score";
 
@@ -30,7 +29,7 @@ const resourceDir = path.join(process.cwd(), "src/server/resources");
 function readJsonResource<T>(fileName: string) {
   const filePath = path.join(resourceDir, fileName);
   const fileContents = readFileSync(filePath, "utf8");
-  const parsed = parse(fileContents);
+  const parsed: unknown = parse(fileContents);
   if (parsed === undefined) {
     throw new Error(`Failed to parse JSONC resource: ${fileName}`);
   }
@@ -39,7 +38,6 @@ function readJsonResource<T>(fileName: string) {
 }
 
 const areas = readJsonResource<LeaderboardAreaResource[]>("areas.jsonc");
-const weapons = readJsonResource<LeaderboardWeaponResource[]>("weapons.jsonc");
 const categories =
   readJsonResource<LeaderboardCategoryResource[]>("categories.jsonc");
 
@@ -190,7 +188,7 @@ export async function getLeaderboardRows(): Promise<{
           : new Date(run.submittedAt).getTime(),
       runTimeMs: run.runTimeMs,
       score: 0,
-      categoryId: (category?.id ?? run.category) as typeof run.category,
+      categoryId: category?.id ?? run.category,
       tagLabels: runTags,
       primaryWeaponKey: run.primaryWeaponKey as LeaderboardWeaponKey,
       secondaryWeaponKey: run.secondaryWeaponKey

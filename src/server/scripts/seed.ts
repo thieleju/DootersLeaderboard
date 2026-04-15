@@ -35,7 +35,7 @@ function parseSeedMode(argv: string[]): SeedMode {
 function readJsonResource<T>(fileName: string) {
   const filePath = path.join(resourceDir, fileName);
   const fileContents = readFileSync(filePath, "utf8");
-  const parsed = parse(fileContents);
+  const parsed: unknown = parse(fileContents);
   if (parsed === undefined) {
     throw new Error(`Failed to parse JSONC resource: ${fileName}`);
   }
@@ -48,12 +48,13 @@ function getDatabaseUrl() {
   if (envUrl) return envUrl;
 
   const envFile = readFileSync(path.join(process.cwd(), ".env"), "utf8");
-  const match = envFile.match(/^DATABASE_URL=(?:"([^"]+)"|([^\n]+))$/m);
+  const databaseUrlRegex = /^DATABASE_URL=(?:"([^"]+)"|([^\n]+))$/m;
+  const match = databaseUrlRegex.exec(envFile);
   if (!match) {
     throw new Error("DATABASE_URL is missing from process.env and .env");
   }
 
-  return (match[1] ?? match[2]) as string;
+  return match[1] ?? match[2]!;
 }
 
 function validateResources(params: {

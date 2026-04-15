@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect } from "react";
+import Image from "next/image";
 import { motion } from "framer-motion";
-import { CalendarDays, Trophy, UserRound, Users } from "lucide-react";
+import { CalendarDays, UserRound, Users } from "lucide-react";
 import { useRouter } from "next/navigation";
 
 import { api } from "~/trpc/react";
@@ -101,9 +102,11 @@ export default function PlayersTable({
                   <div className="inline-flex items-center gap-3 text-gray-200">
                     <span className="relative flex h-10 w-10 items-center justify-center overflow-hidden rounded-full border border-gray-700 bg-white/5">
                       {player.avatar ? (
-                        <img
+                        <Image
                           src={player.avatar}
                           alt={player.displayName}
+                          width={40}
+                          height={40}
                           className="h-full w-full object-cover"
                         />
                       ) : (
@@ -124,10 +127,12 @@ export default function PlayersTable({
                 <td className="px-3 py-4 text-center align-middle text-gray-300">
                   {player.mostUsedWeapon ? (
                     <span className="inline-flex items-center">
-                      <img
+                      <Image
                         src={`/weapons/${player.mostUsedWeapon.key}.png`}
                         alt={player.mostUsedWeapon.label}
                         title={player.mostUsedWeapon.label}
+                        width={28}
+                        height={28}
                         className="h-7 w-7 object-contain"
                       />
                     </span>

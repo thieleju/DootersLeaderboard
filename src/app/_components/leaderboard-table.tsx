@@ -14,8 +14,8 @@ import {
   Tag,
   Trophy,
 } from "lucide-react";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
+import Image from "next/image";
 
 import { api } from "~/trpc/react";
 import type {
@@ -66,7 +66,6 @@ interface LeaderboardTableProps {
 }
 
 export default function LeaderboardTable({ delay = 0 }: LeaderboardTableProps) {
-  const router = useRouter();
   const questSelectRef = useRef<HTMLDivElement | null>(null);
   const filtersQuery = api.leaderboard.filters.useQuery(undefined, {
     staleTime: Infinity,
@@ -90,18 +89,15 @@ export default function LeaderboardTable({ delay = 0 }: LeaderboardTableProps) {
     filtersQuery.data?.quests ?? [];
   const availableCategories: LeaderboardCategoryOption[] =
     filtersQuery.data?.categories ?? [];
-  const allRows: LeaderboardRow[] = leaderboardQuery.data?.rows ?? [];
 
-  const rows = useMemo(
-    () =>
-      allRows.filter(
-        (row) =>
-          row.questId === questId &&
-          (selectedCategoryId === "all" ||
-            row.categoryId === selectedCategoryId),
-      ),
-    [allRows, questId, selectedCategoryId],
-  );
+  const rows = useMemo(() => {
+    const allRows: LeaderboardRow[] = leaderboardQuery.data?.rows ?? [];
+    return allRows.filter(
+      (row) =>
+        row.questId === questId &&
+        (selectedCategoryId === "all" || row.categoryId === selectedCategoryId),
+    );
+  }, [leaderboardQuery.data?.rows, questId, selectedCategoryId]);
 
   const tableBodyKey = `${questId}-${selectedCategoryId}`;
   const selectedQuest =
@@ -347,9 +343,11 @@ export default function LeaderboardTable({ delay = 0 }: LeaderboardTableProps) {
                     >
                       <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full border border-gray-700 bg-white/5 text-sm font-semibold text-gray-300">
                         {row.userImage ? (
-                          <img
+                          <Image
                             src={row.userImage}
                             alt={row.userName}
+                            width={40}
+                            height={40}
                             className="h-full w-full object-cover"
                           />
                         ) : (
@@ -369,17 +367,21 @@ export default function LeaderboardTable({ delay = 0 }: LeaderboardTableProps) {
 
                   <td className="px-3 py-4 align-middle">
                     <div className="flex items-center gap-2">
-                      <img
+                      <Image
                         src={`/weapons/${row.primaryWeaponKey}.png`}
                         alt={row.primaryWeaponKey.toUpperCase()}
                         title={row.primaryWeaponKey.toUpperCase()}
+                        width={28}
+                        height={28}
                         className="h-7 w-7 object-contain"
                       />
                       {row.secondaryWeaponKey ? (
-                        <img
+                        <Image
                           src={`/weapons/${row.secondaryWeaponKey}.png`}
                           alt={row.secondaryWeaponKey.toUpperCase()}
                           title={row.secondaryWeaponKey.toUpperCase()}
+                          width={28}
+                          height={28}
                           className="h-7 w-7 object-contain"
                         />
                       ) : null}

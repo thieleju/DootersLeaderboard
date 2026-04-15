@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { motion } from "framer-motion";
 import { Award, Swords, Upload, Users, UserRound } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -96,9 +97,11 @@ export default function HomeStatsCards() {
         {stats?.mostPlayedWeapon ? (
           <>
             <div className="mb-2 flex h-8 items-center justify-center gap-2">
-              <img
+              <Image
                 src={`/weapons/${stats.mostPlayedWeapon.key}.png`}
                 alt={stats.mostPlayedWeapon.label}
+                width={20}
+                height={20}
                 className="h-5 w-5 object-contain"
               />
               <span className="text-lg leading-none font-semibold text-white">
@@ -164,9 +167,11 @@ export default function HomeStatsCards() {
             <div className="mb-2 flex h-8 items-center justify-center gap-2">
               <div className="relative flex h-5 w-5 items-center justify-center overflow-hidden rounded-full border border-gray-700 bg-white/5">
                 {stats.topRunner.userImage ? (
-                  <img
+                  <Image
                     src={stats.topRunner.userImage}
                     alt={stats.topRunner.userName}
+                    width={20}
+                    height={20}
                     className="h-full w-full object-cover"
                   />
                 ) : (

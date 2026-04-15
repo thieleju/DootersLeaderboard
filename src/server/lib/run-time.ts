@@ -1,7 +1,7 @@
 export const RUN_TIME_INPUT_REGEX = /^([0-5]?\d)'([0-5]\d)"([0-9]{2})$/;
 
 export function parseRunTimeInputToMs(runTime: string) {
-  const match = runTime.match(RUN_TIME_INPUT_REGEX);
+  const match = RUN_TIME_INPUT_REGEX.exec(runTime);
   if (!match) {
     throw new Error("Invalid run time format");
   }

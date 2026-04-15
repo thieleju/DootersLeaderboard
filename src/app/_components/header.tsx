@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ShieldCheck, Users, CircleHelp } from "lucide-react";
+import { ShieldCheck, Users } from "lucide-react";
 import { auth } from "~/server/auth";
 import LoginButton from "./login-button";
 

@@ -37,7 +37,7 @@ const resourceDir = path.join(process.cwd(), "src/server/resources");
 function readJsonResource<T>(fileName: string) {
   const filePath = path.join(resourceDir, fileName);
   const fileContents = readFileSync(filePath, "utf8");
-  const parsed = parse(fileContents);
+  const parsed: unknown = parse(fileContents);
 
   if (parsed === undefined) {
     throw new Error(`Failed to parse JSONC resource: ${fileName}`);
@@ -53,9 +53,6 @@ const categories =
 
 const areaByKey = new Map(areas.map((area) => [area.key, area]));
 const weaponByKey = new Map(weapons.map((weapon) => [weapon.key, weapon]));
-const categoryById = new Map(
-  categories.map((category) => [category.id, category]),
-);
 
 function parseRunTags(value: string | null): string[] {
   if (!value) return [];
