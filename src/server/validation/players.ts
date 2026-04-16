@@ -1,6 +1,9 @@
 import { z } from "zod";
 
-import { RUN_TIME_INPUT_REGEX } from "~/server/lib/run-time";
+import {
+  RUN_TIME_INPUT_REGEX,
+  isValidRunTimeRange
+} from "~/server/validation/run-time";
 import { runCategoryValues } from "~/server/validation/leaderboard";
 
 export const MAX_SUBMIT_TAGS = 10;
@@ -20,7 +23,11 @@ export const submitRunInputSchema = z.object({
   runTime: z
     .string()
     .trim()
-    .regex(RUN_TIME_INPUT_REGEX, "Run time must match mm'ss\"cc"),
+    .regex(RUN_TIME_INPUT_REGEX, "Run time must match mm'ss\"cc")
+    .refine(
+      isValidRunTimeRange,
+      "Run time must be between 00'01\"00 and 50'00\"00"
+    ),
   category: z.enum(runCategoryValues).default("fs"),
   primaryWeaponKey: z.string().trim().min(1, "Primary weapon is required"),
   secondaryWeaponKey: z.string().trim().min(1, "Secondary weapon is required"),

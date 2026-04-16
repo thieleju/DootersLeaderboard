@@ -32,6 +32,7 @@ import {
   MAX_SUBMIT_TAGS,
   submitRunInputSchema
 } from "~/server/validation/players";
+import { maskRunTimeInput } from "~/server/validation/run-time";
 import { api } from "~/trpc/react";
 import AnimatedCard from "./animated-card";
 import CategoryTooltip from "./category-tooltip";
@@ -1074,10 +1075,10 @@ export default function PlayerProfileView({
                 className="w-full rounded-lg border border-gray-700 bg-gray-900/70 px-3 py-2 text-sm text-gray-100 transition-colors outline-none focus:border-amber-400"
                 value={formWithDefaultQuest.runTime}
                 onChange={(event) => {
-                  const filtered = event.target.value.replace(/[^0-9':"]/g, "");
+                  const masked = maskRunTimeInput(event.target.value);
                   setForm((current) => ({
                     ...current,
-                    runTime: filtered
+                    runTime: masked
                   }));
                 }}
                 placeholder={"mm'ss\"cc"}
