@@ -5,6 +5,7 @@ import Image from "next/image";
 import { motion } from "framer-motion";
 import { CalendarDays, ShieldCheck, UserRound } from "lucide-react";
 import Link from "next/link";
+import { useSession } from "next-auth/react";
 
 import { api } from "~/trpc/react";
 import AnimatedCard from "./animated-card";
@@ -45,6 +46,7 @@ export default function AdminUsersTable({
   const adminQuery = api.admin.listUsers.useQuery(undefined, {
     staleTime: Infinity
   });
+  const { data: session } = useSession();
   const utils = api.useUtils();
   const [updatingUserId, setUpdatingUserId] = useState<string | null>(null);
 
@@ -176,31 +178,41 @@ export default function AdminUsersTable({
                       Object.keys(roleLabelByRole) as Array<
                         keyof typeof roleLabelByRole
                       >
-                    ).map((role) => (
-                      <button
-                        key={role}
-                        type="button"
-                        disabled={
-                          updatingUserId === user.id || user.role === role
-                        }
-                        onClick={() => {
-                          setUpdatingUserId(user.id);
-                          updateRoleMutation.mutate({
-                            userId: user.id,
-                            role
-                          });
-                        }}
-                        className={`inline-flex min-w-[5.5rem] items-center justify-center rounded-lg border px-3 py-2 text-xs font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${
-                          user.role === role
-                            ? roleButtonClassByRole[role]
-                            : "border-gray-700 bg-white/5 text-gray-300 hover:border-amber-400 hover:text-amber-300"
-                        }`}
-                      >
-                        {updatingUserId === user.id && user.role !== role
-                          ? "Saving..."
-                          : roleLabelByRole[role]}
-                      </button>
-                    ))}
+                    ).map((role) => {
+                      const isSelf = session?.user.id === user.id;
+
+                      return (
+                        <button
+                          key={role}
+                          type="button"
+                          disabled={
+                            isSelf ||
+                            updatingUserId === user.id ||
+                            user.role === role
+                          }
+                          onClick={() => {
+                            setUpdatingUserId(user.id);
+                            updateRoleMutation.mutate({
+                              userId: user.id,
+                              role
+                            });
+                          }}
+                          className={`inline-flex min-w-[5.5rem] items-center justify-center rounded-lg border px-3 py-2 text-xs font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${
+                            isSelf
+                              ? "border-gray-700 bg-white/5 text-gray-500"
+                              : user.role === role
+                                ? roleButtonClassByRole[role]
+                                : "border-gray-700 bg-white/5 text-gray-300 hover:border-amber-400 hover:text-amber-300"
+                          }`}
+                        >
+                          {isSelf
+                            ? "Locked"
+                            : updatingUserId === user.id && user.role !== role
+                              ? "Saving..."
+                              : roleLabelByRole[role]}
+                        </button>
+                      );
+                    })}
                   </div>
                 </td>
               </motion.tr>

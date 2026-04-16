@@ -44,7 +44,18 @@ export async function getAdminUsers(): Promise<AdminUserRow[]> {
   }));
 }
 
-export async function updateUserRole(targetUserId: string, role: UserRole) {
+export async function updateUserRole(
+  targetUserId: string,
+  role: UserRole,
+  actorUserId: string
+) {
+  if (targetUserId === actorUserId) {
+    throw new TRPCError({
+      code: "FORBIDDEN",
+      message: "You cannot change your own role"
+    });
+  }
+
   const existingUser = await db
     .select({ id: usersTable.id })
     .from(usersTable)
