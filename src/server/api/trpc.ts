@@ -8,11 +8,13 @@
  */
 
 import { initTRPC, TRPCError } from "@trpc/server";
+import { eq } from "drizzle-orm";
 import superjson from "superjson";
 import { ZodError } from "zod";
 
 import { auth } from "~/server/auth";
 import { db } from "~/server/db";
+import { users as usersTable } from "~/server/db/schema";
 
 /**
  * 1. CONTEXT
@@ -119,10 +121,16 @@ export const publicProcedure = t.procedure.use(timingMiddleware);
  */
 export const protectedProcedure = t.procedure
   .use(timingMiddleware)
-  .use(({ ctx, next }) => {
+  .use(async ({ ctx, next }) => {
     if (!ctx.session?.user) {
       throw new TRPCError({ code: "UNAUTHORIZED" });
     }
+
+    await db
+      .update(usersTable)
+      .set({ lastSeenAt: new Date() })
+      .where(eq(usersTable.id, ctx.session.user.id));
+
     return next({
       ctx: {
         // infers the `session` as non-nullable

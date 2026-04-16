@@ -13,6 +13,8 @@ export type AdminUserRow = {
   username: string;
   image: string | null;
   role: UserRole;
+  lastLoginAtMs: number | null;
+  lastSeenAtMs: number | null;
 };
 
 export async function getAdminUsers(): Promise<AdminUserRow[]> {
@@ -22,7 +24,9 @@ export async function getAdminUsers(): Promise<AdminUserRow[]> {
       displayName: usersTable.displayName,
       username: usersTable.name,
       image: usersTable.image,
-      role: usersTable.role
+      role: usersTable.role,
+      lastLoginAt: usersTable.lastLoginAt,
+      lastSeenAt: usersTable.lastSeenAt
     })
     .from(usersTable)
     .orderBy(asc(usersTable.displayName), asc(usersTable.name));
@@ -32,7 +36,11 @@ export async function getAdminUsers(): Promise<AdminUserRow[]> {
     displayName: row.displayName ?? row.username ?? "Profile",
     username: row.username ?? "",
     image: row.image ?? null,
-    role: row.role
+    role: row.role,
+    lastLoginAtMs:
+      row.lastLoginAt instanceof Date ? row.lastLoginAt.getTime() : null,
+    lastSeenAtMs:
+      row.lastSeenAt instanceof Date ? row.lastSeenAt.getTime() : null
   }));
 }
 

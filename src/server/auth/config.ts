@@ -119,6 +119,7 @@ export const authConfig = {
   events: {
     async signIn({ user, profile, account }) {
       if (account?.provider !== "discord") return;
+      const activityAt = new Date();
       const discordProfile = profile as
         | {
             id: string;
@@ -148,7 +149,9 @@ export const authConfig = {
           name: username,
           displayName,
           image: avatar,
-          role
+          role,
+          lastLoginAt: activityAt,
+          lastSeenAt: activityAt
         })
         .onConflictDoUpdate({
           target: users.id,
@@ -156,7 +159,9 @@ export const authConfig = {
             name: username,
             displayName,
             image: avatar,
-            role
+            role,
+            lastLoginAt: activityAt,
+            lastSeenAt: activityAt
           }
         });
     }

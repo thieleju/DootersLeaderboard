@@ -3,12 +3,14 @@
 import { useEffect, useState } from "react";
 import Image from "next/image";
 import { motion } from "framer-motion";
-import { ShieldCheck, UserRound } from "lucide-react";
+import { CalendarDays, ShieldCheck, UserRound } from "lucide-react";
 import Link from "next/link";
 
 import { api } from "~/trpc/react";
 import AnimatedCard from "./animated-card";
 import DataTable, { DataTableLoadingState } from "./data-table";
+import { getRelativeTime } from "./data-table";
+import { capitalizeFirst, formatFullDateTime } from "./helpers";
 
 interface AdminUsersTableProps {
   delay?: number;
@@ -81,11 +83,16 @@ export default function AdminUsersTable({
         columns={[
           { key: "user", label: "User" },
           { key: "role", label: "Role", className: "text-center" },
+          {
+            key: "last-active",
+            label: "Last Active",
+            className: "text-center"
+          },
           { key: "actions", label: "Actions", className: "text-center" }
         ]}
       >
         {adminQuery.isLoading ? (
-          <DataTableLoadingState columnCount={3} label="Loading users..." />
+          <DataTableLoadingState columnCount={4} label="Loading users..." />
         ) : (
           <motion.tbody
             key="admin-users-rows"
@@ -137,6 +144,30 @@ export default function AdminUsersTable({
                   >
                     {roleLabelByRole[user.role]}
                   </span>
+                </td>
+
+                <td className="px-3 py-4 text-center align-middle">
+                  <div className="inline-flex items-center gap-2 text-gray-300">
+                    <CalendarDays className="h-3.5 w-3.5 text-gray-500" />
+                    <div>
+                      <div className="text-sm text-gray-200">
+                        {(user.lastSeenAtMs ?? user.lastLoginAtMs)
+                          ? capitalizeFirst(
+                              getRelativeTime(
+                                user.lastSeenAtMs ?? user.lastLoginAtMs ?? 0
+                              )
+                            )
+                          : "Never"}
+                      </div>
+                      <div className="text-xs text-gray-500">
+                        {(user.lastSeenAtMs ?? user.lastLoginAtMs)
+                          ? formatFullDateTime(
+                              user.lastSeenAtMs ?? user.lastLoginAtMs ?? 0
+                            )
+                          : "No login recorded"}
+                      </div>
+                    </div>
+                  </div>
                 </td>
 
                 <td className="px-3 py-4 text-center align-middle">

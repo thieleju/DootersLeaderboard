@@ -24,6 +24,8 @@ export const users = createTable("user", (d) => ({
   email: d.text({ length: 255 }),
   emailVerified: d.integer({ mode: "timestamp" }).default(sql`(unixepoch())`),
   image: d.text({ length: 255 }),
+  lastLoginAt: d.integer({ mode: "timestamp" }),
+  lastSeenAt: d.integer({ mode: "timestamp" }),
   role: d.text({ length: 32 }).$type<UserRole>().notNull().default("runner")
 }));
 
