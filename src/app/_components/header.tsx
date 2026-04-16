@@ -1,12 +1,12 @@
 import Link from "next/link";
-import { ScrollText, ShieldCheck, Trophy } from "lucide-react";
+import { Clock3, ScrollText, ShieldCheck, Trophy } from "lucide-react";
 import { auth } from "~/server/auth";
 import LoginButton from "./login-button";
 
 export default async function Header() {
   const session = await auth();
   const isAdmin = session?.user?.role === "admin";
-  const canManageQuests =
+  const canModerateContent =
     session?.user?.role === "moderator" || session?.user?.role === "admin";
 
   return (
@@ -29,13 +29,23 @@ export default async function Header() {
             </Link>
           ) : null}
 
-          {canManageQuests ? (
+          {canModerateContent ? (
             <Link
               href="/quests"
               className="mr-5 flex items-center gap-2 text-gray-300 transition-colors hover:text-amber-300"
             >
               <ScrollText className="h-4 w-4" />
               <span>Quests</span>
+            </Link>
+          ) : null}
+
+          {canModerateContent ? (
+            <Link
+              href="/runs"
+              className="mr-5 flex items-center gap-2 text-gray-300 transition-colors hover:text-amber-300"
+            >
+              <Clock3 className="h-4 w-4" />
+              <span>Runs</span>
             </Link>
           ) : null}
 

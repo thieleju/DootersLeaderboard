@@ -45,3 +45,40 @@ export const submitRunInputSchema = z.object({
     .optional()
     .default([])
 });
+
+export const moderateRunTagsInputSchema = z.object({
+  runId: z.string().trim().min(1, "Run id is required"),
+  tags: z
+    .array(
+      z
+        .string()
+        .trim()
+        .max(
+          MAX_SUBMIT_TAG_LENGTH,
+          `Tags can be at most ${MAX_SUBMIT_TAG_LENGTH} characters`
+        )
+    )
+    .max(MAX_SUBMIT_TAGS, `You can add at most ${MAX_SUBMIT_TAGS} tags`)
+    .optional()
+    .default([])
+});
+
+export const moderateRunDetailsInputSchema = z.object({
+  runId: z.string().trim().min(1, "Run id is required"),
+  category: z.enum(runCategoryValues),
+  primaryWeaponKey: z.string().trim().min(1, "Primary weapon is required"),
+  secondaryWeaponKey: z.string().trim().min(1, "Secondary weapon is required"),
+  tags: z
+    .array(
+      z
+        .string()
+        .trim()
+        .max(
+          MAX_SUBMIT_TAG_LENGTH,
+          `Tags can be at most ${MAX_SUBMIT_TAG_LENGTH} characters`
+        )
+    )
+    .max(MAX_SUBMIT_TAGS, `You can add at most ${MAX_SUBMIT_TAGS} tags`)
+    .optional()
+    .default([])
+});

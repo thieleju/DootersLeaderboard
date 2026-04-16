@@ -4,7 +4,16 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 
 import { TRPCError } from "@trpc/server";
-import { and, asc, desc, eq, inArray, isNotNull } from "drizzle-orm";
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  inArray,
+  isNotNull,
+  isNull,
+  or
+} from "drizzle-orm";
 import { parse } from "jsonc-parser";
 
 import { db } from "~/server/db";
@@ -19,11 +28,14 @@ import type {
   LeaderboardCategoryOption,
   LeaderboardCategoryResource,
   LeaderboardQuestOption,
+  RunCategoryId,
   UserRole,
   LeaderboardWeaponKey,
   LeaderboardWeaponResource
 } from "~/server/types/leaderboard";
 import {
+  type ModerationHistoryRunRow,
+  type ModerationRunRow,
   type PlayerOverviewRow,
   type PlayerProfileData,
   type PlayerProfileRunRow,
@@ -31,7 +43,11 @@ import {
 } from "~/server/types/players";
 import { calculateUserScoreAndTop3Placements } from "~/server/lib/score";
 import { parseRunTimeInputToMs } from "~/server/lib/run-time";
-import { submitRunInputSchema } from "~/server/validation/players";
+import {
+  MAX_SUBMIT_TAG_LENGTH,
+  MAX_SUBMIT_TAGS,
+  submitRunInputSchema
+} from "~/server/validation/players";
 
 const resourceDir = path.join(process.cwd(), "src/server/resources");
 
@@ -78,6 +94,12 @@ function normalizeTags(tags: string[]) {
   }
 
   return [...unique];
+}
+
+function assertCanModerateRuns(viewerRole: UserRole) {
+  if (viewerRole !== "moderator" && viewerRole !== "admin") {
+    throw new TRPCError({ code: "FORBIDDEN", message: "Cannot moderate runs" });
+  }
 }
 
 export async function getPlayersOverview(): Promise<PlayerOverviewRow[]> {
@@ -469,6 +491,306 @@ export function getRunCategories(): LeaderboardCategoryOption[] {
     color: category.color,
     description: category.description,
     link: category.link
+  }));
+}
+
+export async function getPendingRunsForModeration(
+  viewerRole: UserRole
+): Promise<ModerationRunRow[]> {
+  assertCanModerateRuns(viewerRole);
+
+  const runRows = await db
+    .select({
+      runId: runsTable.id,
+      runnerUserId: runsTable.userId,
+      runnerDisplayName: usersTable.displayName,
+      runnerAvatar: usersTable.image,
+      runnerUsername: usersTable.name,
+      hunterName: runsTable.hunterName,
+      categoryId: runsTable.category,
+      tags: runsTable.tags,
+      submittedAt: runsTable.submittedAt,
+      runTimeMs: runsTable.runTimeMs,
+      primaryWeaponKey: runsTable.primaryWeapon,
+      secondaryWeaponKey: runsTable.secondaryWeapon,
+      questTitle: questsTable.title,
+      monster: questsTable.monster,
+      difficultyStars: questsTable.difficultyStars,
+      areaKey: questsTable.area
+    })
+    .from(runsTable)
+    .innerJoin(questsTable, eq(runsTable.questId, questsTable.id))
+    .innerJoin(usersTable, eq(runsTable.userId, usersTable.id))
+    .where(
+      and(
+        isNull(runsTable.approvedByUserId),
+        isNull(runsTable.rejectedByUserId)
+      )
+    )
+    .orderBy(desc(runsTable.submittedAt), desc(runsTable.runTimeMs));
+
+  return runRows.map((run) => ({
+    runId: run.runId,
+    runnerUserId: run.runnerUserId,
+    runnerDisplayName: run.runnerDisplayName ?? run.runnerUsername ?? "Runner",
+    runnerAvatar: run.runnerAvatar,
+    hunterName: run.hunterName,
+    questTitle: run.questTitle,
+    monster: run.monster,
+    difficultyStars: run.difficultyStars,
+    areaLabel:
+      areaByKey.get(run.areaKey as LeaderboardAreaKey)?.label ?? run.areaKey,
+    submittedAtMs:
+      run.submittedAt instanceof Date
+        ? run.submittedAt.getTime()
+        : new Date(run.submittedAt).getTime(),
+    runTimeMs: run.runTimeMs,
+    categoryId: run.categoryId,
+    tagLabels: parseRunTags(run.tags),
+    primaryWeaponKey: run.primaryWeaponKey,
+    secondaryWeaponKey: run.secondaryWeaponKey
+  }));
+}
+
+export async function updatePendingRunTags(
+  input: { runId: string; tags: string[] },
+  viewerRole: UserRole
+) {
+  assertCanModerateRuns(viewerRole);
+
+  const run = await db
+    .select({
+      id: runsTable.id,
+      approvedByUserId: runsTable.approvedByUserId,
+      rejectedByUserId: runsTable.rejectedByUserId
+    })
+    .from(runsTable)
+    .where(eq(runsTable.id, input.runId))
+    .limit(1)
+    .then((rows) => rows[0] ?? null);
+
+  if (!run) {
+    throw new TRPCError({ code: "NOT_FOUND", message: "Run not found" });
+  }
+
+  if (run.approvedByUserId || run.rejectedByUserId) {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message: "Only pending runs can be edited"
+    });
+  }
+
+  const tags = normalizeTags(input.tags);
+
+  if (tags.length > MAX_SUBMIT_TAGS) {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message: `You can add at most ${MAX_SUBMIT_TAGS} tags`
+    });
+  }
+
+  for (const tag of tags) {
+    if (tag.length > MAX_SUBMIT_TAG_LENGTH) {
+      throw new TRPCError({
+        code: "BAD_REQUEST",
+        message: `Tags can be at most ${MAX_SUBMIT_TAG_LENGTH} characters`
+      });
+    }
+  }
+
+  await db
+    .update(runsTable)
+    .set({ tags: tags.length > 0 ? JSON.stringify(tags) : "null" })
+    .where(eq(runsTable.id, input.runId));
+
+  return { runId: input.runId };
+}
+
+export async function updatePendingRunDetails(
+  input: {
+    runId: string;
+    category: RunCategoryId;
+    primaryWeaponKey: string;
+    secondaryWeaponKey: string;
+    tags: string[];
+  },
+  viewerRole: UserRole
+) {
+  assertCanModerateRuns(viewerRole);
+
+  const run = await db
+    .select({
+      id: runsTable.id,
+      approvedByUserId: runsTable.approvedByUserId,
+      rejectedByUserId: runsTable.rejectedByUserId
+    })
+    .from(runsTable)
+    .where(eq(runsTable.id, input.runId))
+    .limit(1)
+    .then((rows) => rows[0] ?? null);
+
+  if (!run) {
+    throw new TRPCError({ code: "NOT_FOUND", message: "Run not found" });
+  }
+
+  if (run.approvedByUserId || run.rejectedByUserId) {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message: "Only pending runs can be edited"
+    });
+  }
+
+  if (!categories.some((category) => category.id === input.category)) {
+    throw new TRPCError({ code: "BAD_REQUEST", message: "Invalid category" });
+  }
+
+  if (!weaponByKey.has(input.primaryWeaponKey as LeaderboardWeaponKey)) {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message: "Invalid primary weapon"
+    });
+  }
+
+  if (!weaponByKey.has(input.secondaryWeaponKey as LeaderboardWeaponKey)) {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message: "Invalid secondary weapon"
+    });
+  }
+
+  const tags = normalizeTags(input.tags);
+
+  if (tags.length > MAX_SUBMIT_TAGS) {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message: `You can add at most ${MAX_SUBMIT_TAGS} tags`
+    });
+  }
+
+  for (const tag of tags) {
+    if (tag.length > MAX_SUBMIT_TAG_LENGTH) {
+      throw new TRPCError({
+        code: "BAD_REQUEST",
+        message: `Tags can be at most ${MAX_SUBMIT_TAG_LENGTH} characters`
+      });
+    }
+  }
+
+  await db
+    .update(runsTable)
+    .set({
+      category: input.category,
+      primaryWeapon: input.primaryWeaponKey,
+      secondaryWeapon: input.secondaryWeaponKey,
+      tags: tags.length > 0 ? JSON.stringify(tags) : "null"
+    })
+    .where(eq(runsTable.id, input.runId));
+
+  return { runId: input.runId };
+}
+
+export async function getReviewedRunsForModeration(
+  viewerRole: UserRole
+): Promise<ModerationHistoryRunRow[]> {
+  assertCanModerateRuns(viewerRole);
+
+  const runRows = await db
+    .select({
+      runId: runsTable.id,
+      runnerUserId: runsTable.userId,
+      runnerDisplayName: usersTable.displayName,
+      runnerAvatar: usersTable.image,
+      runnerUsername: usersTable.name,
+      hunterName: runsTable.hunterName,
+      categoryId: runsTable.category,
+      tags: runsTable.tags,
+      submittedAt: runsTable.submittedAt,
+      runTimeMs: runsTable.runTimeMs,
+      primaryWeaponKey: runsTable.primaryWeapon,
+      secondaryWeaponKey: runsTable.secondaryWeapon,
+      approvedByUserId: runsTable.approvedByUserId,
+      approvedAt: runsTable.approvedAt,
+      rejectedByUserId: runsTable.rejectedByUserId,
+      rejectedAt: runsTable.rejectedAt,
+      questTitle: questsTable.title,
+      monster: questsTable.monster,
+      difficultyStars: questsTable.difficultyStars,
+      areaKey: questsTable.area
+    })
+    .from(runsTable)
+    .innerJoin(questsTable, eq(runsTable.questId, questsTable.id))
+    .innerJoin(usersTable, eq(runsTable.userId, usersTable.id))
+    .where(
+      or(
+        isNotNull(runsTable.approvedByUserId),
+        isNotNull(runsTable.rejectedByUserId)
+      )
+    )
+    .orderBy(desc(runsTable.submittedAt), desc(runsTable.runTimeMs));
+
+  const reviewerUserIds = [
+    ...new Set(
+      runRows
+        .flatMap((run) => [run.approvedByUserId, run.rejectedByUserId])
+        .filter((value): value is string => Boolean(value))
+    )
+  ];
+
+  const reviewerNameById = new Map<string, string>();
+  if (reviewerUserIds.length > 0) {
+    const reviewerUsers = await db
+      .select({
+        id: usersTable.id,
+        displayName: usersTable.displayName,
+        name: usersTable.name
+      })
+      .from(usersTable)
+      .where(inArray(usersTable.id, reviewerUserIds));
+
+    for (const reviewer of reviewerUsers) {
+      reviewerNameById.set(
+        reviewer.id,
+        reviewer.displayName ?? reviewer.name ?? "Moderator"
+      );
+    }
+  }
+
+  return runRows.map((run) => ({
+    runId: run.runId,
+    runnerUserId: run.runnerUserId,
+    runnerDisplayName: run.runnerDisplayName ?? run.runnerUsername ?? "Runner",
+    runnerAvatar: run.runnerAvatar,
+    hunterName: run.hunterName,
+    questTitle: run.questTitle,
+    monster: run.monster,
+    difficultyStars: run.difficultyStars,
+    areaLabel:
+      areaByKey.get(run.areaKey as LeaderboardAreaKey)?.label ?? run.areaKey,
+    submittedAtMs:
+      run.submittedAt instanceof Date
+        ? run.submittedAt.getTime()
+        : new Date(run.submittedAt).getTime(),
+    runTimeMs: run.runTimeMs,
+    categoryId: run.categoryId,
+    tagLabels: parseRunTags(run.tags),
+    status: run.approvedByUserId ? "approved" : "rejected",
+    reviewerDisplayName: run.approvedByUserId
+      ? (reviewerNameById.get(run.approvedByUserId) ?? "Moderator")
+      : run.rejectedByUserId
+        ? (reviewerNameById.get(run.rejectedByUserId) ?? "Moderator")
+        : null,
+    approvedAtMs: run.approvedAt
+      ? run.approvedAt instanceof Date
+        ? run.approvedAt.getTime()
+        : new Date(run.approvedAt).getTime()
+      : null,
+    rejectedAtMs: run.rejectedAt
+      ? run.rejectedAt instanceof Date
+        ? run.rejectedAt.getTime()
+        : new Date(run.rejectedAt).getTime()
+      : null,
+    primaryWeaponKey: run.primaryWeaponKey,
+    secondaryWeaponKey: run.secondaryWeaponKey
   }));
 }
 

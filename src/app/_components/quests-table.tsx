@@ -1,5 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unnecessary-type-assertion */
-
 "use client";
 
 import { useEffect, useRef, useState } from "react";
@@ -63,8 +61,8 @@ export default function QuestsTable({
   const [isAreaDropdownOpen, setIsAreaDropdownOpen] = useState(false);
   const areaDropdownRef = useRef<HTMLDivElement>(null);
 
-  const quests = (questsQuery.data ?? []) as QuestManagementRow[];
-  const formOptions = formOptionsQuery.data as QuestFormOptions | undefined;
+  const quests: QuestManagementRow[] = questsQuery.data ?? [];
+  const formOptions: QuestFormOptions | undefined = formOptionsQuery.data;
 
   useEffect(() => {
     if (!onInitialReady) return;
@@ -208,7 +206,7 @@ export default function QuestsTable({
 
   return (
     <div className="space-y-4">
-      <AnimatedCard delay={delay} className="p-6">
+      <AnimatedCard delay={delay} className="relative z-20 p-6">
         <div className="mb-6 flex items-start gap-3">
           <div
             className={`flex h-12 min-h-12 w-12 min-w-12 items-center justify-center rounded-full border ${iconToneClasses.emerald}`}
@@ -393,7 +391,7 @@ export default function QuestsTable({
 
       <AnimatedCard
         delay={delay + 0.1}
-        className="p-6 shadow-2xl shadow-black/20"
+        className="relative z-10 p-6 shadow-2xl shadow-black/20"
       >
         <DataTable
           title="Quests"

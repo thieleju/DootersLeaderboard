@@ -73,3 +73,43 @@ export type SubmitRunInput = {
   secondaryWeaponKey: string;
   tags: string[];
 };
+
+export type ModerationRunRow = {
+  runId: string;
+  runnerUserId: string;
+  runnerDisplayName: string;
+  runnerAvatar: string | null;
+  hunterName: string;
+  questTitle: string;
+  monster: string;
+  difficultyStars: number;
+  areaLabel: string;
+  submittedAtMs: number;
+  runTimeMs: number;
+  categoryId: RunCategoryId;
+  tagLabels: string[];
+  primaryWeaponKey: string;
+  secondaryWeaponKey: string | null;
+};
+
+export type ModerationHistoryRunRow = {
+  runId: string;
+  runnerUserId: string;
+  runnerDisplayName: string;
+  runnerAvatar: string | null;
+  hunterName: string;
+  questTitle: string;
+  monster: string;
+  difficultyStars: number;
+  areaLabel: string;
+  submittedAtMs: number;
+  runTimeMs: number;
+  categoryId: RunCategoryId;
+  tagLabels: string[];
+  status: "approved" | "rejected";
+  reviewerDisplayName: string | null;
+  approvedAtMs: number | null;
+  rejectedAtMs: number | null;
+  primaryWeaponKey: string;
+  secondaryWeaponKey: string | null;
+};
