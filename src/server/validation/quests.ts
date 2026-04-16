@@ -1,9 +1,9 @@
 import { z } from "zod";
 
 export const questTypeValues = [
-  "event",
   "optional",
   "arena",
+  "event",
   "investigation"
 ] as const;
 
@@ -20,6 +20,7 @@ export const questAreaValues = [
 export const questUpsertInputSchema = z.object({
   title: z.string().trim().min(2, "Title is required").max(255),
   monster: z.string().trim().min(2, "Monster is required").max(255),
+  type: z.enum(questTypeValues),
   areaKey: z.enum(questAreaValues),
   difficultyStars: z
     .number({ invalid_type_error: "Difficulty stars must be a number" })

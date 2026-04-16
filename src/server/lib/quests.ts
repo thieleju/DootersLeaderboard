@@ -38,9 +38,9 @@ const areas = readJsonResource<LeaderboardAreaResource[]>("areas.jsonc");
 const areaLabelByKey = new Map(areas.map((area) => [area.key, area.label]));
 
 const questTypeLabels: Record<QuestType, string> = {
-  event: "Event",
   optional: "Optional",
   arena: "Arena",
+  event: "Event",
   investigation: "Investigation"
 };
 
@@ -87,7 +87,7 @@ export async function createQuest(input: QuestUpsertInput) {
     id: questId,
     title: input.title,
     monster: input.monster,
-    type: "event",
+    type: input.type as QuestType,
     area: input.areaKey,
     difficultyStars: input.difficultyStars
   });
@@ -112,6 +112,7 @@ export async function updateQuest(input: QuestUpdateInput) {
     .set({
       title: input.title,
       monster: input.monster,
+      type: input.type as QuestType,
       area: input.areaKey,
       difficultyStars: input.difficultyStars
     })

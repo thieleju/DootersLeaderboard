@@ -13,6 +13,7 @@ export type QuestManagementRow = {
 export type QuestUpsertInput = {
   title: string;
   monster: string;
+  type: QuestType;
   areaKey: LeaderboardAreaKey;
   difficultyStars: number;
 };

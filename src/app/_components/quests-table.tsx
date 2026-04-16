@@ -32,6 +32,7 @@ interface QuestsTableProps {
 interface QuestFormState {
   title: string;
   monster: string;
+  type: QuestType | "";
   areaKey: string;
   difficultyStars: string;
 }
@@ -39,6 +40,7 @@ interface QuestFormState {
 const emptyQuestForm: QuestFormState = {
   title: "",
   monster: "",
+  type: "",
   areaKey: "",
   difficultyStars: ""
 };
@@ -58,7 +60,9 @@ export default function QuestsTable({
   const [form, setForm] = useState<QuestFormState>(emptyQuestForm);
   const [formError, setFormError] = useState<string | null>(null);
   const [editingQuestId, setEditingQuestId] = useState<string | null>(null);
+  const [isTypeDropdownOpen, setIsTypeDropdownOpen] = useState(false);
   const [isAreaDropdownOpen, setIsAreaDropdownOpen] = useState(false);
+  const typeDropdownRef = useRef<HTMLDivElement>(null);
   const areaDropdownRef = useRef<HTMLDivElement>(null);
 
   const quests: QuestManagementRow[] = questsQuery.data ?? [];
@@ -82,26 +86,33 @@ export default function QuestsTable({
 
   useEffect(() => {
     const defaultArea = formOptions?.areas[0]?.key ?? "";
+    const defaultType = formOptions?.questTypes[0]?.key ?? "";
 
     setForm((current) => ({
       ...current,
-      areaKey: current.areaKey || defaultArea
+      areaKey: current.areaKey || defaultArea,
+      type: current.type || defaultType
     }));
   }, [formOptions]);
 
   useEffect(() => {
-    if (!isAreaDropdownOpen) return;
+    if (!isTypeDropdownOpen && !isAreaDropdownOpen) return;
 
     const handleOutsideClick = (event: MouseEvent) => {
+      if (typeDropdownRef.current?.contains(event.target as Node)) return;
+      if (areaDropdownRef.current?.contains(event.target as Node)) return;
       if (!areaDropdownRef.current) return;
       if (!areaDropdownRef.current.contains(event.target as Node)) {
         setIsAreaDropdownOpen(false);
+      }
+      if (!typeDropdownRef.current?.contains(event.target as Node)) {
+        setIsTypeDropdownOpen(false);
       }
     };
 
     document.addEventListener("mousedown", handleOutsideClick);
     return () => document.removeEventListener("mousedown", handleOutsideClick);
-  }, [isAreaDropdownOpen]);
+  }, [isAreaDropdownOpen, isTypeDropdownOpen]);
 
   const createQuestMutation = api.quests.create.useMutation({
     onSuccess: async () => {
@@ -180,7 +191,7 @@ export default function QuestsTable({
     const payload = {
       title: form.title,
       monster: form.monster,
-      type: "event" as QuestType,
+      type: (form.type || formOptions?.questTypes[0]?.key) ?? "event",
       areaKey: form.areaKey || "plains",
       difficultyStars: Number(form.difficultyStars)
     };
@@ -227,7 +238,7 @@ export default function QuestsTable({
           onSubmit={submitQuest}
           className="grid grid-cols-1 gap-4 md:grid-cols-2"
         >
-          <label className="space-y-1">
+          <label className="space-y-1 md:col-span-2">
             <span className="text-xs tracking-[0.16em] text-gray-500 uppercase">
               Title
             </span>
@@ -246,45 +257,63 @@ export default function QuestsTable({
             />
           </label>
 
-          <label className="space-y-1">
+          <div className="space-y-1">
             <span className="text-xs tracking-[0.16em] text-gray-500 uppercase">
-              Monster
+              Type
             </span>
-            <input
-              type="text"
-              value={form.monster}
-              onChange={(event) =>
-                setForm((current) => ({
-                  ...current,
-                  monster: event.target.value
-                }))
-              }
-              className="w-full rounded-lg border border-gray-700 bg-gray-900/70 px-3 py-2 text-sm text-gray-100 transition-colors outline-none focus:border-amber-400"
-              placeholder="Jin Dahaad"
-              required
-            />
-          </label>
+            <div className="relative" ref={typeDropdownRef}>
+              <button
+                type="button"
+                onClick={() => setIsTypeDropdownOpen((current) => !current)}
+                className="relative w-full rounded-lg border border-gray-700 bg-gray-900/70 px-3 py-2 pr-10 text-left text-sm text-gray-100 transition-colors outline-none hover:border-amber-400 focus-visible:border-amber-400"
+              >
+                <span className="block truncate">
+                  {(formOptions?.questTypes ?? []).find(
+                    (questType) => questType.key === form.type
+                  )?.label ?? "Select type"}
+                </span>
+                <ChevronDown
+                  className={`pointer-events-none absolute top-1/2 right-3 h-4 w-4 -translate-y-1/2 text-gray-400 transition-transform duration-200 ${
+                    isTypeDropdownOpen ? "rotate-180 text-amber-300" : ""
+                  }`}
+                />
+              </button>
 
-          <label className="space-y-1">
-            <span className="text-xs tracking-[0.16em] text-gray-500 uppercase">
-              Difficulty Stars
-            </span>
-            <input
-              type="number"
-              min={1}
-              max={10}
-              value={form.difficultyStars}
-              onChange={(event) =>
-                setForm((current) => ({
-                  ...current,
-                  difficultyStars: event.target.value
-                }))
-              }
-              className="w-full rounded-lg border border-gray-700 bg-gray-900/70 px-3 py-2 text-sm text-gray-100 transition-colors outline-none focus:border-amber-400"
-              placeholder="8"
-              required
-            />
-          </label>
+              {isTypeDropdownOpen ? (
+                <motion.div
+                  role="listbox"
+                  initial={{ opacity: 0, y: -4, scale: 0.99 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: -4, scale: 0.99 }}
+                  transition={{ duration: 0.16 }}
+                  className="absolute z-30 mt-2 w-full overflow-y-auto rounded-lg border border-gray-700 bg-gray-900/95 p-1 shadow-2xl shadow-black/35 backdrop-blur-sm"
+                >
+                  {(formOptions?.questTypes ?? []).map((questType) => (
+                    <button
+                      key={questType.key}
+                      type="button"
+                      role="option"
+                      aria-selected={form.type === questType.key}
+                      onClick={() => {
+                        setForm((current) => ({
+                          ...current,
+                          type: questType.key
+                        }));
+                        setIsTypeDropdownOpen(false);
+                      }}
+                      className={`flex w-full rounded-md px-3 py-2 text-left text-sm transition-colors ${
+                        form.type === questType.key
+                          ? "bg-amber-400/15 text-amber-100"
+                          : "text-gray-200 hover:bg-white/7"
+                      }`}
+                    >
+                      {questType.label}
+                    </button>
+                  ))}
+                </motion.div>
+              ) : null}
+            </div>
+          </div>
 
           <div className="space-y-1">
             <span className="text-xs tracking-[0.16em] text-gray-500 uppercase">
@@ -343,6 +372,46 @@ export default function QuestsTable({
               ) : null}
             </div>
           </div>
+
+          <label className="space-y-1">
+            <span className="text-xs tracking-[0.16em] text-gray-500 uppercase">
+              Difficulty Stars
+            </span>
+            <input
+              type="number"
+              min={1}
+              max={10}
+              value={form.difficultyStars}
+              onChange={(event) =>
+                setForm((current) => ({
+                  ...current,
+                  difficultyStars: event.target.value
+                }))
+              }
+              className="w-full rounded-lg border border-gray-700 bg-gray-900/70 px-3 py-2 text-sm text-gray-100 transition-colors outline-none focus:border-amber-400"
+              placeholder="8"
+              required
+            />
+          </label>
+
+          <label className="space-y-1">
+            <span className="text-xs tracking-[0.16em] text-gray-500 uppercase">
+              Monster
+            </span>
+            <input
+              type="text"
+              value={form.monster}
+              onChange={(event) =>
+                setForm((current) => ({
+                  ...current,
+                  monster: event.target.value
+                }))
+              }
+              className="w-full rounded-lg border border-gray-700 bg-gray-900/70 px-3 py-2 text-sm text-gray-100 transition-colors outline-none focus:border-amber-400"
+              placeholder="Jin Dahaad"
+              required
+            />
+          </label>
 
           {formError ? (
             <div className="rounded-lg border border-red-400/30 bg-red-400/10 px-3 py-2 text-sm text-red-200 md:col-span-2">
@@ -455,6 +524,7 @@ export default function QuestsTable({
                           setForm({
                             title: quest.title,
                             monster: quest.monster,
+                            type: quest.type,
                             areaKey: quest.areaKey,
                             difficultyStars: String(quest.difficultyStars)
                           });
