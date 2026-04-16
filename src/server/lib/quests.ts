@@ -87,7 +87,7 @@ export async function createQuest(input: QuestUpsertInput) {
     id: questId,
     title: input.title,
     monster: input.monster,
-    type: input.type as QuestType,
+    type: input.type,
     area: input.areaKey,
     difficultyStars: input.difficultyStars
   });
@@ -112,7 +112,7 @@ export async function updateQuest(input: QuestUpdateInput) {
     .set({
       title: input.title,
       monster: input.monster,
-      type: input.type as QuestType,
+      type: input.type,
       area: input.areaKey,
       difficultyStars: input.difficultyStars
     })
