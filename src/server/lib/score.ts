@@ -42,7 +42,9 @@ export function calculateUserScoreAndTop3Placements<T extends ScoreEligibleRun>(
   const bestRunByQuestAndUser = new Map<string, T>();
 
   for (const run of runs) {
-    const key = `${run.questId}:${run.userId}`;
+    const key = run.category
+      ? `${run.questId}:${run.userId}:${run.category}`
+      : `${run.questId}:${run.userId}`;
     const existing = bestRunByQuestAndUser.get(key);
 
     if (!existing) {
@@ -71,6 +73,8 @@ export function calculateUserScoreAndTop3Placements<T extends ScoreEligibleRun>(
 
   const top3PlacementsByUser = new Map<string, Top3Placements>();
   const scoreByUser = new Map<string, ScoreAggregate>();
+  const scoreByRunId = new Map<string, number>();
+  const rankByRunId = new Map<string, number>();
 
   for (const questRuns of bestRunsByQuest.values()) {
     const sorted = questRuns
@@ -89,6 +93,10 @@ export function calculateUserScoreAndTop3Placements<T extends ScoreEligibleRun>(
       scoreCurrent.sum += score;
       scoreCurrent.count += 1;
       scoreByUser.set(run.userId, scoreCurrent);
+      if (run.runId) {
+        scoreByRunId.set(run.runId, score);
+        rankByRunId.set(run.runId, rank);
+      }
 
       if (index > 2) return;
       const placementsCurrent = top3PlacementsByUser.get(run.userId) ?? {
@@ -105,6 +113,8 @@ export function calculateUserScoreAndTop3Placements<T extends ScoreEligibleRun>(
 
   return {
     scoreByUser,
-    top3PlacementsByUser
+    top3PlacementsByUser,
+    scoreByRunId,
+    rankByRunId
   };
 }

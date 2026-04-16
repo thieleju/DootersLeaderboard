@@ -188,7 +188,7 @@ export async function getLeaderboardRows(): Promise<{
     (typeof approvedRunRows)[number]
   >();
   for (const run of approvedRunRows) {
-    const key = `${run.questId}:${run.userId}`;
+    const key = `${run.questId}:${run.userId}:${run.category}`;
     if (!bestRunByQuestAndUser.has(key)) {
       bestRunByQuestAndUser.set(key, run);
     }

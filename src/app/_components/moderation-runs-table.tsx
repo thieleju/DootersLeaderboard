@@ -351,6 +351,24 @@ export default function ModerationRunsTable({
       }
     });
 
+  const updateReviewedRunDetailsMutation =
+    api.players.updateReviewedRunDetails.useMutation({
+      onSuccess: async () => {
+        setSavingRunId(null);
+        setRunError(null);
+        setOpenDropdownKey(null);
+        await refreshAll();
+      },
+      onError: (error: unknown) => {
+        setSavingRunId(null);
+        setRunError(
+          error instanceof Error
+            ? (error.message ?? "Could not update reviewed run.")
+            : "Could not update reviewed run."
+        );
+      }
+    });
+
   const deleteRunMutation = api.players.deleteRun.useMutation({
     onSuccess: async () => {
       setProcessingRunId(null);
@@ -367,7 +385,7 @@ export default function ModerationRunsTable({
     }
   });
 
-  const ensureDrafts = (run: PendingRunRow) => {
+  const ensureDrafts = (run: PendingRunRow | ReviewedRunRow) => {
     setTagDraftByRunId((current) => {
       if (current[run.runId]) return current;
       return { ...current, [run.runId]: [...run.tagLabels] };
@@ -392,7 +410,7 @@ export default function ModerationRunsTable({
     });
   };
 
-  const resetDrafts = (run: PendingRunRow) => {
+  const resetDrafts = (run: PendingRunRow | ReviewedRunRow) => {
     setTagDraftByRunId((current) => ({
       ...current,
       [run.runId]: [...run.tagLabels]
@@ -466,8 +484,8 @@ export default function ModerationRunsTable({
     );
   };
 
-  const hasPendingChanges = (
-    run: PendingRunRow,
+  const hasRunDraftChanges = (
+    run: PendingRunRow | ReviewedRunRow,
     draftTags: string[],
     draftCategoryId: string,
     draftPrimaryWeaponKey: string,
@@ -488,12 +506,16 @@ export default function ModerationRunsTable({
 
   return (
     <div className="space-y-6">
-      <AnimatedCard delay={delay} className="p-6 shadow-2xl shadow-black/20">
+      <AnimatedCard
+        delay={delay}
+        className="relative z-30 p-6 shadow-2xl shadow-black/20"
+      >
         <DataTable
           title="Pending Runs"
           description="Review, edit and moderate pending run submissions."
           icon={<Clock3 className="h-6 w-6" />}
           iconColor="amber"
+          tableWrapperClassName="overflow-visible"
           columns={[
             { key: "status", label: "Status" },
             { key: "runner", label: "Runner" },
@@ -518,6 +540,10 @@ export default function ModerationRunsTable({
             >
               {pendingRuns.map((run, index) => {
                 const isExpanded = expandedPendingRunId === run.runId;
+                const isOwnRun = Boolean(
+                  viewerUserId && viewerUserId === run.runnerUserId
+                );
+                const canModerateThisRun = isAdmin || !isOwnRun;
                 const submittedLabel = capitalizeFirst(
                   getRelativeTime(run.submittedAtMs)
                 );
@@ -535,7 +561,7 @@ export default function ModerationRunsTable({
                   run.secondaryWeaponKey ??
                   run.primaryWeaponKey;
 
-                const hasChanges = hasPendingChanges(
+                const hasChanges = hasRunDraftChanges(
                   run,
                   draftTags,
                   draftCategoryId,
@@ -632,44 +658,48 @@ export default function ModerationRunsTable({
                         className="px-3 py-4 text-left align-middle"
                         onClick={(event) => event.stopPropagation()}
                       >
-                        <div className="flex items-center gap-2">
-                          <button
-                            type="button"
-                            disabled={processingRunId === run.runId}
-                            onClick={() => {
-                              setRunError(null);
-                              setProcessingRunId(run.runId);
-                              approveRunMutation.mutate({ runId: run.runId });
-                            }}
-                            className="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg border border-emerald-300/30 bg-emerald-400/10 text-emerald-100 transition-colors hover:border-emerald-200 hover:bg-emerald-400/20 disabled:cursor-not-allowed disabled:opacity-60"
-                            aria-label="Approve run"
-                            title="Approve run"
-                          >
-                            {processingRunId === run.runId ? (
-                              <Loader2 className="h-4 w-4 animate-spin" />
-                            ) : (
-                              <Check className="h-4 w-4" />
-                            )}
-                          </button>
-                          <button
-                            type="button"
-                            disabled={processingRunId === run.runId}
-                            onClick={() => {
-                              setRunError(null);
-                              setProcessingRunId(run.runId);
-                              rejectRunMutation.mutate({ runId: run.runId });
-                            }}
-                            className="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg border border-rose-300/30 bg-rose-400/10 text-rose-100 transition-colors hover:border-rose-200 hover:bg-rose-400/20 disabled:cursor-not-allowed disabled:opacity-60"
-                            aria-label="Reject run"
-                            title="Reject run"
-                          >
-                            {processingRunId === run.runId ? (
-                              <Loader2 className="h-4 w-4 animate-spin" />
-                            ) : (
-                              <Ban className="h-4 w-4" />
-                            )}
-                          </button>
-                        </div>
+                        {canModerateThisRun ? (
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              disabled={processingRunId === run.runId}
+                              onClick={() => {
+                                setRunError(null);
+                                setProcessingRunId(run.runId);
+                                approveRunMutation.mutate({ runId: run.runId });
+                              }}
+                              className="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg border border-emerald-300/30 bg-emerald-400/10 text-emerald-100 transition-colors hover:border-emerald-200 hover:bg-emerald-400/20 disabled:cursor-not-allowed disabled:opacity-60"
+                              aria-label="Approve run"
+                              title="Approve run"
+                            >
+                              {processingRunId === run.runId ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <Check className="h-4 w-4" />
+                              )}
+                            </button>
+                            <button
+                              type="button"
+                              disabled={processingRunId === run.runId}
+                              onClick={() => {
+                                setRunError(null);
+                                setProcessingRunId(run.runId);
+                                rejectRunMutation.mutate({ runId: run.runId });
+                              }}
+                              className="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg border border-rose-300/30 bg-rose-400/10 text-rose-100 transition-colors hover:border-rose-200 hover:bg-rose-400/20 disabled:cursor-not-allowed disabled:opacity-60"
+                              aria-label="Reject run"
+                              title="Reject run"
+                            >
+                              {processingRunId === run.runId ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <Ban className="h-4 w-4" />
+                              )}
+                            </button>
+                          </div>
+                        ) : (
+                          <span className="text-xs text-gray-500">-</span>
+                        )}
                       </td>
                     </motion.tr>
 
@@ -680,17 +710,32 @@ export default function ModerationRunsTable({
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
                         transition={{ duration: 0.2 }}
-                        className="border-b border-gray-800/70"
+                        className="overflow-visible border-b border-gray-800/70"
                       >
-                        <td colSpan={6} className="px-0 py-0 align-top">
+                        <td
+                          colSpan={6}
+                          className="overflow-visible px-0 py-0 align-top"
+                        >
                           <motion.div
-                            initial={{ height: 0, opacity: 0 }}
-                            animate={{ height: "auto", opacity: 1 }}
-                            exit={{ height: 0, opacity: 0 }}
+                            initial={{
+                              maxHeight: 0,
+                              opacity: 0,
+                              pointerEvents: "none"
+                            }}
+                            animate={{
+                              maxHeight: 2000,
+                              opacity: 1,
+                              pointerEvents: "auto"
+                            }}
+                            exit={{
+                              maxHeight: 0,
+                              opacity: 0,
+                              pointerEvents: "none"
+                            }}
                             transition={{ duration: 0.24, ease: "easeOut" }}
-                            className="overflow-hidden"
+                            className="overflow-visible"
                           >
-                            <div className="grid gap-4 bg-gray-900 px-4 py-4 md:grid-cols-3">
+                            <div className="grid gap-4 overflow-visible bg-gray-900 px-4 py-4 md:grid-cols-3">
                               <div className="space-y-1">
                                 <span className="text-xs tracking-[0.16em] text-gray-500 uppercase">
                                   Category
@@ -732,7 +777,7 @@ export default function ModerationRunsTable({
                                       animate={{ opacity: 1, y: 0, scale: 1 }}
                                       exit={{ opacity: 0, y: -4, scale: 0.99 }}
                                       transition={{ duration: 0.16 }}
-                                      className="absolute z-30 mt-2 w-full overflow-y-auto rounded-lg border border-gray-700 bg-gray-900/95 p-1 shadow-2xl shadow-black/35 backdrop-blur-sm"
+                                      className="absolute top-full right-0 z-50 mt-2 max-h-64 w-full overflow-y-auto rounded-lg border border-gray-700 bg-gray-900/95 p-1 shadow-2xl shadow-black/35 backdrop-blur-sm"
                                     >
                                       {categoryOptions.map((categoryOption) => (
                                         <button
@@ -811,7 +856,7 @@ export default function ModerationRunsTable({
                                       animate={{ opacity: 1, y: 0, scale: 1 }}
                                       exit={{ opacity: 0, y: -4, scale: 0.99 }}
                                       transition={{ duration: 0.16 }}
-                                      className="absolute z-30 mt-2 max-h-64 w-full overflow-y-auto rounded-lg border border-gray-700 bg-gray-900/95 p-1 shadow-2xl shadow-black/35 backdrop-blur-sm"
+                                      className="absolute top-full right-0 z-50 mt-2 max-h-64 w-full overflow-y-auto rounded-lg border border-gray-700 bg-gray-900/95 p-1 shadow-2xl shadow-black/35 backdrop-blur-sm"
                                     >
                                       {weapons.map((weapon) => (
                                         <button
@@ -896,7 +941,7 @@ export default function ModerationRunsTable({
                                       animate={{ opacity: 1, y: 0, scale: 1 }}
                                       exit={{ opacity: 0, y: -4, scale: 0.99 }}
                                       transition={{ duration: 0.16 }}
-                                      className="absolute z-30 mt-2 max-h-64 w-full overflow-y-auto rounded-lg border border-gray-700 bg-gray-900/95 p-1 shadow-2xl shadow-black/35 backdrop-blur-sm"
+                                      className="absolute top-full right-0 z-50 mt-2 max-h-64 w-full overflow-y-auto rounded-lg border border-gray-700 bg-gray-900/95 p-1 shadow-2xl shadow-black/35 backdrop-blur-sm"
                                     >
                                       {weapons.map((weapon) => (
                                         <button
@@ -1066,12 +1111,13 @@ export default function ModerationRunsTable({
         ) : null}
       </AnimatedCard>
 
-      <AnimatedCard className="p-6 shadow-2xl shadow-black/20">
+      <AnimatedCard className="relative z-10 p-6 shadow-2xl shadow-black/20">
         <DataTable
           title="Runs"
           description="Reviewed runs with full details."
           icon={<Clock3 className="h-6 w-6" />}
           iconColor="cyan"
+          tableWrapperClassName="overflow-visible"
           columns={[
             { key: "status", label: "Status" },
             { key: "runner", label: "Runner" },
@@ -1115,6 +1161,25 @@ export default function ModerationRunsTable({
                   canModerateThisRun && run.status === "approved";
                 const canApproveReviewed =
                   canModerateThisRun && run.status === "rejected";
+                const canEditReviewedDetails = isAdmin;
+
+                const draftTags = tagDraftByRunId[run.runId] ?? run.tagLabels;
+                const draftCategoryId: ReviewedRunRow["categoryId"] =
+                  categoryDraftByRunId[run.runId] ?? run.categoryId;
+                const draftPrimaryWeaponKey =
+                  primaryWeaponDraftByRunId[run.runId] ?? run.primaryWeaponKey;
+                const draftSecondaryWeaponKey =
+                  secondaryWeaponDraftByRunId[run.runId] ??
+                  run.secondaryWeaponKey ??
+                  run.primaryWeaponKey;
+
+                const hasChanges = hasRunDraftChanges(
+                  run,
+                  draftTags,
+                  draftCategoryId,
+                  draftPrimaryWeaponKey,
+                  draftSecondaryWeaponKey
+                );
 
                 const category = getCategoryMeta(run.categoryId);
                 const CategoryIcon = categoryIconMap[category.icon] ?? Flame;
@@ -1136,6 +1201,7 @@ export default function ModerationRunsTable({
                         setExpandedReviewedRunId((current) =>
                           current === run.runId ? null : run.runId
                         );
+                        ensureDrafts(run);
                       }}
                     >
                       <td className="px-3 py-4 align-middle">
@@ -1301,96 +1367,506 @@ export default function ModerationRunsTable({
                           animate={{ opacity: 1 }}
                           exit={{ opacity: 0 }}
                           transition={{ duration: 0.2 }}
-                          className="border-b border-gray-800/70"
+                          className="overflow-visible border-b border-gray-800/70"
                         >
-                          <td colSpan={7} className="px-0 py-0 align-top">
+                          <td
+                            colSpan={7}
+                            className="overflow-visible px-0 py-0 align-top"
+                          >
                             <motion.div
-                              initial={{ height: 0, opacity: 0 }}
-                              animate={{ height: "auto", opacity: 1 }}
-                              exit={{ height: 0, opacity: 0 }}
+                              initial={{
+                                maxHeight: 0,
+                                opacity: 0,
+                                pointerEvents: "none"
+                              }}
+                              animate={{
+                                maxHeight: 2000,
+                                opacity: 1,
+                                pointerEvents: "auto"
+                              }}
+                              exit={{
+                                maxHeight: 0,
+                                opacity: 0,
+                                pointerEvents: "none"
+                              }}
                               transition={{ duration: 0.24, ease: "easeOut" }}
-                              className="overflow-hidden"
+                              className="overflow-visible"
                             >
-                              <div className="grid gap-4 bg-gray-900 px-4 py-4 md:grid-cols-3">
-                                <div>
-                                  <div className="mb-1 text-[10px] tracking-[0.16em] text-gray-500 uppercase">
-                                    Hunter
+                              {canEditReviewedDetails ? (
+                                <div className="grid gap-4 overflow-visible bg-gray-900 px-4 py-4 md:grid-cols-3">
+                                  <div className="space-y-1">
+                                    <span className="text-xs tracking-[0.16em] text-gray-500 uppercase">
+                                      Category
+                                    </span>
+                                    <div className="relative">
+                                      <button
+                                        type="button"
+                                        role="button"
+                                        onClick={() =>
+                                          setOpenDropdownKey((current) =>
+                                            current ===
+                                            `${run.runId}:reviewed:category`
+                                              ? null
+                                              : `${run.runId}:reviewed:category`
+                                          )
+                                        }
+                                        className="relative w-full cursor-pointer rounded-lg border border-gray-700 bg-gray-900/70 px-3 py-2 pr-10 text-left text-sm text-gray-100 transition-colors outline-none hover:border-amber-400 focus-visible:border-amber-400"
+                                      >
+                                        <span className="block truncate">
+                                          {
+                                            getCategoryMeta(draftCategoryId)
+                                              .label
+                                          }
+                                        </span>
+                                        <ChevronDown
+                                          className={`pointer-events-none absolute top-1/2 right-3 h-4 w-4 -translate-y-1/2 text-gray-400 transition-transform duration-200 ${
+                                            openDropdownKey ===
+                                            `${run.runId}:reviewed:category`
+                                              ? "rotate-180 text-amber-300"
+                                              : ""
+                                          }`}
+                                        />
+                                      </button>
+                                      {openDropdownKey ===
+                                      `${run.runId}:reviewed:category` ? (
+                                        <motion.div
+                                          role="listbox"
+                                          initial={{
+                                            opacity: 0,
+                                            y: -4,
+                                            scale: 0.99
+                                          }}
+                                          animate={{
+                                            opacity: 1,
+                                            y: 0,
+                                            scale: 1
+                                          }}
+                                          exit={{
+                                            opacity: 0,
+                                            y: -4,
+                                            scale: 0.99
+                                          }}
+                                          transition={{ duration: 0.16 }}
+                                          className="absolute top-full right-0 z-50 mt-2 max-h-64 w-full overflow-y-auto rounded-lg border border-gray-700 bg-gray-900/95 p-1 shadow-2xl shadow-black/35 backdrop-blur-sm"
+                                        >
+                                          {categoryOptions.map(
+                                            (categoryOption) => (
+                                              <button
+                                                key={categoryOption.id}
+                                                type="button"
+                                                role="option"
+                                                aria-selected={
+                                                  draftCategoryId ===
+                                                  categoryOption.id
+                                                }
+                                                onClick={() => {
+                                                  setCategoryDraftByRunId(
+                                                    (current) => ({
+                                                      ...current,
+                                                      [run.runId]:
+                                                        categoryOption.id
+                                                    })
+                                                  );
+                                                  setOpenDropdownKey(null);
+                                                }}
+                                                className={`flex w-full cursor-pointer rounded-md px-3 py-2 text-left text-sm transition-colors ${
+                                                  draftCategoryId ===
+                                                  categoryOption.id
+                                                    ? "bg-amber-400/15 text-amber-100"
+                                                    : "text-gray-200 hover:bg-white/7"
+                                                }`}
+                                              >
+                                                {categoryOption.label}
+                                              </button>
+                                            )
+                                          )}
+                                        </motion.div>
+                                      ) : null}
+                                    </div>
                                   </div>
-                                  <div className="text-sm font-semibold text-white">
-                                    {run.hunterName}
+
+                                  <div className="space-y-1">
+                                    <span className="text-xs tracking-[0.16em] text-gray-500 uppercase">
+                                      Primary Weapon
+                                    </span>
+                                    <div className="relative">
+                                      <button
+                                        type="button"
+                                        role="button"
+                                        onClick={() =>
+                                          setOpenDropdownKey((current) =>
+                                            current ===
+                                            `${run.runId}:reviewed:primary`
+                                              ? null
+                                              : `${run.runId}:reviewed:primary`
+                                          )
+                                        }
+                                        className="relative w-full cursor-pointer rounded-lg border border-gray-700 bg-gray-900/70 px-3 py-2 pr-10 text-left text-sm text-gray-100 transition-colors outline-none hover:border-amber-400 focus-visible:border-amber-400"
+                                      >
+                                        <span className="block truncate">
+                                          {weapons.find(
+                                            (weapon) =>
+                                              weapon.key ===
+                                              draftPrimaryWeaponKey
+                                          )?.label ?? "Select primary weapon"}
+                                        </span>
+                                        <ChevronDown
+                                          className={`pointer-events-none absolute top-1/2 right-3 h-4 w-4 -translate-y-1/2 text-gray-400 transition-transform duration-200 ${
+                                            openDropdownKey ===
+                                            `${run.runId}:reviewed:primary`
+                                              ? "rotate-180 text-amber-300"
+                                              : ""
+                                          }`}
+                                        />
+                                      </button>
+                                      {openDropdownKey ===
+                                      `${run.runId}:reviewed:primary` ? (
+                                        <motion.div
+                                          role="listbox"
+                                          initial={{
+                                            opacity: 0,
+                                            y: -4,
+                                            scale: 0.99
+                                          }}
+                                          animate={{
+                                            opacity: 1,
+                                            y: 0,
+                                            scale: 1
+                                          }}
+                                          exit={{
+                                            opacity: 0,
+                                            y: -4,
+                                            scale: 0.99
+                                          }}
+                                          transition={{ duration: 0.16 }}
+                                          className="absolute top-full right-0 z-50 mt-2 max-h-64 w-full overflow-y-auto rounded-lg border border-gray-700 bg-gray-900/95 p-1 shadow-2xl shadow-black/35 backdrop-blur-sm"
+                                        >
+                                          {weapons.map((weapon) => (
+                                            <button
+                                              key={weapon.key}
+                                              type="button"
+                                              role="option"
+                                              aria-selected={
+                                                draftPrimaryWeaponKey ===
+                                                weapon.key
+                                              }
+                                              onClick={() => {
+                                                setPrimaryWeaponDraftByRunId(
+                                                  (current) => ({
+                                                    ...current,
+                                                    [run.runId]: weapon.key
+                                                  })
+                                                );
+                                                setOpenDropdownKey(null);
+                                              }}
+                                              className={`flex w-full cursor-pointer items-center gap-2 rounded-md px-3 py-2 text-left text-sm transition-colors ${
+                                                draftPrimaryWeaponKey ===
+                                                weapon.key
+                                                  ? "bg-amber-400/15 text-amber-100"
+                                                  : "text-gray-200 hover:bg-white/7"
+                                              }`}
+                                            >
+                                              <Image
+                                                src={`/weapons/${weapon.key}.png`}
+                                                alt={weapon.key.toUpperCase()}
+                                                title={weapon.key.toUpperCase()}
+                                                width={20}
+                                                height={20}
+                                                className="h-5 w-5 object-contain"
+                                              />
+                                              {weapon.label}
+                                            </button>
+                                          ))}
+                                        </motion.div>
+                                      ) : null}
+                                    </div>
+                                  </div>
+
+                                  <div className="space-y-1">
+                                    <span className="text-xs tracking-[0.16em] text-gray-500 uppercase">
+                                      Secondary Weapon
+                                    </span>
+                                    <div className="relative">
+                                      <button
+                                        type="button"
+                                        role="button"
+                                        onClick={() =>
+                                          setOpenDropdownKey((current) =>
+                                            current ===
+                                            `${run.runId}:reviewed:secondary`
+                                              ? null
+                                              : `${run.runId}:reviewed:secondary`
+                                          )
+                                        }
+                                        className="relative w-full cursor-pointer rounded-lg border border-gray-700 bg-gray-900/70 px-3 py-2 pr-10 text-left text-sm text-gray-100 transition-colors outline-none hover:border-amber-400 focus-visible:border-amber-400"
+                                      >
+                                        <span className="block truncate">
+                                          {weapons.find(
+                                            (weapon) =>
+                                              weapon.key ===
+                                              draftSecondaryWeaponKey
+                                          )?.label ?? "Select secondary weapon"}
+                                        </span>
+                                        <ChevronDown
+                                          className={`pointer-events-none absolute top-1/2 right-3 h-4 w-4 -translate-y-1/2 text-gray-400 transition-transform duration-200 ${
+                                            openDropdownKey ===
+                                            `${run.runId}:reviewed:secondary`
+                                              ? "rotate-180 text-amber-300"
+                                              : ""
+                                          }`}
+                                        />
+                                      </button>
+                                      {openDropdownKey ===
+                                      `${run.runId}:reviewed:secondary` ? (
+                                        <motion.div
+                                          role="listbox"
+                                          initial={{
+                                            opacity: 0,
+                                            y: -4,
+                                            scale: 0.99
+                                          }}
+                                          animate={{
+                                            opacity: 1,
+                                            y: 0,
+                                            scale: 1
+                                          }}
+                                          exit={{
+                                            opacity: 0,
+                                            y: -4,
+                                            scale: 0.99
+                                          }}
+                                          transition={{ duration: 0.16 }}
+                                          className="absolute top-full right-0 z-50 mt-2 max-h-64 w-full overflow-y-auto rounded-lg border border-gray-700 bg-gray-900/95 p-1 shadow-2xl shadow-black/35 backdrop-blur-sm"
+                                        >
+                                          {weapons.map((weapon) => (
+                                            <button
+                                              key={weapon.key}
+                                              type="button"
+                                              role="option"
+                                              aria-selected={
+                                                draftSecondaryWeaponKey ===
+                                                weapon.key
+                                              }
+                                              onClick={() => {
+                                                setSecondaryWeaponDraftByRunId(
+                                                  (current) => ({
+                                                    ...current,
+                                                    [run.runId]: weapon.key
+                                                  })
+                                                );
+                                                setOpenDropdownKey(null);
+                                              }}
+                                              className={`flex w-full cursor-pointer items-center gap-2 rounded-md px-3 py-2 text-left text-sm transition-colors ${
+                                                draftSecondaryWeaponKey ===
+                                                weapon.key
+                                                  ? "bg-amber-400/15 text-amber-100"
+                                                  : "text-gray-200 hover:bg-white/7"
+                                              }`}
+                                            >
+                                              <Image
+                                                src={`/weapons/${weapon.key}.png`}
+                                                alt={weapon.key.toUpperCase()}
+                                                title={weapon.key.toUpperCase()}
+                                                width={20}
+                                                height={20}
+                                                className="h-5 w-5 object-contain"
+                                              />
+                                              {weapon.label}
+                                            </button>
+                                          ))}
+                                        </motion.div>
+                                      ) : null}
+                                    </div>
+                                  </div>
+
+                                  <div className="md:col-span-3">
+                                    <div className="mb-1 text-[10px] tracking-[0.16em] text-gray-500 uppercase">
+                                      Tags
+                                    </div>
+
+                                    <div className="mb-3 flex flex-wrap items-center gap-2">
+                                      {draftTags.length > 0 ? (
+                                        draftTags.map((tag) => (
+                                          <span
+                                            key={`${run.runId}-${tag}`}
+                                            className="inline-flex h-7 items-center gap-1.5 rounded-full border border-gray-700 bg-white/5 px-2.5 text-xs text-gray-200"
+                                          >
+                                            <Tag className="h-3.5 w-3.5 text-gray-500" />
+                                            {tag}
+                                            <button
+                                              type="button"
+                                              onClick={() =>
+                                                removeTag(run.runId, tag)
+                                              }
+                                              className="ml-1 inline-flex h-4 w-4 cursor-pointer items-center justify-center rounded-full text-gray-500 hover:text-rose-300"
+                                              aria-label="Remove tag"
+                                            >
+                                              <X className="h-3 w-3" />
+                                            </button>
+                                          </span>
+                                        ))
+                                      ) : (
+                                        <span className="text-xs text-gray-500">
+                                          No tags
+                                        </span>
+                                      )}
+                                    </div>
+
+                                    <div className="flex flex-wrap items-center gap-2">
+                                      <input
+                                        type="text"
+                                        value={tagInputByRunId[run.runId] ?? ""}
+                                        onChange={(event) =>
+                                          setTagInputByRunId((current) => ({
+                                            ...current,
+                                            [run.runId]: event.target.value
+                                          }))
+                                        }
+                                        onKeyDown={(event) => {
+                                          if (event.key === "Enter") {
+                                            event.preventDefault();
+                                            addTag(run.runId);
+                                          }
+                                        }}
+                                        placeholder="Add tag"
+                                        className="w-full min-w-[180px] flex-1 rounded-lg border border-gray-700 bg-gray-900/70 px-3 py-2 text-sm text-gray-100 transition-colors outline-none focus:border-amber-400"
+                                      />
+                                      <button
+                                        type="button"
+                                        onClick={() => addTag(run.runId)}
+                                        className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-gray-700 bg-white/5 px-3 py-2 text-sm font-semibold text-gray-200 transition-colors hover:border-gray-500"
+                                      >
+                                        <Plus className="h-4 w-4" />
+                                        Add
+                                      </button>
+                                      <button
+                                        type="button"
+                                        disabled={
+                                          savingRunId === run.runId ||
+                                          !draftCategoryId ||
+                                          !draftPrimaryWeaponKey ||
+                                          !draftSecondaryWeaponKey ||
+                                          !hasChanges
+                                        }
+                                        onClick={() => {
+                                          setRunError(null);
+                                          setSavingRunId(run.runId);
+                                          updateReviewedRunDetailsMutation.mutate(
+                                            {
+                                              runId: run.runId,
+                                              category: draftCategoryId,
+                                              primaryWeaponKey:
+                                                draftPrimaryWeaponKey,
+                                              secondaryWeaponKey:
+                                                draftSecondaryWeaponKey,
+                                              tags: draftTags
+                                            }
+                                          );
+                                        }}
+                                        className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-cyan-300/30 bg-cyan-400/10 px-3 py-2 text-sm font-semibold text-cyan-100 transition-colors hover:border-cyan-200 hover:bg-cyan-400/20 disabled:cursor-not-allowed disabled:opacity-60"
+                                      >
+                                        {savingRunId === run.runId ? (
+                                          <Loader2 className="h-4 w-4 animate-spin" />
+                                        ) : (
+                                          <Save className="h-4 w-4" />
+                                        )}
+                                        Save
+                                      </button>
+                                      {hasChanges ? (
+                                        <button
+                                          type="button"
+                                          onClick={() => resetDrafts(run)}
+                                          className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-gray-700 bg-white/5 px-3 py-2 text-sm font-semibold text-gray-200 transition-colors hover:border-gray-500"
+                                        >
+                                          <RotateCcw className="h-4 w-4" />
+                                          Reset
+                                        </button>
+                                      ) : null}
+                                    </div>
                                   </div>
                                 </div>
-
-                                <div>
-                                  <div className="mb-1 text-[10px] tracking-[0.16em] text-gray-500 uppercase">
-                                    Weapons
+                              ) : (
+                                <div className="grid gap-4 overflow-visible bg-gray-900 px-4 py-4 md:grid-cols-3">
+                                  <div>
+                                    <div className="mb-1 text-[10px] tracking-[0.16em] text-gray-500 uppercase">
+                                      Hunter
+                                    </div>
+                                    <div className="text-sm font-semibold text-white">
+                                      {run.hunterName}
+                                    </div>
                                   </div>
-                                  <div className="flex items-center gap-2">
-                                    <Image
-                                      src={`/weapons/${run.primaryWeaponKey}.png`}
-                                      alt={run.primaryWeaponKey.toUpperCase()}
-                                      title={run.primaryWeaponKey.toUpperCase()}
-                                      width={28}
-                                      height={28}
-                                      className="h-7 w-7 object-contain"
-                                    />
-                                    {run.secondaryWeaponKey ? (
+
+                                  <div>
+                                    <div className="mb-1 text-[10px] tracking-[0.16em] text-gray-500 uppercase">
+                                      Weapons
+                                    </div>
+                                    <div className="flex items-center gap-2">
                                       <Image
-                                        src={`/weapons/${run.secondaryWeaponKey}.png`}
-                                        alt={run.secondaryWeaponKey.toUpperCase()}
-                                        title={run.secondaryWeaponKey.toUpperCase()}
+                                        src={`/weapons/${run.primaryWeaponKey}.png`}
+                                        alt={run.primaryWeaponKey.toUpperCase()}
+                                        title={run.primaryWeaponKey.toUpperCase()}
                                         width={28}
                                         height={28}
                                         className="h-7 w-7 object-contain"
                                       />
-                                    ) : null}
+                                      {run.secondaryWeaponKey ? (
+                                        <Image
+                                          src={`/weapons/${run.secondaryWeaponKey}.png`}
+                                          alt={run.secondaryWeaponKey.toUpperCase()}
+                                          title={run.secondaryWeaponKey.toUpperCase()}
+                                          width={28}
+                                          height={28}
+                                          className="h-7 w-7 object-contain"
+                                        />
+                                      ) : null}
+                                    </div>
                                   </div>
-                                </div>
 
-                                <div>
-                                  <div className="mb-1 text-[10px] tracking-[0.16em] text-gray-500 uppercase">
-                                    Category
-                                  </div>
-                                  <CategoryTooltip
-                                    label={category.label}
-                                    description={category.description}
-                                    link={category.link}
-                                    wrapperClassName="inline-block"
-                                  >
-                                    <span
-                                      className={`inline-flex h-6 items-center justify-center gap-1.5 rounded-full border px-2.5 text-xs leading-none ${tone.badge}`}
+                                  <div>
+                                    <div className="mb-1 text-[10px] tracking-[0.16em] text-gray-500 uppercase">
+                                      Category
+                                    </div>
+                                    <CategoryTooltip
+                                      label={category.label}
+                                      description={category.description}
+                                      link={category.link}
+                                      wrapperClassName="inline-block"
                                     >
-                                      <CategoryIcon
-                                        className={`h-3.5 w-3.5 shrink-0 ${tone.icon}`}
-                                      />
-                                      {category.label}
-                                    </span>
-                                  </CategoryTooltip>
-                                </div>
-
-                                <div className="md:col-span-3">
-                                  <div className="mb-1 text-[10px] tracking-[0.16em] text-gray-500 uppercase">
-                                    Tags
-                                  </div>
-                                  <div className="flex flex-wrap items-center gap-2 text-gray-300">
-                                    {run.tagLabels.length > 0 ? (
-                                      run.tagLabels.map((tagLabel) => (
-                                        <span
-                                          key={`${run.runId}-${tagLabel}`}
-                                          className="inline-flex h-6 items-center justify-center gap-1.5 rounded-full border border-gray-700 bg-white/5 px-2.5 text-xs leading-none whitespace-nowrap text-gray-300 transition-all hover:border-amber-300/40 hover:bg-amber-400/10 hover:text-amber-200 hover:shadow-[0_0_0_1px_rgba(251,191,36,0.12),0_6px_18px_rgba(251,191,36,0.1)]"
-                                        >
-                                          <Tag className="h-3.5 w-3.5 shrink-0 text-gray-500" />
-                                          {tagLabel}
-                                        </span>
-                                      ))
-                                    ) : (
-                                      <span className="text-xs text-gray-500">
-                                        -
+                                      <span
+                                        className={`inline-flex h-6 items-center justify-center gap-1.5 rounded-full border px-2.5 text-xs leading-none ${tone.badge}`}
+                                      >
+                                        <CategoryIcon
+                                          className={`h-3.5 w-3.5 shrink-0 ${tone.icon}`}
+                                        />
+                                        {category.label}
                                       </span>
-                                    )}
+                                    </CategoryTooltip>
+                                  </div>
+
+                                  <div className="md:col-span-3">
+                                    <div className="mb-1 text-[10px] tracking-[0.16em] text-gray-500 uppercase">
+                                      Tags
+                                    </div>
+                                    <div className="flex flex-wrap items-center gap-2 text-gray-300">
+                                      {run.tagLabels.length > 0 ? (
+                                        run.tagLabels.map((tagLabel) => (
+                                          <span
+                                            key={`${run.runId}-${tagLabel}`}
+                                            className="inline-flex h-6 items-center justify-center gap-1.5 rounded-full border border-gray-700 bg-white/5 px-2.5 text-xs leading-none whitespace-nowrap text-gray-300 transition-all hover:border-amber-300/40 hover:bg-amber-400/10 hover:text-amber-200 hover:shadow-[0_0_0_1px_rgba(251,191,36,0.12),0_6px_18px_rgba(251,191,36,0.1)]"
+                                          >
+                                            <Tag className="h-3.5 w-3.5 shrink-0 text-gray-500" />
+                                            {tagLabel}
+                                          </span>
+                                        ))
+                                      ) : (
+                                        <span className="text-xs text-gray-500">
+                                          -
+                                        </span>
+                                      )}
+                                    </div>
                                   </div>
                                 </div>
-                              </div>
+                              )}
                             </motion.div>
                           </td>
                         </motion.tr>

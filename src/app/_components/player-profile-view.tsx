@@ -666,6 +666,7 @@ export default function PlayerProfileView({
             { key: "status", label: "Status" },
             { key: "quest", label: "Quest" },
             { key: "time", label: "Time" },
+            { key: "score", label: "Score" },
             {
               key: "date",
               label: canSeeSubmittedDate ? "Submitted" : "Approved"
@@ -755,8 +756,13 @@ export default function PlayerProfileView({
                   : run.status === "rejected"
                     ? "Rejected"
                     : "Pending";
+              const formattedScore = new Intl.NumberFormat("en-US").format(
+                Number(run.score)
+              );
+              const scoreLabel =
+                run.score !== null && run.score > 0 ? `+${formattedScore}` : "";
               const columnCount =
-                4 + (canSeeReviewColumn ? 1 : 0) + (hasAnyRunActions ? 1 : 0);
+                5 + (canSeeReviewColumn ? 1 : 0) + (hasAnyRunActions ? 1 : 0);
 
               return (
                 <Fragment key={run.runId}>
@@ -802,6 +808,16 @@ export default function PlayerProfileView({
                     <td className="px-3 py-4 text-left align-middle">
                       <div className="text-lg font-semibold text-white">
                         {formatRunTime(run.runTimeMs)}
+                      </div>
+                    </td>
+                    <td className="px-3 py-4 text-left align-middle">
+                      <div>
+                        <div className="text-lg font-semibold text-amber-300">
+                          {scoreLabel}
+                        </div>
+                        <div className="text-xs text-gray-500">
+                          {run.rank !== null ? `Rank ${run.rank}` : "-"}
+                        </div>
                       </div>
                     </td>
                     <td className="px-3 py-4 align-middle">

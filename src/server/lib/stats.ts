@@ -81,6 +81,7 @@ export async function getHomeStats(): Promise<HomeStats> {
     .select({
       userId: runsTable.userId,
       questId: runsTable.questId,
+      category: runsTable.category,
       submittedAt: runsTable.submittedAt,
       runTimeMs: runsTable.runTimeMs,
       approvedAt: runsTable.approvedAt,

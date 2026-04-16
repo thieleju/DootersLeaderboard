@@ -30,6 +30,8 @@ export type PlayerProfileRunRow = {
   areaLabel: string;
   submittedAtMs: number;
   runTimeMs: number;
+  score: number | null;
+  rank: number | null;
   categoryId: RunCategoryId;
   tagLabels: string[];
   status: "pending" | "approved" | "rejected";

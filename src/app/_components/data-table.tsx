@@ -21,6 +21,7 @@ interface DataTableProps {
   icon?: ReactNode;
   iconColor?: DataTableIconColor;
   headerContent?: ReactNode;
+  tableWrapperClassName?: string;
   children: ReactNode;
 }
 
@@ -111,6 +112,7 @@ export default function DataTable({
   icon,
   iconColor = "amber",
   headerContent,
+  tableWrapperClassName,
   children
 }: DataTableProps) {
   return (
@@ -144,8 +146,13 @@ export default function DataTable({
         </div>
       ) : null}
 
-      <div className="no-scrollbar overflow-x-auto overflow-y-visible">
-        <table className="min-w-full border-separate border-spacing-0">
+      <div
+        className={
+          tableWrapperClassName ??
+          "no-scrollbar overflow-x-auto overflow-y-visible"
+        }
+      >
+        <table className="min-w-full border-separate border-spacing-0 overflow-visible">
           <thead>
             <tr className="text-left text-xs tracking-[0.2em] text-gray-500 uppercase">
               {columns.map((column) => (

@@ -2,6 +2,7 @@ import { z } from "zod";
 
 import {
   createTRPCRouter,
+  protectedProcedureAdmin,
   protectedProcedureModerator,
   protectedProcedureRunner,
   publicProcedure
@@ -17,6 +18,7 @@ import {
   getSubmitRunOptions,
   deleteRun,
   submitRun,
+  updateReviewedRunDetails,
   updatePendingRunDetails,
   updatePendingRunTags
 } from "~/server/lib/players";
@@ -66,6 +68,10 @@ export const playersRouter = createTRPCRouter({
     .mutation(({ input, ctx }) =>
       updatePendingRunDetails(input, ctx.session!.user.role)
     ),
+
+  updateReviewedRunDetails: protectedProcedureAdmin
+    .input(moderateRunDetailsInputSchema)
+    .mutation(({ input }) => updateReviewedRunDetails(input)),
 
   submitRun: protectedProcedureRunner
     .input(submitRunInputSchema)

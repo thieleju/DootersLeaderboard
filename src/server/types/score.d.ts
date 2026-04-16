@@ -1,6 +1,8 @@
 export type ScoreEligibleRun = {
+  runId?: string;
   userId: string;
   questId: string;
+  category?: string;
   runTimeMs: number;
   submittedAt: Date | string | number;
 };

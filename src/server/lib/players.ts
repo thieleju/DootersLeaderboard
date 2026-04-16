@@ -41,6 +41,7 @@ import {
   type PlayerProfileRunRow,
   type SubmitRunInput
 } from "~/server/types/players";
+import type { ScoreAggregate, Top3Placements } from "~/server/types/score";
 import { calculateUserScoreAndTop3Placements } from "~/server/lib/score";
 import { parseRunTimeInputToMs } from "~/server/lib/run-time";
 import {
@@ -108,6 +109,7 @@ export async function getPlayersOverview(): Promise<PlayerOverviewRow[]> {
       runId: runsTable.id,
       userId: runsTable.userId,
       questId: runsTable.questId,
+      category: runsTable.category,
       hunterName: runsTable.hunterName,
       submittedAt: runsTable.submittedAt,
       runTimeMs: runsTable.runTimeMs,
@@ -255,8 +257,10 @@ export async function getPlayerProfile(
 
   const allApprovedRuns = await db
     .select({
+      runId: runsTable.id,
       userId: runsTable.userId,
       questId: runsTable.questId,
+      category: runsTable.category,
       runTimeMs: runsTable.runTimeMs,
       submittedAt: runsTable.submittedAt,
       approvedByUserId: runsTable.approvedByUserId
@@ -264,8 +268,14 @@ export async function getPlayerProfile(
     .from(runsTable)
     .where(isNotNull(runsTable.approvedByUserId));
 
-  const { scoreByUser, top3PlacementsByUser } =
-    calculateUserScoreAndTop3Placements(allApprovedRuns);
+  const scoreCalculation: {
+    scoreByUser: Map<string, ScoreAggregate>;
+    top3PlacementsByUser: Map<string, Top3Placements>;
+    scoreByRunId: Map<string, number>;
+    rankByRunId: Map<string, number>;
+  } = calculateUserScoreAndTop3Placements(allApprovedRuns);
+  const { scoreByUser, top3PlacementsByUser, scoreByRunId, rankByRunId } =
+    scoreCalculation;
 
   const userScore = scoreByUser.get(userId);
   const userPlacements = top3PlacementsByUser.get(userId) ?? {
@@ -361,6 +371,8 @@ export async function getPlayerProfile(
         areaByKey.get(run.areaKey as LeaderboardAreaKey)?.label ?? run.areaKey,
       submittedAtMs,
       runTimeMs: run.runTimeMs,
+      score: run.approvedByUserId ? (scoreByRunId.get(run.runId) ?? 0) : null,
+      rank: run.approvedByUserId ? (rankByRunId.get(run.runId) ?? null) : null,
       categoryId: run.categoryId,
       tagLabels: parseRunTags(run.tags),
       status,
@@ -637,6 +649,84 @@ export async function updatePendingRunDetails(
     throw new TRPCError({
       code: "BAD_REQUEST",
       message: "Only pending runs can be edited"
+    });
+  }
+
+  if (!categories.some((category) => category.id === input.category)) {
+    throw new TRPCError({ code: "BAD_REQUEST", message: "Invalid category" });
+  }
+
+  if (!weaponByKey.has(input.primaryWeaponKey as LeaderboardWeaponKey)) {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message: "Invalid primary weapon"
+    });
+  }
+
+  if (!weaponByKey.has(input.secondaryWeaponKey as LeaderboardWeaponKey)) {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message: "Invalid secondary weapon"
+    });
+  }
+
+  const tags = normalizeTags(input.tags);
+
+  if (tags.length > MAX_SUBMIT_TAGS) {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message: `You can add at most ${MAX_SUBMIT_TAGS} tags`
+    });
+  }
+
+  for (const tag of tags) {
+    if (tag.length > MAX_SUBMIT_TAG_LENGTH) {
+      throw new TRPCError({
+        code: "BAD_REQUEST",
+        message: `Tags can be at most ${MAX_SUBMIT_TAG_LENGTH} characters`
+      });
+    }
+  }
+
+  await db
+    .update(runsTable)
+    .set({
+      category: input.category,
+      primaryWeapon: input.primaryWeaponKey,
+      secondaryWeapon: input.secondaryWeaponKey,
+      tags: tags.length > 0 ? JSON.stringify(tags) : "null"
+    })
+    .where(eq(runsTable.id, input.runId));
+
+  return { runId: input.runId };
+}
+
+export async function updateReviewedRunDetails(input: {
+  runId: string;
+  category: RunCategoryId;
+  primaryWeaponKey: string;
+  secondaryWeaponKey: string;
+  tags: string[];
+}) {
+  const run = await db
+    .select({
+      id: runsTable.id,
+      approvedByUserId: runsTable.approvedByUserId,
+      rejectedByUserId: runsTable.rejectedByUserId
+    })
+    .from(runsTable)
+    .where(eq(runsTable.id, input.runId))
+    .limit(1)
+    .then((rows) => rows[0] ?? null);
+
+  if (!run) {
+    throw new TRPCError({ code: "NOT_FOUND", message: "Run not found" });
+  }
+
+  if (!run.approvedByUserId && !run.rejectedByUserId) {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message: "Only reviewed runs can be edited"
     });
   }
 
