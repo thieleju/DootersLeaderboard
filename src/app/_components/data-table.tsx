@@ -144,7 +144,7 @@ export default function DataTable({
         </div>
       ) : null}
 
-      <div className="no-scrollbar overflow-x-auto">
+      <div className="no-scrollbar overflow-x-auto overflow-y-visible">
         <table className="min-w-full border-separate border-spacing-0">
           <thead>
             <tr className="text-left text-xs tracking-[0.2em] text-gray-500 uppercase">

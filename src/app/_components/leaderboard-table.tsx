@@ -6,7 +6,6 @@ import {
   BookOpen,
   CalendarDays,
   ChevronDown,
-  ExternalLink,
   Filter,
   Flame,
   Layers,
@@ -25,10 +24,12 @@ import type {
   LeaderboardRow
 } from "~/server/types/leaderboard";
 import AnimatedCard from "./animated-card";
+import CategoryTooltip from "./category-tooltip";
 import DataTable, {
   DataTableLoadingState,
   getRankBadgeClass
 } from "./data-table";
+import { formatCountLabel, formatFullDateTime, formatRunTime } from "./helpers";
 import { categoryToneClasses } from "./theme-classes";
 
 const categoryIconMap = {
@@ -36,30 +37,6 @@ const categoryIconMap = {
   shield: Shield,
   "book-open": BookOpen
 } as const;
-
-function formatRunTime(ms: number) {
-  const minutes = Math.floor(ms / 60_000)
-    .toString()
-    .padStart(2, "0");
-  const seconds = Math.floor((ms % 60_000) / 1_000)
-    .toString()
-    .padStart(2, "0");
-  const centiseconds = Math.floor((ms % 1_000) / 10)
-    .toString()
-    .padStart(2, "0");
-
-  return `${minutes}'${seconds}"${centiseconds}`;
-}
-
-function formatFullDateTime(timestampMs: number) {
-  return new Intl.DateTimeFormat("en-US", {
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false
-  }).format(timestampMs);
-}
 
 interface LeaderboardTableProps {
   delay?: number;
@@ -144,7 +121,7 @@ export default function LeaderboardTable({ delay = 0 }: LeaderboardTableProps) {
                 >
                   <span className="block truncate">
                     {selectedQuest
-                      ? `${selectedQuest.title} · ${selectedQuest.difficultyStars}★ ${selectedQuest.monster} · ${selectedQuest.areaLabel} · ${selectedQuest.approvedRunCount ?? 0} runs`
+                      ? `${selectedQuest.title} · ${selectedQuest.difficultyStars}★ ${selectedQuest.monster} · ${selectedQuest.areaLabel} · ${formatCountLabel(selectedQuest.approvedRunCount ?? 0, "run")}`
                       : "Select quest"}
                   </span>
                   <ChevronDown
@@ -186,7 +163,10 @@ export default function LeaderboardTable({ delay = 0 }: LeaderboardTableProps) {
                             <span className="truncate text-xs text-gray-400">
                               {questOption.difficultyStars}★{" "}
                               {questOption.monster} · {questOption.areaLabel} ·{" "}
-                              {questOption.approvedRunCount ?? 0} runs
+                              {formatCountLabel(
+                                questOption.approvedRunCount ?? 0,
+                                "run"
+                              )}
                             </span>
                           </button>
                         );
@@ -239,47 +219,36 @@ export default function LeaderboardTable({ delay = 0 }: LeaderboardTableProps) {
                           (item) => item.id === categoryId
                         );
 
-                  return (
-                    <div key={categoryId} className="group relative">
-                      <button
-                        type="button"
-                        role="radio"
-                        aria-checked={isActive}
-                        onClick={() => setSelectedCategoryId(categoryId)}
-                        className={`inline-flex h-8 cursor-pointer items-center justify-center gap-1.5 rounded-full border px-2.5 text-xs leading-none font-medium transition-all duration-200 ${
-                          isActive ? colorClasses.active : colorClasses.inactive
-                        }`}
-                      >
-                        {showCategoryIcon ? (
-                          <CategoryIcon className="h-3.5 w-3.5 shrink-0" />
-                        ) : null}
-                        {label}
-                      </button>
-
-                      {tooltipCategory ? (
-                        <div className="pointer-events-none absolute top-full left-1/2 z-30 w-72 -translate-x-1/2 pt-2 opacity-0 transition-all delay-0 duration-200 group-focus-within:pointer-events-auto group-focus-within:opacity-100 group-focus-within:delay-[700ms] group-hover:pointer-events-auto group-hover:opacity-100 group-hover:delay-[700ms]">
-                          <div className="pointer-events-auto rounded-lg border border-gray-700 bg-gray-900/95 p-3 text-left shadow-2xl shadow-black/35 backdrop-blur-sm">
-                            <div className="mb-1 text-xs font-semibold tracking-[0.14em] text-gray-500 uppercase">
-                              {tooltipCategory.label}
-                            </div>
-                            <p className="text-xs leading-relaxed text-gray-300">
-                              {tooltipCategory.description}
-                            </p>
-                            {tooltipCategory.link ? (
-                              <a
-                                href={tooltipCategory.link}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="mt-2 inline-flex items-center gap-1.5 text-xs font-medium text-amber-300 transition-colors hover:text-amber-200"
-                              >
-                                Rules
-                                <ExternalLink className="h-3.5 w-3.5" />
-                              </a>
-                            ) : null}
-                          </div>
-                        </div>
+                  const trigger = (
+                    <button
+                      type="button"
+                      role="radio"
+                      aria-checked={isActive}
+                      onClick={() => setSelectedCategoryId(categoryId)}
+                      className={`inline-flex h-8 cursor-pointer items-center justify-center gap-1.5 rounded-full border px-2.5 text-xs leading-none font-medium transition-all duration-200 ${
+                        isActive ? colorClasses.active : colorClasses.inactive
+                      }`}
+                    >
+                      {showCategoryIcon ? (
+                        <CategoryIcon className="h-3.5 w-3.5 shrink-0" />
                       ) : null}
-                    </div>
+                      {label}
+                    </button>
+                  );
+
+                  if (!tooltipCategory) {
+                    return <div key={categoryId}>{trigger}</div>;
+                  }
+
+                  return (
+                    <CategoryTooltip
+                      key={categoryId}
+                      label={tooltipCategory.label}
+                      description={tooltipCategory.description}
+                      link={tooltipCategory.link}
+                    >
+                      {trigger}
+                    </CategoryTooltip>
                   );
                 })}
               </div>
@@ -393,14 +362,32 @@ export default function LeaderboardTable({ delay = 0 }: LeaderboardTableProps) {
                   </td>
 
                   <td className="px-3 py-4 align-middle">
-                    <span
-                      className={`inline-flex h-6 items-center justify-center gap-1.5 rounded-full border px-2.5 text-xs leading-none ${tone.badge}`}
-                    >
-                      <CategoryIcon
-                        className={`h-3.5 w-3.5 shrink-0 ${tone.icon}`}
-                      />
-                      {category?.label ?? row.categoryId}
-                    </span>
+                    {category ? (
+                      <CategoryTooltip
+                        label={category.label}
+                        description={category.description}
+                        link={category.link}
+                        wrapperClassName="inline-block"
+                      >
+                        <span
+                          className={`inline-flex h-6 items-center justify-center gap-1.5 rounded-full border px-2.5 text-xs leading-none ${tone.badge}`}
+                        >
+                          <CategoryIcon
+                            className={`h-3.5 w-3.5 shrink-0 ${tone.icon}`}
+                          />
+                          {category.label}
+                        </span>
+                      </CategoryTooltip>
+                    ) : (
+                      <span
+                        className={`inline-flex h-6 items-center justify-center gap-1.5 rounded-full border px-2.5 text-xs leading-none ${tone.badge}`}
+                      >
+                        <CategoryIcon
+                          className={`h-3.5 w-3.5 shrink-0 ${tone.icon}`}
+                        />
+                        {row.categoryId}
+                      </span>
+                    )}
                   </td>
 
                   <td className="px-3 py-4 align-middle">
@@ -409,7 +396,7 @@ export default function LeaderboardTable({ delay = 0 }: LeaderboardTableProps) {
                         row.tagLabels.map((tagLabel) => (
                           <span
                             key={`${row.runId}-${tagLabel}`}
-                            className="inline-flex h-6 items-center justify-center gap-1.5 rounded-full border border-gray-700 bg-white/5 px-2.5 text-xs leading-none text-gray-300 transition-all hover:border-amber-300/40 hover:bg-amber-400/10 hover:text-amber-200 hover:shadow-[0_0_0_1px_rgba(251,191,36,0.12),0_6px_18px_rgba(251,191,36,0.1)]"
+                            className="inline-flex h-6 items-center justify-center gap-1.5 rounded-full border border-gray-700 bg-white/5 px-2.5 text-xs leading-none whitespace-nowrap text-gray-300 transition-all hover:border-amber-300/40 hover:bg-amber-400/10 hover:text-amber-200 hover:shadow-[0_0_0_1px_rgba(251,191,36,0.12),0_6px_18px_rgba(251,191,36,0.1)]"
                           >
                             <Tag className="h-3.5 w-3.5 shrink-0 text-gray-500" />
                             {tagLabel}

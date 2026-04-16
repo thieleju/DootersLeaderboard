@@ -8,10 +8,7 @@ import { useRouter } from "next/navigation";
 
 import { api } from "~/trpc/react";
 import AnimatedCard from "./animated-card";
-
-function formatNumber(value: number) {
-  return value.toLocaleString("en-US");
-}
+import { formatCountLabel, formatNumber } from "./helpers";
 
 function ValueSkeleton() {
   return (
@@ -109,7 +106,7 @@ export default function HomeStatsCards() {
               </span>
             </div>
             <div className="mt-3 text-xs text-amber-300">
-              {formatNumber(stats.mostPlayedWeapon.count)} runs
+              {formatCountLabel(stats.mostPlayedWeapon.count, "run")}
             </div>
           </>
         ) : isLoading ? (

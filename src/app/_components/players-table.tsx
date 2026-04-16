@@ -8,6 +8,7 @@ import { useRouter } from "next/navigation";
 
 import { api } from "~/trpc/react";
 import AnimatedCard from "./animated-card";
+import { capitalizeFirst, formatFullDateTime } from "./helpers";
 import DataTable, {
   DataTableLoadingState,
   getRankBadgeClass,
@@ -18,11 +19,6 @@ import PlacementBadges from "./placement-badges";
 interface PlayersTableProps {
   delay?: number;
   onInitialReady?: () => void;
-}
-
-function capitalizeFirst(value: string) {
-  if (!value) return value;
-  return value.charAt(0).toUpperCase() + value.slice(1);
 }
 
 export default function PlayersTable({
@@ -158,14 +154,7 @@ export default function PlayersTable({
                         )}
                       </div>
                       <div className="text-xs text-gray-500">
-                        {new Date(player.lastSubmittedAtMs).toLocaleDateString(
-                          "en-US",
-                          {
-                            month: "short",
-                            day: "numeric",
-                            year: "numeric"
-                          }
-                        )}
+                        {formatFullDateTime(player.lastSubmittedAtMs)}
                       </div>
                     </div>
                   </div>

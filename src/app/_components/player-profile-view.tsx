@@ -33,7 +33,14 @@ import {
 } from "~/server/validation/players";
 import { api } from "~/trpc/react";
 import AnimatedCard from "./animated-card";
+import CategoryTooltip from "./category-tooltip";
 import DataTable, { getRelativeTime } from "./data-table";
+import {
+  capitalizeFirst,
+  formatCountLabel,
+  formatFullDateTime,
+  formatRunTime
+} from "./helpers";
 import { categoryToneClasses, iconToneClasses } from "./theme-classes";
 import PlacementBadges from "./placement-badges";
 
@@ -64,41 +71,35 @@ const categoryById: Record<
     label: string;
     icon: keyof typeof categoryIconMap;
     tone: keyof typeof categoryToneClasses;
+    description: string;
+    link: string | null;
   }
 > = {
-  fs: { label: "Freestyle", icon: "flame", tone: "cyan" },
-  rr: { label: "Rules", icon: "shield", tone: "emerald" },
-  "ta-wiki": { label: "TA Wiki", icon: "book-open", tone: "violet" }
+  fs: {
+    label: "Freestyle",
+    icon: "flame",
+    tone: "cyan",
+    description:
+      "Runs that don't follow any specific ruleset. This is the most common category for runs.",
+    link: null
+  },
+  rr: {
+    label: "Rules",
+    icon: "shield",
+    tone: "emerald",
+    description:
+      "Runs that follow the Restricted Rules ruleset. Click the link for more details on the ruleset.",
+    link: "https://docs.google.com/document/d/1OFa9Cf2ZmIA0vxwo6gR5dLmthdABE2UpIUov1OhPKLY/view?tab=t.0"
+  },
+  "ta-wiki": {
+    label: "TA Wiki",
+    icon: "book-open",
+    tone: "violet",
+    description:
+      "Runs that follow the TA Wiki ruleset. Click the link for more details on the ruleset.",
+    link: "https://docs.google.com/document/d/1Dm2At42ec7uhOQAllt6DhjsKuyyCRdE3L6z0miLNVWk/view?tab=t.0#heading=h.f2ye04lykoq4"
+  }
 };
-
-function capitalizeFirst(value: string) {
-  if (!value) return value;
-  return value.charAt(0).toUpperCase() + value.slice(1);
-}
-
-function formatFullDateTime(timestampMs: number) {
-  return new Intl.DateTimeFormat("en-US", {
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false
-  }).format(timestampMs);
-}
-
-function formatRunTime(ms: number) {
-  const minutes = Math.floor(ms / 60_000)
-    .toString()
-    .padStart(2, "0");
-  const seconds = Math.floor((ms % 60_000) / 1_000)
-    .toString()
-    .padStart(2, "0");
-  const centiseconds = Math.floor((ms % 1_000) / 10)
-    .toString()
-    .padStart(2, "0");
-
-  return `${minutes}'${seconds}"${centiseconds}`;
-}
 
 function emptyFormState(questId: string): FormState {
   return {
@@ -162,6 +163,7 @@ export default function PlayerProfileView({
   const canModerateRuns = viewerRole === "moderator" || viewerRole === "admin";
   const isAdmin = viewerRole === "admin";
   const canModerateOwnRuns = isAdmin || !isCurrentUser;
+  const showSubmittedDate = canModerateRuns;
 
   const submitOptionsQuery = api.players.submitOptions.useQuery(undefined, {
     staleTime: Infinity,
@@ -622,7 +624,7 @@ export default function PlayerProfileView({
                 </Link>
               </div>
               <p className="mt-2 text-sm text-gray-400">
-                {approvedRunsCount} total runs
+                {formatCountLabel(approvedRunsCount, "total run")}
               </p>
             </div>
           </div>
@@ -661,7 +663,10 @@ export default function PlayerProfileView({
             { key: "category", label: "Category" },
             { key: "tags", label: "Tags" },
             { key: "time", label: "Time" },
-            { key: "date", label: "Submitted" },
+            {
+              key: "date",
+              label: showSubmittedDate ? "Submitted" : "Approved"
+            },
             ...(canModerateRuns
               ? [{ key: "approved-by", label: "Approved by" as const }]
               : []),
@@ -682,15 +687,16 @@ export default function PlayerProfileView({
               const CategoryIcon = categoryIconMap[category.icon] ?? Flame;
               const tone =
                 categoryToneClasses[category.tone] ?? categoryToneClasses.amber;
-              const relativeSubmittedAt = capitalizeFirst(
-                getRelativeTime(run.submittedAtMs)
-              );
               const submittedAtDateTimeLabel = formatFullDateTime(
                 run.submittedAtMs
               );
               const approvedAtDateTimeLabel = run.approvedAtMs
                 ? formatFullDateTime(run.approvedAtMs)
                 : null;
+              const approvedAtDisplayMs = run.approvedAtMs ?? run.submittedAtMs;
+              const approvedRelativeLabel = capitalizeFirst(
+                getRelativeTime(approvedAtDisplayMs)
+              );
               const canDeleteRun =
                 isAdmin || (isCurrentUser && run.status === "pending");
               const canApproveRun =
@@ -764,14 +770,21 @@ export default function PlayerProfileView({
                     </div>
                   </td>
                   <td className="px-3 py-4 align-middle">
-                    <span
-                      className={`inline-flex h-6 items-center justify-center gap-1.5 rounded-full border px-2.5 text-xs leading-none ${tone.badge}`}
+                    <CategoryTooltip
+                      label={category.label}
+                      description={category.description}
+                      link={category.link}
+                      wrapperClassName="inline-block"
                     >
-                      <CategoryIcon
-                        className={`h-3.5 w-3.5 shrink-0 ${tone.icon}`}
-                      />
-                      {category.label}
-                    </span>
+                      <span
+                        className={`inline-flex h-6 items-center justify-center gap-1.5 rounded-full border px-2.5 text-xs leading-none ${tone.badge}`}
+                      >
+                        <CategoryIcon
+                          className={`h-3.5 w-3.5 shrink-0 ${tone.icon}`}
+                        />
+                        {category.label}
+                      </span>
+                    </CategoryTooltip>
                   </td>
                   <td className="px-3 py-4 align-middle text-gray-300">
                     <div className="flex flex-wrap items-center gap-2">
@@ -779,7 +792,7 @@ export default function PlayerProfileView({
                         run.tagLabels.map((tagLabel) => (
                           <span
                             key={`${run.runId}-${tagLabel}`}
-                            className="inline-flex h-6 items-center justify-center gap-1.5 rounded-full border border-gray-700 bg-white/5 px-2.5 text-xs leading-none text-gray-300 transition-all hover:border-amber-300/40 hover:bg-amber-400/10 hover:text-amber-200 hover:shadow-[0_0_0_1px_rgba(251,191,36,0.12),0_6px_18px_rgba(251,191,36,0.1)]"
+                            className="inline-flex h-6 items-center justify-center gap-1.5 rounded-full border border-gray-700 bg-white/5 px-2.5 text-xs leading-none whitespace-nowrap text-gray-300 transition-all hover:border-amber-300/40 hover:bg-amber-400/10 hover:text-amber-200 hover:shadow-[0_0_0_1px_rgba(251,191,36,0.12),0_6px_18px_rgba(251,191,36,0.1)]"
                           >
                             <Tag className="h-3.5 w-3.5 shrink-0 text-gray-500" />
                             {tagLabel}
@@ -799,10 +812,17 @@ export default function PlayerProfileView({
                     <div className="inline-flex items-start gap-3 text-gray-200">
                       <div className="min-w-0">
                         <div className="truncate text-sm font-semibold text-white">
-                          {relativeSubmittedAt}
+                          {showSubmittedDate
+                            ? capitalizeFirst(
+                                getRelativeTime(run.submittedAtMs)
+                              )
+                            : approvedRelativeLabel}
                         </div>
                         <div className="truncate text-xs text-gray-500">
-                          {submittedAtDateTimeLabel}
+                          {showSubmittedDate
+                            ? submittedAtDateTimeLabel
+                            : (approvedAtDateTimeLabel ??
+                              submittedAtDateTimeLabel)}
                         </div>
                       </div>
                     </div>
@@ -1286,7 +1306,7 @@ export default function PlayerProfileView({
                 {formWithDefaultQuest.tags.map((tag) => (
                   <span
                     key={tag}
-                    className="inline-flex items-center gap-1 rounded-full border border-amber-300/30 bg-amber-400/10 px-2 py-1 text-xs text-amber-200"
+                    className="inline-flex items-center gap-1 rounded-full border border-amber-300/30 bg-amber-400/10 px-2 py-1 text-xs whitespace-nowrap text-amber-200"
                   >
                     {tag}
                     <button
@@ -1338,7 +1358,7 @@ export default function PlayerProfileView({
                         key={tag}
                         type="button"
                         onClick={() => addTag(tag)}
-                        className="rounded-full border border-gray-700 bg-white/5 px-2 py-1 text-xs text-gray-300 transition-colors hover:border-amber-400 hover:text-amber-300"
+                        className="rounded-full border border-gray-700 bg-white/5 px-2 py-1 text-xs whitespace-nowrap text-gray-300 transition-colors hover:border-amber-400 hover:text-amber-300"
                       >
                         {tag}
                       </button>
