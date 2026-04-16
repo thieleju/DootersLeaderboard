@@ -46,7 +46,6 @@ export type LeaderboardUserResource = {
 };
 
 export type LeaderboardQuestResource = {
-  id: string;
   title: string;
   monster: string;
   type: QuestType;

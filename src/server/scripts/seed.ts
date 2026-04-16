@@ -4,6 +4,7 @@ import path from "node:path";
 import { createClient } from "@libsql/client";
 import { parse } from "jsonc-parser";
 import { drizzle } from "drizzle-orm/libsql";
+import { eq, inArray } from "drizzle-orm";
 
 import { quests, runs, users } from "../db/schema";
 import type {
@@ -57,6 +58,13 @@ function getDatabaseUrl() {
   return match[1] ?? match[2]!;
 }
 
+function toQuestSeedKey(title: string) {
+  return `q_${title
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "")}`;
+}
+
 function validateResources(params: {
   areas: LeaderboardAreaResource[];
   categories: LeaderboardCategoryResource[];
@@ -64,30 +72,27 @@ function validateResources(params: {
   quests: LeaderboardQuestResource[];
   users: LeaderboardUserResource[];
   runs: LeaderboardRunResource[];
-  mode: SeedMode;
 }) {
-  const { areas, categories, weapons, quests, users, runs, mode } = params;
+  const { areas, categories, weapons, quests, users, runs } = params;
 
   const areaKeys = new Set(areas.map((area) => area.key));
   const categoryIds = new Set(categories.map((category) => category.id));
   const weaponKeys = new Set(weapons.map((weapon) => weapon.key));
-  const questIds = new Set(quests.map((quest) => quest.id));
+  const questKeys = new Set(quests.map((quest) => toQuestSeedKey(quest.title)));
   const userIds = new Set(users.map((user) => user.id));
 
   for (const quest of quests) {
     if (!areaKeys.has(quest.areaKey)) {
       throw new Error(
-        `Quest ${quest.id} references unknown areaKey: ${quest.areaKey}`
+        `Quest ${quest.title} references unknown areaKey: ${quest.areaKey}`
       );
     }
   }
 
-  if (mode === "production") return;
-
   const errors: string[] = [];
 
   for (const run of runs) {
-    if (!questIds.has(run.questId)) {
+    if (!questKeys.has(run.questId)) {
       errors.push(`Run ${run.id} references unknown questId: ${run.questId}`);
     }
     if (!userIds.has(run.userId)) {
@@ -135,11 +140,14 @@ async function main() {
     readJsonResource<LeaderboardCategoryResource[]>("categories.jsonc");
   const seedWeapons =
     readJsonResource<LeaderboardWeaponResource[]>("weapons.jsonc");
-  const seedUsers =
-    readJsonResource<LeaderboardUserResource[]>("mockusers.jsonc");
+  const seedUsers = isDemoMode
+    ? readJsonResource<LeaderboardUserResource[]>("mocks/mockusers.jsonc")
+    : [];
   const seedQuests =
     readJsonResource<LeaderboardQuestResource[]>("quests.jsonc");
-  const seedRuns = readJsonResource<LeaderboardRunResource[]>("mockruns.jsonc");
+  const seedRuns = isDemoMode
+    ? readJsonResource<LeaderboardRunResource[]>("mocks/mockruns.jsonc")
+    : [];
 
   validateResources({
     areas: seedAreas,
@@ -147,25 +155,27 @@ async function main() {
     weapons: seedWeapons,
     quests: seedQuests,
     users: seedUsers,
-    runs: seedRuns,
-    mode
+    runs: seedRuns
   });
 
   await db.transaction(async (tx) => {
-    await tx.delete(runs);
-    await tx.delete(quests);
-
     if (isDemoMode) {
-      for (const user of seedUsers) {
+      await tx.delete(runs);
+    }
+
+    for (const user of seedUsers) {
+      const baseUserValues = {
+        id: user.id,
+        name: user.username,
+        displayName: user.displayName,
+        image: user.image,
+        role: user.role
+      };
+
+      if (isDemoMode) {
         await tx
           .insert(users)
-          .values({
-            id: user.id,
-            name: user.username,
-            displayName: user.displayName,
-            image: user.image,
-            role: user.role
-          })
+          .values(baseUserValues)
           .onConflictDoUpdate({
             target: users.id,
             set: {
@@ -175,38 +185,109 @@ async function main() {
               role: user.role
             }
           });
+        continue;
       }
+
+      await tx.insert(users).values(baseUserValues).onConflictDoNothing({
+        target: users.id
+      });
     }
 
-    await tx.insert(quests).values(
-      seedQuests.map((quest) => ({
-        id: quest.id,
-        slug: quest.id,
+    const existingQuestRows = await tx
+      .select({ id: quests.id, title: quests.title })
+      .from(quests)
+      .where(
+        inArray(
+          quests.title,
+          seedQuests.map((quest) => quest.title)
+        )
+      );
+
+    const existingQuestIdByTitle = new Map(
+      existingQuestRows.map((quest) => [quest.title, quest.id])
+    );
+
+    for (const quest of seedQuests) {
+      const existingQuestId = existingQuestIdByTitle.get(quest.title);
+
+      if (existingQuestId) {
+        await tx
+          .update(quests)
+          .set({
+            monster: quest.monster,
+            type: quest.type,
+            area: quest.areaKey,
+            difficultyStars: quest.difficultyStars
+          })
+          .where(eq(quests.id, existingQuestId));
+        continue;
+      }
+
+      await tx.insert(quests).values({
         title: quest.title,
         monster: quest.monster,
         type: quest.type,
         area: quest.areaKey,
         difficultyStars: quest.difficultyStars
-      }))
+      });
+    }
+
+    const seededQuestRows = await tx
+      .select({ id: quests.id, title: quests.title })
+      .from(quests)
+      .where(
+        inArray(
+          quests.title,
+          seedQuests.map((quest) => quest.title)
+        )
+      );
+
+    const seededQuestIdByTitle = new Map(
+      seededQuestRows.map((quest) => [quest.title, quest.id])
+    );
+    const questTitleBySeedKey = new Map(
+      seedQuests.map((quest) => [toQuestSeedKey(quest.title), quest.title])
     );
 
-    if (isDemoMode) {
-      await tx.insert(runs).values(
-        seedRuns.map((run) => ({
-          id: run.id,
-          userId: run.userId,
-          questId: run.questId,
-          hunterName: run.hunterName,
-          category: run.category,
-          tags: JSON.stringify(run.tags),
-          submittedAt: new Date(run.submittedAtMs),
-          runTimeMs: run.runTimeMs,
-          primaryWeapon: run.primaryWeaponKey,
-          secondaryWeapon: run.secondaryWeaponKey,
-          approvedByUserId: run.approvedByUserId,
-          approvedAt: run.approvedAtMs ? new Date(run.approvedAtMs) : null
-        }))
-      );
+    const resolvedRunValues = seedRuns.map((run) => {
+      const questTitle = questTitleBySeedKey.get(run.questId);
+      if (!questTitle) {
+        throw new Error(
+          `Run ${run.id} references unknown quest seed key: ${run.questId}`
+        );
+      }
+
+      const resolvedQuestId = seededQuestIdByTitle.get(questTitle);
+      if (!resolvedQuestId) {
+        throw new Error(
+          `Could not resolve quest id for run ${run.id} and title '${questTitle}'`
+        );
+      }
+
+      return {
+        id: run.id,
+        userId: run.userId,
+        questId: resolvedQuestId,
+        hunterName: run.hunterName,
+        category: run.category,
+        tags: JSON.stringify(run.tags),
+        submittedAt: new Date(run.submittedAtMs),
+        runTimeMs: run.runTimeMs,
+        primaryWeapon: run.primaryWeaponKey,
+        secondaryWeapon: run.secondaryWeaponKey,
+        approvedByUserId: run.approvedByUserId,
+        approvedAt: run.approvedAtMs ? new Date(run.approvedAtMs) : null
+      };
+    });
+
+    if (resolvedRunValues.length > 0) {
+      if (isDemoMode) {
+        await tx.insert(runs).values(resolvedRunValues);
+      } else {
+        await tx.insert(runs).values(resolvedRunValues).onConflictDoNothing({
+          target: runs.id
+        });
+      }
     }
   });
 

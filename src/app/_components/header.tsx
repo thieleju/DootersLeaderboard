@@ -1,11 +1,13 @@
 import Link from "next/link";
-import { ShieldCheck, Trophy } from "lucide-react";
+import { ScrollText, ShieldCheck, Trophy } from "lucide-react";
 import { auth } from "~/server/auth";
 import LoginButton from "./login-button";
 
 export default async function Header() {
   const session = await auth();
   const isAdmin = session?.user?.role === "admin";
+  const canManageQuests =
+    session?.user?.role === "moderator" || session?.user?.role === "admin";
 
   return (
     <header className="sticky top-0 z-50 border-b border-black bg-gray-800/80 backdrop-blur-sm">
@@ -24,6 +26,16 @@ export default async function Header() {
             >
               <ShieldCheck className="h-4 w-4" />
               <span>Admin</span>
+            </Link>
+          ) : null}
+
+          {canManageQuests ? (
+            <Link
+              href="/quests"
+              className="mr-5 flex items-center gap-2 text-gray-300 transition-colors hover:text-amber-300"
+            >
+              <ScrollText className="h-4 w-4" />
+              <span>Quests</span>
             </Link>
           ) : null}
 

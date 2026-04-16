@@ -1,106 +1,93 @@
 [
   {
-    "id": "q_proof_of_a_hero",
     "title": "Proof of a Hero",
-    "monster": "multiple monsters",
+    "monster": "Rey Duna Udra Arkveld",
     "type": "optional",
     "areaKey": "arena",
-    "difficultyStars": 10,
+    "difficultyStars": 10
   },
   {
-    "id": "q_freedom_from_solitude",
     "title": "Freedom from Solitude",
     "monster": "Arch-tempered Arkveld",
     "type": "event",
     "areaKey": "wyveria",
-    "difficultyStars": 10,
+    "difficultyStars": 10
   },
   {
-    "id": "q_frozen_kneels_of_the_east",
     "title": "Frozen Kneels of the East",
     "monster": "Arch-tempered Jin Dahaad",
     "type": "event",
     "areaKey": "other",
-    "difficultyStars": 10,
+    "difficultyStars": 10
   },
   {
-    "id": "q_scion_of_the_dark_cradle",
     "title": "Scion of the Dark Cradle",
     "monster": "Arch-tempered Nu Udra",
     "type": "event",
     "areaKey": "basin",
-    "difficultyStars": 10,
+    "difficultyStars": 10
   },
   {
-    "id": "q_ruler_of_the_desert_kingdom",
     "title": "Ruler of the Desert Kingdom",
     "monster": "Arch-tempered Rey Dau",
     "type": "event",
     "areaKey": "plains",
-    "difficultyStars": 10,
+    "difficultyStars": 10
   },
   {
-    "id": "q_summons_from_the_land_beyond",
     "title": "Summons from the Land Beyond",
     "monster": "Arch-tempered Uth Duna",
     "type": "event",
     "areaKey": "forest",
-    "difficultyStars": 10,
+    "difficultyStars": 10
   },
   {
-    "id": "q_hope_of_the_ancients",
     "title": "Hope of the Ancients",
     "monster": "Zoh Shia",
     "type": "event",
     "areaKey": "other",
-    "difficultyStars": 10,
+    "difficultyStars": 10
   },
   {
-    "id": "q_planetes_protocol_savage",
     "title": "Planetes Protocol (Savage)",
     "monster": "Omega Planetes",
     "type": "event",
     "areaKey": "other",
-    "difficultyStars": 9,
+    "difficultyStars": 9
   },
   {
-    "id": "q_specter_of_their_sins",
     "title": "Specter of Their Sins",
     "monster": "Gogmazios",
     "type": "event",
     "areaKey": "other",
-    "difficultyStars": 9,
+    "difficultyStars": 9
   },
   {
-    "id": "q_tempered_lagiacrus_investigation",
     "title": "Tempered Lagiacrus Investigation",
     "monster": "Lagiacrus",
     "type": "investigation",
     "areaKey": "arena",
-    "difficultyStars": 9,
+    "difficultyStars": 9
   },
   {
-    "id": "q_tempered_seregios_investigation",
     "title": "Tempered Seregios Investigation",
     "monster": "Seregios",
     "type": "investigation",
     "areaKey": "arena",
-    "difficultyStars": 9,
+    "difficultyStars": 9
   },
   {
-    "id": "q_gore_magala_investigation",
     "title": "Gore Magala Investigation",
     "monster": "Gore Magala",
     "type": "investigation",
     "areaKey": "arena",
-    "difficultyStars": 9,
+    "difficultyStars": 9
   },
   {
-    "id": "q_mizutsune_investigation",
     "title": "Mizutsune Investigation",
     "monster": "Mizutsune",
     "type": "investigation",
     "areaKey": "arena",
-    "difficultyStars": 9,
-  },
+    "difficultyStars": 9
+  }
 ]

@@ -2,7 +2,8 @@ import { z } from "zod";
 
 import {
   createTRPCRouter,
-  protectedProcedure,
+  protectedProcedureModerator,
+  protectedProcedureRunner,
   publicProcedure
 } from "~/server/api/trpc";
 import {
@@ -38,11 +39,11 @@ export const playersRouter = createTRPCRouter({
 
   categories: publicProcedure.query(() => getRunCategories()),
 
-  submitRun: protectedProcedure
+  submitRun: protectedProcedureRunner
     .input(submitRunInputSchema)
     .mutation(({ input, ctx }) => submitRun(input, ctx.session.user.id)),
 
-  deleteRun: protectedProcedure
+  deleteRun: protectedProcedureRunner
     .input(
       z.object({
         runId: z.string().trim().min(1)
@@ -52,23 +53,23 @@ export const playersRouter = createTRPCRouter({
       deleteRun(input.runId, ctx.session.user.id, ctx.session.user.role)
     ),
 
-  approveRun: protectedProcedure
+  approveRun: protectedProcedureModerator
     .input(
       z.object({
         runId: z.string().trim().min(1)
       })
     )
     .mutation(({ input, ctx }) =>
-      approveRun(input.runId, ctx.session.user.id, ctx.session.user.role)
+      approveRun(input.runId, ctx.session!.user.id, ctx.session!.user.role)
     ),
 
-  rejectRun: protectedProcedure
+  rejectRun: protectedProcedureModerator
     .input(
       z.object({
         runId: z.string().trim().min(1)
       })
     )
     .mutation(({ input, ctx }) =>
-      rejectRun(input.runId, ctx.session.user.id, ctx.session.user.role)
+      rejectRun(input.runId, ctx.session!.user.id, ctx.session!.user.role)
     )
 });

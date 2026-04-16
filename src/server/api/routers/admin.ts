@@ -1,33 +1,21 @@
 import { z } from "zod";
 
-import { TRPCError } from "@trpc/server";
-
-import { createTRPCRouter, protectedProcedure } from "~/server/api/trpc";
+import { createTRPCRouter, protectedProcedureAdmin } from "~/server/api/trpc";
 import { getAdminUsers, updateUserRole } from "~/server/lib/admin";
 
 const userRoleSchema = z.enum(["runner", "moderator", "admin"]);
 
 export const adminRouter = createTRPCRouter({
-  listUsers: protectedProcedure.query(({ ctx }) => {
-    if (ctx.session.user.role !== "admin") {
-      throw new TRPCError({ code: "FORBIDDEN", message: "Admins only" });
-    }
+  listUsers: protectedProcedureAdmin.query(({}) => getAdminUsers()),
 
-    return getAdminUsers();
-  }),
-
-  updateUserRole: protectedProcedure
+  updateUserRole: protectedProcedureAdmin
     .input(
       z.object({
         userId: z.string().trim().min(1),
         role: userRoleSchema
       })
     )
-    .mutation(({ input, ctx }) => {
-      if (ctx.session.user.role !== "admin") {
-        throw new TRPCError({ code: "FORBIDDEN", message: "Admins only" });
-      }
-
-      return updateUserRole(input.userId, input.role, ctx.session.user.id);
-    })
+    .mutation(({ input, ctx }) =>
+      updateUserRole(input.userId, input.role, ctx.session!.user.id)
+    )
 });

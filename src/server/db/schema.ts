@@ -1,10 +1,5 @@
 import { relations, sql } from "drizzle-orm";
-import {
-  index,
-  primaryKey,
-  sqliteTableCreator,
-  uniqueIndex
-} from "drizzle-orm/sqlite-core";
+import { index, primaryKey, sqliteTableCreator } from "drizzle-orm/sqlite-core";
 import type { AdapterAccount } from "next-auth/adapters";
 
 import type { QuestType, RunCategoryId, UserRole } from "../types/leaderboard";
@@ -90,23 +85,18 @@ export const verificationTokens = createTable(
   (t) => [primaryKey({ columns: [t.identifier, t.token] })]
 );
 
-export const quests = createTable(
-  "quest",
-  (d) => ({
-    id: d
-      .text({ length: 255 })
-      .notNull()
-      .primaryKey()
-      .$defaultFn(() => crypto.randomUUID()),
-    slug: d.text({ length: 255 }).notNull(),
-    title: d.text({ length: 255 }).notNull(),
-    monster: d.text({ length: 255 }).notNull(),
-    type: d.text({ length: 32 }).$type<QuestType>().notNull(),
-    area: d.text({ length: 255 }).notNull(),
-    difficultyStars: d.integer().notNull()
-  }),
-  (t) => [uniqueIndex("quest_slug_idx").on(t.slug)]
-);
+export const quests = createTable("quest", (d) => ({
+  id: d
+    .text({ length: 255 })
+    .notNull()
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
+  title: d.text({ length: 255 }).notNull(),
+  monster: d.text({ length: 255 }).notNull(),
+  type: d.text({ length: 32 }).$type<QuestType>().notNull(),
+  area: d.text({ length: 255 }).notNull(),
+  difficultyStars: d.integer().notNull()
+}));
 
 export const runs = createTable(
   "run",
