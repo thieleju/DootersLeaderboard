@@ -36,8 +36,10 @@ export type PlayerProfileRunRow = {
   primaryWeaponKey: string;
   secondaryWeaponKey: string | null;
   isApproved: boolean;
+  reviewerDisplayName: string | null;
   approvedByDisplayName: string | null;
   approvedAtMs: number | null;
+  rejectedByDisplayName: string | null;
   rejectedAtMs: number | null;
 };
 

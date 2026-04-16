@@ -16,6 +16,7 @@ import {
 import type {
   LeaderboardAreaKey,
   LeaderboardAreaResource,
+  LeaderboardCategoryOption,
   LeaderboardCategoryResource,
   LeaderboardQuestOption,
   UserRole,
@@ -280,29 +281,29 @@ export async function getPlayerProfile(
     .where(eq(runsTable.userId, userId))
     .orderBy(desc(runsTable.submittedAt), desc(runsTable.runTimeMs));
 
-  const approverUserIds = [
+  const reviewerUserIds = [
     ...new Set(
       runRows
-        .map((run) => run.approvedByUserId)
+        .flatMap((run) => [run.approvedByUserId, run.rejectedByUserId])
         .filter((value): value is string => Boolean(value))
     )
   ];
 
-  const approverNameById = new Map<string, string>();
-  if (approverUserIds.length > 0) {
-    const approverUsers = await db
+  const reviewerNameById = new Map<string, string>();
+  if (reviewerUserIds.length > 0) {
+    const reviewerUsers = await db
       .select({
         id: usersTable.id,
         displayName: usersTable.displayName,
         name: usersTable.name
       })
       .from(usersTable)
-      .where(inArray(usersTable.id, approverUserIds));
+      .where(inArray(usersTable.id, reviewerUserIds));
 
-    for (const approver of approverUsers) {
-      approverNameById.set(
-        approver.id,
-        approver.displayName ?? approver.name ?? "Moderator"
+    for (const reviewer of reviewerUsers) {
+      reviewerNameById.set(
+        reviewer.id,
+        reviewer.displayName ?? reviewer.name ?? "Moderator"
       );
     }
   }
@@ -344,17 +345,53 @@ export async function getPlayerProfile(
       primaryWeaponKey: run.primaryWeaponKey,
       secondaryWeaponKey: run.secondaryWeaponKey,
       isApproved: Boolean(run.approvedByUserId),
+      reviewerDisplayName: run.approvedByUserId
+        ? (reviewerNameById.get(run.approvedByUserId) ?? "Moderator")
+        : run.rejectedByUserId
+          ? (reviewerNameById.get(run.rejectedByUserId) ?? "Moderator")
+          : null,
       approvedByDisplayName: run.approvedByUserId
-        ? (approverNameById.get(run.approvedByUserId) ?? "Moderator")
+        ? (reviewerNameById.get(run.approvedByUserId) ?? "Moderator")
         : null,
       approvedAtMs,
+      rejectedByDisplayName: run.rejectedByUserId
+        ? (reviewerNameById.get(run.rejectedByUserId) ?? "Moderator")
+        : null,
       rejectedAtMs
     };
   });
 
   const isCurrentUser = Boolean(viewerUserId && viewerUserId === userId);
-  const canViewPendingRuns =
-    isCurrentUser || viewerRole === "moderator" || viewerRole === "admin";
+  const canSeeReviewerIdentity =
+    viewerRole === "moderator" || viewerRole === "admin";
+  const canViewPendingRuns = isCurrentUser || canSeeReviewerIdentity;
+
+  const visibleRuns = (
+    canViewPendingRuns ? rows : rows.filter((run) => run.status === "approved")
+  ).map((run) => {
+    if (canSeeReviewerIdentity) {
+      return run;
+    }
+
+    if (isCurrentUser) {
+      return {
+        ...run,
+        reviewerDisplayName: null,
+        approvedByDisplayName: null,
+        rejectedByDisplayName: null
+      };
+    }
+
+    const approvedVisibleAtMs = run.approvedAtMs ?? run.submittedAtMs;
+    return {
+      ...run,
+      submittedAtMs: approvedVisibleAtMs,
+      reviewerDisplayName: null,
+      approvedByDisplayName: null,
+      rejectedByDisplayName: null,
+      rejectedAtMs: null
+    };
+  });
 
   return {
     user: {
@@ -365,9 +402,7 @@ export async function getPlayerProfile(
       score: userScore ? userScore.sum : 0,
       top3Placements: userPlacements
     },
-    runs: canViewPendingRuns
-      ? rows
-      : rows.filter((run) => run.status === "approved"),
+    runs: visibleRuns,
     isCurrentUser,
     viewerRole: viewerRole ?? null,
     leaderboardPlacement: leaderboardIndex >= 0 ? leaderboardIndex + 1 : null
@@ -424,6 +459,17 @@ export async function getSubmitRunOptions() {
     })),
     existingTags: [...existingTags].sort((a, b) => a.localeCompare(b))
   };
+}
+
+export function getRunCategories(): LeaderboardCategoryOption[] {
+  return categories.map((category) => ({
+    id: category.id,
+    label: category.label,
+    icon: category.icon,
+    color: category.color,
+    description: category.description,
+    link: category.link
+  }));
 }
 
 export async function submitRun(input: SubmitRunInput, userId: string) {

@@ -45,7 +45,7 @@ export default function PlayersTable({
     <AnimatedCard delay={delay} className="p-6 shadow-2xl shadow-black/20">
       <DataTable
         title="Global Rankings"
-        description="All Dooters are ranked by their overall score, calculated as the sum of their scores from each quest. The more competition is on a quest, the higher the score for that quest will be."
+        description="All Dooters are ranked by their overall score, calculated as the sum of their scores from each quest."
         icon={<Trophy className="h-6 w-6" />}
         columns={[
           { key: "rank", label: "Rank" },

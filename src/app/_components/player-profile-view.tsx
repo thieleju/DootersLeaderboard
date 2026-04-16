@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { motion } from "framer-motion";
+import { Fragment, useEffect, useMemo, useState } from "react";
+import { AnimatePresence, motion } from "framer-motion";
 import {
   AlertCircle,
   BookOpen,
@@ -24,7 +24,10 @@ import Link from "next/link";
 import Image from "next/image";
 
 import { QUERY_DEFAULT_STALE_TIME_MS } from "~/constants";
-import type { SubmitRunInput } from "~/server/types/players";
+import type {
+  PlayerProfileRunRow,
+  SubmitRunInput
+} from "~/server/types/players";
 import { type RunCategoryId } from "~/server/types/leaderboard";
 import {
   MAX_SUBMIT_HUNTER_NAME_LENGTH,
@@ -67,40 +70,12 @@ const categoryIconMap = {
   "book-open": BookOpen
 } as const;
 
-const categoryById: Record<
-  RunCategoryId,
-  {
-    label: string;
-    icon: keyof typeof categoryIconMap;
-    tone: keyof typeof categoryToneClasses;
-    description: string;
-    link: string | null;
-  }
-> = {
-  fs: {
-    label: "Freestyle",
-    icon: "flame",
-    tone: "cyan",
-    description:
-      "Runs that don't follow any specific ruleset. This is the most common category for runs.",
-    link: null
-  },
-  rr: {
-    label: "Rules",
-    icon: "shield",
-    tone: "emerald",
-    description:
-      "Runs that follow the Restricted Rules ruleset. Click the link for more details on the ruleset.",
-    link: "https://docs.google.com/document/d/1OFa9Cf2ZmIA0vxwo6gR5dLmthdABE2UpIUov1OhPKLY/view?tab=t.0"
-  },
-  "ta-wiki": {
-    label: "TA Wiki",
-    icon: "book-open",
-    tone: "violet",
-    description:
-      "Runs that follow the TA Wiki ruleset. Click the link for more details on the ruleset.",
-    link: "https://docs.google.com/document/d/1Dm2At42ec7uhOQAllt6DhjsKuyyCRdE3L6z0miLNVWk/view?tab=t.0#heading=h.f2ye04lykoq4"
-  }
+const defaultRunCategory = {
+  label: "Unknown",
+  icon: "flame" as const,
+  tone: "cyan" as const,
+  description: "",
+  link: null
 };
 
 function emptyFormState(questId: string): FormState {
@@ -125,6 +100,15 @@ function statusBadge(status: "pending" | "approved" | "rejected") {
   }
 
   return "border-amber-300/30 bg-amber-400/10 text-amber-300";
+}
+
+function getStringField(value: unknown, key: string): string | null {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+
+  const field: unknown = Reflect.get(value, key) as unknown;
+  return typeof field === "string" ? field : null;
 }
 
 function getProfileRankBadgeClass(rank: number | null) {
@@ -152,6 +136,7 @@ export default function PlayerProfileView({
   const [formError, setFormError] = useState<string | null>(null);
   const [deletingRunId, setDeletingRunId] = useState<string | null>(null);
   const [openDropdown, setOpenDropdown] = useState<string | null>(null);
+  const [expandedRunId, setExpandedRunId] = useState<string | null>(null);
 
   const profileQuery = api.players.profile.useQuery(
     { userId },
@@ -165,12 +150,32 @@ export default function PlayerProfileView({
   const canModerateRuns = viewerRole === "moderator" || viewerRole === "admin";
   const isAdmin = viewerRole === "admin";
   const canModerateOwnRuns = isAdmin || !isCurrentUser;
-  const showSubmittedDate = canModerateRuns;
+  const canSeeSubmittedDate = canModerateRuns || isCurrentUser;
+  const canSeeReviewerIdentity = canModerateRuns;
+  const canSeeReviewColumn = canSeeReviewerIdentity || isCurrentUser;
 
   const submitOptionsQuery = api.players.submitOptions.useQuery(undefined, {
     staleTime: Infinity,
     enabled: isCurrentUser
   });
+  const categoriesQuery = api.players.categories.useQuery(undefined, {
+    staleTime: Infinity
+  });
+
+  const categoryById = useMemo(() => {
+    return new Map(
+      (categoriesQuery.data ?? []).map((category) => [
+        category.id,
+        {
+          label: category.label,
+          icon: category.icon,
+          tone: category.color,
+          description: category.description,
+          link: category.link
+        }
+      ])
+    );
+  }, [categoriesQuery.data]);
 
   useEffect(() => {
     if (!onInitialReady) return;
@@ -571,7 +576,7 @@ export default function PlayerProfileView({
     );
   }
 
-  const allRuns = [...profile.runs].sort(
+  const allRuns: PlayerProfileRunRow[] = [...profile.runs].sort(
     (a, b) => b.submittedAtMs - a.submittedAtMs || b.runTimeMs - a.runTimeMs
   );
   const approvedRunsCount = allRuns.filter(
@@ -660,17 +665,18 @@ export default function PlayerProfileView({
           columns={[
             { key: "status", label: "Status" },
             { key: "quest", label: "Quest" },
-            { key: "hunter", label: "Hunter" },
-            { key: "weapons", label: "Weapons" },
-            { key: "category", label: "Category" },
-            { key: "tags", label: "Tags" },
             { key: "time", label: "Time" },
             {
               key: "date",
-              label: showSubmittedDate ? "Submitted" : "Approved"
+              label: canSeeSubmittedDate ? "Submitted" : "Approved"
             },
-            ...(canModerateRuns
-              ? [{ key: "approved-by", label: "Approved by" as const }]
+            ...(canSeeReviewColumn
+              ? [
+                  {
+                    key: "reviewer",
+                    label: canSeeReviewerIdentity ? "Reviewer" : "Review"
+                  } as const
+                ]
               : []),
             ...(hasAnyRunActions
               ? [{ key: "actions", label: "Actions" as const }]
@@ -684,21 +690,55 @@ export default function PlayerProfileView({
             exit={{ opacity: 0, y: -6 }}
             transition={{ duration: 0.22 }}
           >
-            {allRuns.map((run, index) => {
-              const category = categoryById[run.categoryId] ?? categoryById.fs;
+            {allRuns.map((run: PlayerProfileRunRow, index) => {
+              const category =
+                categoryById.get(run.categoryId) ?? defaultRunCategory;
               const CategoryIcon = categoryIconMap[category.icon] ?? Flame;
               const tone =
                 categoryToneClasses[category.tone] ?? categoryToneClasses.amber;
+              const isExpanded = expandedRunId === run.runId;
               const submittedAtDateTimeLabel = formatFullDateTime(
                 run.submittedAtMs
               );
               const approvedAtDateTimeLabel = run.approvedAtMs
                 ? formatFullDateTime(run.approvedAtMs)
                 : null;
+              const rejectedAtDateTimeLabel = run.rejectedAtMs
+                ? formatFullDateTime(run.rejectedAtMs)
+                : null;
               const approvedAtDisplayMs = run.approvedAtMs ?? run.submittedAtMs;
               const approvedRelativeLabel = capitalizeFirst(
                 getRelativeTime(approvedAtDisplayMs)
               );
+              const reviewedAtDateTimeLabel =
+                run.status === "approved"
+                  ? approvedAtDateTimeLabel
+                  : run.status === "rejected"
+                    ? rejectedAtDateTimeLabel
+                    : null;
+              const reviewedAtDisplayMs =
+                run.status === "approved"
+                  ? run.approvedAtMs
+                  : run.status === "rejected"
+                    ? run.rejectedAtMs
+                    : null;
+              const reviewerSubtitleLabel = reviewedAtDateTimeLabel;
+              const submittedTitleLabel = canSeeSubmittedDate
+                ? capitalizeFirst(getRelativeTime(run.submittedAtMs))
+                : approvedRelativeLabel;
+              const submittedSubtitleLabel = canSeeSubmittedDate
+                ? submittedAtDateTimeLabel
+                : (approvedAtDateTimeLabel ?? submittedAtDateTimeLabel);
+              const reviewerTitleLabel: string | null = canSeeReviewerIdentity
+                ? getStringField(run, "reviewerDisplayName")
+                : isCurrentUser && reviewedAtDisplayMs
+                  ? capitalizeFirst(getRelativeTime(reviewedAtDisplayMs))
+                  : null;
+              const reviewerSecondaryLabel = canSeeReviewerIdentity
+                ? reviewerSubtitleLabel
+                : isCurrentUser
+                  ? reviewedAtDateTimeLabel
+                  : null;
               const canDeleteRun =
                 isAdmin || (isCurrentUser && run.status === "pending");
               const canApproveRun =
@@ -715,231 +755,294 @@ export default function PlayerProfileView({
                   : run.status === "rejected"
                     ? "Rejected"
                     : "Pending";
+              const columnCount =
+                4 + (canSeeReviewColumn ? 1 : 0) + (hasAnyRunActions ? 1 : 0);
 
               return (
-                <motion.tr
-                  key={run.runId}
-                  layout
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.2, delay: index * 0.025 }}
-                  className="group border-b border-gray-800/70 text-sm transition-colors hover:bg-white/5"
-                >
-                  <td className="px-3 py-4 align-middle">
-                    <span
-                      className={`inline-flex rounded-full border px-2 py-0.5 text-xs ${statusBadge(run.status)}`}
-                    >
-                      {statusLabel}
-                    </span>
-                  </td>
-                  <td className="px-3 py-4 align-middle">
-                    <div className="min-w-0">
-                      <div className="truncate text-sm font-semibold text-white">
-                        {run.questTitle}
-                      </div>
-                      <div className="truncate text-xs text-gray-500">
-                        {run.difficultyStars}★ {run.monster} · {run.areaLabel}
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-3 py-4 align-middle">
-                    <div className="min-w-0">
-                      <div className="truncate text-sm font-semibold text-white">
-                        {run.hunterName}
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-3 py-4 align-middle">
-                    <div className="flex items-center gap-2">
-                      <Image
-                        src={`/weapons/${run.primaryWeaponKey}.png`}
-                        alt={run.primaryWeaponKey.toUpperCase()}
-                        title={run.primaryWeaponKey.toUpperCase()}
-                        width={28}
-                        height={28}
-                        className="h-7 w-7 object-contain"
-                      />
-                      {run.secondaryWeaponKey ? (
-                        <Image
-                          src={`/weapons/${run.secondaryWeaponKey}.png`}
-                          alt={run.secondaryWeaponKey.toUpperCase()}
-                          title={run.secondaryWeaponKey.toUpperCase()}
-                          width={28}
-                          height={28}
-                          className="h-7 w-7 object-contain"
-                        />
-                      ) : null}
-                    </div>
-                  </td>
-                  <td className="px-3 py-4 align-middle">
-                    <CategoryTooltip
-                      label={category.label}
-                      description={category.description}
-                      link={category.link}
-                      wrapperClassName="inline-block"
-                    >
-                      <span
-                        className={`inline-flex h-6 items-center justify-center gap-1.5 rounded-full border px-2.5 text-xs leading-none ${tone.badge}`}
-                      >
-                        <CategoryIcon
-                          className={`h-3.5 w-3.5 shrink-0 ${tone.icon}`}
-                        />
-                        {category.label}
-                      </span>
-                    </CategoryTooltip>
-                  </td>
-                  <td className="px-3 py-4 align-middle text-gray-300">
-                    <div className="flex flex-wrap items-center gap-2">
-                      {run.tagLabels.length > 0 ? (
-                        run.tagLabels.map((tagLabel) => (
-                          <span
-                            key={`${run.runId}-${tagLabel}`}
-                            className="inline-flex h-6 items-center justify-center gap-1.5 rounded-full border border-gray-700 bg-white/5 px-2.5 text-xs leading-none whitespace-nowrap text-gray-300 transition-all hover:border-amber-300/40 hover:bg-amber-400/10 hover:text-amber-200 hover:shadow-[0_0_0_1px_rgba(251,191,36,0.12),0_6px_18px_rgba(251,191,36,0.1)]"
-                          >
-                            <Tag className="h-3.5 w-3.5 shrink-0 text-gray-500" />
-                            {tagLabel}
-                          </span>
-                        ))
-                      ) : (
-                        <span className="text-xs text-gray-500">-</span>
-                      )}
-                    </div>
-                  </td>
-                  <td className="px-3 py-4 text-right align-middle">
-                    <div className="text-lg font-semibold text-white">
-                      {formatRunTime(run.runTimeMs)}
-                    </div>
-                  </td>
-                  <td className="px-3 py-4 align-middle">
-                    <div className="inline-flex items-start gap-3 text-gray-200">
-                      <div className="min-w-0">
-                        <div className="truncate text-sm font-semibold text-white">
-                          {showSubmittedDate
-                            ? capitalizeFirst(
-                                getRelativeTime(run.submittedAtMs)
-                              )
-                            : approvedRelativeLabel}
-                        </div>
-                        <div className="truncate text-xs text-gray-500">
-                          {showSubmittedDate
-                            ? submittedAtDateTimeLabel
-                            : (approvedAtDateTimeLabel ??
-                              submittedAtDateTimeLabel)}
-                        </div>
-                      </div>
-                    </div>
-                  </td>
-                  {canModerateRuns ? (
+                <Fragment key={run.runId}>
+                  <motion.tr
+                    layout
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.2, delay: index * 0.025 }}
+                    className={`group cursor-pointer border-b border-gray-800/70 text-sm transition-colors ${
+                      isExpanded ? "bg-white/6" : "hover:bg-white/5"
+                    }`}
+                    onClick={() => {
+                      setExpandedRunId((current) =>
+                        current === run.runId ? null : run.runId
+                      );
+                    }}
+                  >
                     <td className="px-3 py-4 align-middle">
-                      {run.status === "approved" &&
-                      run.approvedByDisplayName ? (
+                      <span
+                        className={`inline-flex rounded-full border px-2 py-0.5 text-xs ${statusBadge(run.status)}`}
+                      >
+                        {statusLabel}
+                      </span>
+                    </td>
+                    <td className="px-3 py-4 align-middle">
+                      <div className="flex min-w-0 items-start gap-2">
+                        <ChevronDown
+                          className={`mt-0.5 h-4 w-4 shrink-0 text-gray-500 transition-transform duration-200 ${
+                            isExpanded ? "rotate-180 text-amber-300" : ""
+                          }`}
+                        />
                         <div className="min-w-0">
                           <div className="truncate text-sm font-semibold text-white">
-                            {run.approvedByDisplayName}
+                            {run.questTitle}
                           </div>
                           <div className="truncate text-xs text-gray-500">
-                            {approvedAtDateTimeLabel ?? "-"}
+                            {run.difficultyStars}★ {run.monster} ·{" "}
+                            {run.areaLabel}
                           </div>
                         </div>
-                      ) : (
-                        <span className="text-xs text-gray-500">-</span>
-                      )}
+                      </div>
                     </td>
-                  ) : null}
-                  {hasAnyRunActions ? (
-                    <td className="px-3 py-4 text-center align-middle">
-                      {canApproveRun || canRejectRun || canDeleteRun ? (
-                        <div className="mx-auto flex w-fit items-center gap-2">
-                          {canApproveRun ? (
-                            <button
-                              type="button"
-                              disabled={deletingRunId === run.runId}
-                              aria-label={
-                                deletingRunId === run.runId
-                                  ? "Approving run"
-                                  : "Approve run"
-                              }
-                              title={
-                                deletingRunId === run.runId
-                                  ? "Approving run"
-                                  : "Approve run"
-                              }
-                              onClick={() => {
-                                setDeletingRunId(run.runId);
-                                approveRunMutation.mutate({ runId: run.runId });
-                              }}
-                              className="inline-flex h-9 w-9 cursor-pointer items-center justify-center rounded-lg border border-emerald-400/25 bg-emerald-400/10 text-emerald-200 transition-colors hover:border-emerald-300 hover:bg-emerald-400/20 hover:text-emerald-100 disabled:cursor-not-allowed disabled:opacity-60"
-                            >
-                              {deletingRunId === run.runId ? (
-                                <Loader2 className="h-4 w-4 animate-spin" />
-                              ) : (
-                                <Check className="h-4 w-4" />
-                              )}
-                            </button>
-                          ) : null}
-
-                          {canRejectRun ? (
-                            <button
-                              type="button"
-                              disabled={deletingRunId === run.runId}
-                              aria-label={
-                                deletingRunId === run.runId
-                                  ? "Rejecting run"
-                                  : "Reject run"
-                              }
-                              title={
-                                deletingRunId === run.runId
-                                  ? "Rejecting run"
-                                  : "Reject run"
-                              }
-                              onClick={() => {
-                                setDeletingRunId(run.runId);
-                                rejectRunMutation.mutate({ runId: run.runId });
-                              }}
-                              className="inline-flex h-9 w-9 cursor-pointer items-center justify-center rounded-lg border border-red-400/25 bg-red-400/10 text-red-200 transition-colors hover:border-red-300 hover:bg-red-400/20 hover:text-red-100 disabled:cursor-not-allowed disabled:opacity-60"
-                            >
-                              {deletingRunId === run.runId ? (
-                                <Loader2 className="h-4 w-4 animate-spin" />
-                              ) : (
-                                <Ban className="h-4 w-4" />
-                              )}
-                            </button>
-                          ) : null}
-
-                          {canDeleteRun ? (
-                            <button
-                              type="button"
-                              disabled={deletingRunId === run.runId}
-                              aria-label={
-                                deletingRunId === run.runId
-                                  ? "Deleting run"
-                                  : "Delete run"
-                              }
-                              title={
-                                deletingRunId === run.runId
-                                  ? "Deleting run"
-                                  : "Delete run"
-                              }
-                              onClick={() => {
-                                setDeletingRunId(run.runId);
-                                deleteRunMutation.mutate({ runId: run.runId });
-                              }}
-                              className="inline-flex h-9 w-9 cursor-pointer items-center justify-center rounded-lg border border-red-400/25 bg-red-400/10 text-red-200 transition-colors hover:border-red-300 hover:bg-red-400/20 hover:text-red-100 disabled:cursor-not-allowed disabled:opacity-60"
-                            >
-                              {deletingRunId === run.runId ? (
-                                <Loader2 className="h-4 w-4 animate-spin" />
-                              ) : (
-                                <Trash2 className="h-4 w-4" />
-                              )}
-                            </button>
-                          ) : null}
+                    <td className="px-3 py-4 text-left align-middle">
+                      <div className="text-lg font-semibold text-white">
+                        {formatRunTime(run.runTimeMs)}
+                      </div>
+                    </td>
+                    <td className="px-3 py-4 align-middle">
+                      <div className="inline-flex items-start gap-3 text-gray-200">
+                        <div className="min-w-0">
+                          <div className="truncate text-sm font-semibold text-white">
+                            {submittedTitleLabel}
+                          </div>
+                          <div className="truncate text-xs text-gray-500">
+                            {submittedSubtitleLabel}
+                          </div>
                         </div>
-                      ) : (
-                        <span className="text-xs text-gray-500">-</span>
-                      )}
+                      </div>
                     </td>
-                  ) : null}
-                </motion.tr>
+                    {canSeeReviewColumn ? (
+                      <td className="px-3 py-4 align-middle">
+                        {reviewerTitleLabel ? (
+                          <div className="min-w-0">
+                            <div className="truncate text-sm font-semibold text-white">
+                              {reviewerTitleLabel}
+                            </div>
+                            <div className="truncate text-xs text-gray-500">
+                              {reviewerSecondaryLabel ?? "-"}
+                            </div>
+                          </div>
+                        ) : (
+                          <span className="text-xs text-gray-500">-</span>
+                        )}
+                      </td>
+                    ) : null}
+                    {hasAnyRunActions ? (
+                      <td
+                        className="px-3 py-4 text-left align-middle"
+                        onClick={(event) => event.stopPropagation()}
+                      >
+                        {canApproveRun || canRejectRun || canDeleteRun ? (
+                          <div className="flex w-fit items-center gap-2">
+                            {canApproveRun ? (
+                              <button
+                                type="button"
+                                disabled={deletingRunId === run.runId}
+                                aria-label={
+                                  deletingRunId === run.runId
+                                    ? "Approving run"
+                                    : "Approve run"
+                                }
+                                title={
+                                  deletingRunId === run.runId
+                                    ? "Approving run"
+                                    : "Approve run"
+                                }
+                                onClick={() => {
+                                  setDeletingRunId(run.runId);
+                                  approveRunMutation.mutate({
+                                    runId: run.runId
+                                  });
+                                }}
+                                className="inline-flex h-9 w-9 cursor-pointer items-center justify-center rounded-lg border border-emerald-400/25 bg-emerald-400/10 text-emerald-200 transition-colors hover:border-emerald-300 hover:bg-emerald-400/20 hover:text-emerald-100 disabled:cursor-not-allowed disabled:opacity-60"
+                              >
+                                {deletingRunId === run.runId ? (
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                ) : (
+                                  <Check className="h-4 w-4" />
+                                )}
+                              </button>
+                            ) : null}
+
+                            {canRejectRun ? (
+                              <button
+                                type="button"
+                                disabled={deletingRunId === run.runId}
+                                aria-label={
+                                  deletingRunId === run.runId
+                                    ? "Rejecting run"
+                                    : "Reject run"
+                                }
+                                title={
+                                  deletingRunId === run.runId
+                                    ? "Rejecting run"
+                                    : "Reject run"
+                                }
+                                onClick={() => {
+                                  setDeletingRunId(run.runId);
+                                  rejectRunMutation.mutate({
+                                    runId: run.runId
+                                  });
+                                }}
+                                className="inline-flex h-9 w-9 cursor-pointer items-center justify-center rounded-lg border border-red-400/25 bg-red-400/10 text-red-200 transition-colors hover:border-red-300 hover:bg-red-400/20 hover:text-red-100 disabled:cursor-not-allowed disabled:opacity-60"
+                              >
+                                {deletingRunId === run.runId ? (
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                ) : (
+                                  <Ban className="h-4 w-4" />
+                                )}
+                              </button>
+                            ) : null}
+
+                            {canDeleteRun ? (
+                              <button
+                                type="button"
+                                disabled={deletingRunId === run.runId}
+                                aria-label={
+                                  deletingRunId === run.runId
+                                    ? "Deleting run"
+                                    : "Delete run"
+                                }
+                                title={
+                                  deletingRunId === run.runId
+                                    ? "Deleting run"
+                                    : "Delete run"
+                                }
+                                onClick={() => {
+                                  setDeletingRunId(run.runId);
+                                  deleteRunMutation.mutate({
+                                    runId: run.runId
+                                  });
+                                }}
+                                className="inline-flex h-9 w-9 cursor-pointer items-center justify-center rounded-lg border border-red-400/25 bg-red-400/10 text-red-200 transition-colors hover:border-red-300 hover:bg-red-400/20 hover:text-red-100 disabled:cursor-not-allowed disabled:opacity-60"
+                              >
+                                {deletingRunId === run.runId ? (
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                ) : (
+                                  <Trash2 className="h-4 w-4" />
+                                )}
+                              </button>
+                            ) : null}
+                          </div>
+                        ) : (
+                          <span className="text-xs text-gray-500">-</span>
+                        )}
+                      </td>
+                    ) : null}
+                  </motion.tr>
+
+                  <AnimatePresence initial={false}>
+                    {isExpanded ? (
+                      <motion.tr
+                        key={`${run.runId}-details`}
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        transition={{ duration: 0.2 }}
+                        className="border-b border-gray-800/70"
+                      >
+                        <td
+                          colSpan={columnCount}
+                          className="px-0 py-0 align-top"
+                        >
+                          <motion.div
+                            initial={{ height: 0, opacity: 0 }}
+                            animate={{ height: "auto", opacity: 1 }}
+                            exit={{ height: 0, opacity: 0 }}
+                            transition={{ duration: 0.28, ease: "easeOut" }}
+                            className="overflow-hidden"
+                          >
+                            <div className="grid gap-4 bg-gray-900 px-4 py-4 md:grid-cols-3">
+                              <div>
+                                <div className="mb-1 text-[10px] tracking-[0.16em] text-gray-500 uppercase">
+                                  Hunter
+                                </div>
+                                <div className="text-sm font-semibold text-white">
+                                  {run.hunterName}
+                                </div>
+                              </div>
+
+                              <div>
+                                <div className="mb-1 text-[10px] tracking-[0.16em] text-gray-500 uppercase">
+                                  Weapons
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <Image
+                                    src={`/weapons/${run.primaryWeaponKey}.png`}
+                                    alt={run.primaryWeaponKey.toUpperCase()}
+                                    title={run.primaryWeaponKey.toUpperCase()}
+                                    width={28}
+                                    height={28}
+                                    className="h-7 w-7 object-contain"
+                                  />
+                                  {run.secondaryWeaponKey ? (
+                                    <Image
+                                      src={`/weapons/${run.secondaryWeaponKey}.png`}
+                                      alt={run.secondaryWeaponKey.toUpperCase()}
+                                      title={run.secondaryWeaponKey.toUpperCase()}
+                                      width={28}
+                                      height={28}
+                                      className="h-7 w-7 object-contain"
+                                    />
+                                  ) : null}
+                                </div>
+                              </div>
+
+                              <div>
+                                <div className="mb-1 text-[10px] tracking-[0.16em] text-gray-500 uppercase">
+                                  Category
+                                </div>
+                                <CategoryTooltip
+                                  label={category.label}
+                                  description={category.description}
+                                  link={category.link}
+                                  wrapperClassName="inline-block"
+                                >
+                                  <span
+                                    className={`inline-flex h-6 items-center justify-center gap-1.5 rounded-full border px-2.5 text-xs leading-none ${tone.badge}`}
+                                  >
+                                    <CategoryIcon
+                                      className={`h-3.5 w-3.5 shrink-0 ${tone.icon}`}
+                                    />
+                                    {category.label}
+                                  </span>
+                                </CategoryTooltip>
+                              </div>
+
+                              <div className="md:col-span-3">
+                                <div className="mb-1 text-[10px] tracking-[0.16em] text-gray-500 uppercase">
+                                  Tags
+                                </div>
+                                <div className="flex flex-wrap items-center gap-2 text-gray-300">
+                                  {run.tagLabels.length > 0 ? (
+                                    run.tagLabels.map((tagLabel) => (
+                                      <span
+                                        key={`${run.runId}-${tagLabel}`}
+                                        className="inline-flex h-6 items-center justify-center gap-1.5 rounded-full border border-gray-700 bg-white/5 px-2.5 text-xs leading-none whitespace-nowrap text-gray-300 transition-all hover:border-amber-300/40 hover:bg-amber-400/10 hover:text-amber-200 hover:shadow-[0_0_0_1px_rgba(251,191,36,0.12),0_6px_18px_rgba(251,191,36,0.1)]"
+                                      >
+                                        <Tag className="h-3.5 w-3.5 shrink-0 text-gray-500" />
+                                        {tagLabel}
+                                      </span>
+                                    ))
+                                  ) : (
+                                    <span className="text-xs text-gray-500">
+                                      -
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          </motion.div>
+                        </td>
+                      </motion.tr>
+                    ) : null}
+                  </AnimatePresence>
+                </Fragment>
               );
             })}
           </motion.tbody>

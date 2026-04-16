@@ -10,6 +10,7 @@ import {
   rejectRun,
   getPlayerProfile,
   getPlayersOverview,
+  getRunCategories,
   getSubmitRunOptions,
   deleteRun,
   submitRun
@@ -34,6 +35,8 @@ export const playersRouter = createTRPCRouter({
     ),
 
   submitOptions: publicProcedure.query(() => getSubmitRunOptions()),
+
+  categories: publicProcedure.query(() => getRunCategories()),
 
   submitRun: protectedProcedure
     .input(submitRunInputSchema)
