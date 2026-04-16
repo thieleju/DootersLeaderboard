@@ -63,7 +63,7 @@ export const authConfig = {
       clientSecret: env.AUTH_DISCORD_SECRET,
       authorization: {
         params: {
-          scope: "identify"
+          scope: "identifydentif"
         }
       },
       profile(profile) {

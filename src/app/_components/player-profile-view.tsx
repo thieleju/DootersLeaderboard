@@ -23,6 +23,7 @@ import {
 import Link from "next/link";
 import Image from "next/image";
 
+import { QUERY_DEFAULT_STALE_TIME_MS } from "~/constants";
 import type { SubmitRunInput } from "~/server/types/players";
 import { type RunCategoryId } from "~/server/types/leaderboard";
 import {
@@ -154,7 +155,7 @@ export default function PlayerProfileView({
   const profileQuery = api.players.profile.useQuery(
     { userId },
     {
-      staleTime: 30_000
+      staleTime: QUERY_DEFAULT_STALE_TIME_MS
     }
   );
 

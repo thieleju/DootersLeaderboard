@@ -1,4 +1,9 @@
-export const MAX_PLACEMENT_SCORE = 1000;
+import {
+  SCORE_EXPONENT,
+  SCORE_GROWTH_FACTOR,
+  SCORE_MIN_SCORE
+} from "~/constants";
+
 import type {
   ScoreAggregate,
   ScoreEligibleRun,
@@ -11,13 +16,24 @@ function toTimestamp(value: Date | string | number) {
   return new Date(value).getTime();
 }
 
+function getMaxScore(participants: number) {
+  const n = Math.max(1, participants);
+
+  const scale = Math.log10(n);
+
+  return SCORE_MIN_SCORE + SCORE_GROWTH_FACTOR * scale;
+}
+
 export function calculatePlacementScore(rank: number, participants: number) {
   if (participants <= 0) return 0;
 
-  const boundedRank = Math.min(Math.max(rank, 1), participants);
-  return Math.ceil(
-    (MAX_PLACEMENT_SCORE * (participants - boundedRank + 1)) / participants
-  );
+  const n = participants;
+  const boundedRank = Math.min(Math.max(rank, 1), n);
+  const maxScore = getMaxScore(n);
+
+  const normalized = (n - boundedRank + 1) / n;
+
+  return Math.ceil(maxScore * Math.pow(normalized, SCORE_EXPONENT));
 }
 
 export function calculateUserScoreAndTop3Placements<T extends ScoreEligibleRun>(
