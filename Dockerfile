@@ -68,7 +68,9 @@ COPY --from=builder --chown=node:node /app/public ./public
 COPY --from=builder --chown=node:node /app/package.json ./package.json
 COPY --from=builder --chown=node:node /app/drizzle.config.ts ./drizzle.config.ts
 COPY --from=builder --chown=node:node /app/tsconfig.json ./tsconfig.json
+COPY --from=builder --chown=node:node /app/src/constants.ts ./src/constants.ts
 COPY --from=builder --chown=node:node /app/src/server/db ./src/server/db
+COPY --from=builder --chown=node:node /app/src/server/lib ./src/server/lib
 COPY --from=builder --chown=node:node /app/src/server/scripts ./src/server/scripts
 COPY --from=builder --chown=node:node /app/src/server/resources ./src/server/resources
 COPY --from=builder --chown=node:node /app/src/server/types ./src/server/types
