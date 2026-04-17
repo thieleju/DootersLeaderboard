@@ -7,7 +7,6 @@ import {
   BookOpen,
   ChevronDown,
   Clock3,
-  ExternalLink,
   Flame,
   Loader2,
   Upload,
@@ -929,9 +928,15 @@ export default function PlayerProfileView({
                 canModerateOwnRuns &&
                 run.status !== "rejected";
               const runYoutubeLink = getStringField(run, "youtubeLink");
+              const runYoutubeVideoId = runYoutubeLink
+                ? extractYouTubeVideoId(runYoutubeLink)
+                : null;
               const runScreenshotBase64 = getStringField(
                 run,
                 "screenshotBase64"
+              );
+              const hasMedia = Boolean(
+                runYoutubeVideoId ?? runScreenshotBase64
               );
               const statusLabel =
                 run.status === "approved"
@@ -1236,45 +1241,48 @@ export default function PlayerProfileView({
                                 </div>
                               </div>
 
-                              <div>
-                                <div className="mb-1 text-[10px] tracking-[0.16em] text-gray-500 uppercase">
-                                  Video
-                                </div>
-                                {runYoutubeLink ? (
-                                  <a
-                                    href={runYoutubeLink}
-                                    target="_blank"
-                                    rel="noreferrer"
-                                    className="inline-flex items-center gap-1.5 rounded-lg border border-cyan-300/30 bg-cyan-400/10 px-3 py-2 text-xs font-semibold text-cyan-100 transition-colors hover:border-cyan-200 hover:bg-cyan-400/20"
-                                  >
-                                    <ExternalLink className="h-3.5 w-3.5" />
-                                    Open YouTube Video
-                                  </a>
-                                ) : (
-                                  <span className="text-xs text-gray-500">
-                                    -
-                                  </span>
-                                )}
-                              </div>
-
                               <div className="md:col-span-3">
-                                <div className="mb-1 text-[10px] tracking-[0.16em] text-gray-500 uppercase">
-                                  Screenshot
-                                </div>
-                                {runScreenshotBase64 ? (
-                                  <div className="overflow-hidden rounded-xl border border-gray-700/80 bg-black/25">
-                                    <Image
-                                      src={runScreenshotBase64}
-                                      alt="Run screenshot"
-                                      width={1280}
-                                      height={720}
-                                      unoptimized
-                                      className="h-auto w-full"
-                                    />
+                                {hasMedia ? (
+                                  <div className="grid gap-3 md:grid-cols-2">
+                                    {runYoutubeVideoId ? (
+                                      <div className="space-y-1">
+                                        <div className="text-[10px] tracking-[0.16em] text-gray-500 uppercase">
+                                          Video
+                                        </div>
+                                        <div className="overflow-hidden rounded-xl border border-gray-700/80 bg-black/35">
+                                          <iframe
+                                            className="aspect-video w-full"
+                                            src={`https://www.youtube.com/embed/${runYoutubeVideoId}`}
+                                            title="YouTube video"
+                                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                                            referrerPolicy="strict-origin-when-cross-origin"
+                                            allowFullScreen
+                                          />
+                                        </div>
+                                      </div>
+                                    ) : null}
+
+                                    {runScreenshotBase64 ? (
+                                      <div className="space-y-1">
+                                        <div className="text-[10px] tracking-[0.16em] text-gray-500 uppercase">
+                                          Screenshot
+                                        </div>
+                                        <div className="overflow-hidden rounded-xl border border-gray-700/80 bg-black/25">
+                                          <Image
+                                            src={runScreenshotBase64}
+                                            alt="Run screenshot"
+                                            width={1280}
+                                            height={720}
+                                            unoptimized
+                                            className="h-auto w-full"
+                                          />
+                                        </div>
+                                      </div>
+                                    ) : null}
                                   </div>
                                 ) : (
                                   <span className="text-xs text-gray-500">
-                                    -
+                                    No video or screenshot
                                   </span>
                                 )}
                               </div>

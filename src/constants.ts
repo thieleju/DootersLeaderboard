@@ -32,7 +32,7 @@ export const BOT_NOTIFICATION_EVENT_META: Record<
     description: "Triggered when a moderator/admin rejects a run."
   },
   quest_modified: {
-    label: "Quest Modified",
+    label: "Quest Update",
     description: "Triggered when a quest is created, updated, or deleted."
   },
   user_first_login: {

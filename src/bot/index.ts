@@ -554,7 +554,7 @@ async function pollAndSendNotifications() {
 
           embed = new EmbedBuilder()
             .setColor(0x8b5cf6)
-            .setTitle("Quest Modified")
+            .setTitle("Quest Update")
             .setDescription(`A quest was ${actionLabel}.`)
             .addFields(
               {
