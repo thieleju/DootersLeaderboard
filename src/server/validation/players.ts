@@ -10,6 +10,28 @@ export const MAX_SUBMIT_TAGS = 10;
 export const MAX_SUBMIT_TAG_LENGTH = 15;
 export const MAX_SUBMIT_HUNTER_NAME_LENGTH = 40;
 export const MAX_SUBMIT_YOUTUBE_LINK_LENGTH = 2048;
+export const MAX_SUBMIT_SCREENSHOT_BYTES = 1_500_000;
+export const MAX_SUBMIT_SCREENSHOT_BASE64_LENGTH = 2_100_000;
+const ALLOWED_SCREENSHOT_MIME_TYPES = [
+  "image/png",
+  "image/jpeg",
+  "image/webp"
+] as const;
+
+function getDataUrlPayloadLength(value: string): number {
+  const commaIndex = value.indexOf(",");
+  if (commaIndex < 0) return 0;
+  return value.slice(commaIndex + 1).length;
+}
+
+function getApproxBase64PayloadBytes(value: string): number {
+  const commaIndex = value.indexOf(",");
+  if (commaIndex < 0) return 0;
+
+  const payload = value.slice(commaIndex + 1);
+  const padding = payload.endsWith("==") ? 2 : payload.endsWith("=") ? 1 : 0;
+  return Math.max(0, Math.floor((payload.length * 3) / 4) - padding);
+}
 
 const youtubeLinkSchema = z
   .string()
@@ -22,6 +44,35 @@ const youtubeLinkSchema = z
   .refine(
     (value) => extractYouTubeVideoId(value) !== null,
     "YouTube link must point to a valid YouTube video"
+  );
+
+const screenshotBase64Schema = z
+  .string()
+  .trim()
+  .max(
+    MAX_SUBMIT_SCREENSHOT_BASE64_LENGTH,
+    `Screenshot payload must be at most ${MAX_SUBMIT_SCREENSHOT_BASE64_LENGTH.toLocaleString("en-US")} characters`
+  )
+  .regex(
+    /^data:image\/(png|jpeg|webp);base64,[a-zA-Z0-9+/=]+$/,
+    "Screenshot must be a valid PNG, JPG, or WEBP base64 data URL"
+  )
+  .refine((value) => {
+    const mimeMatch = /^data:([^;]+);base64,/.exec(value);
+    return mimeMatch
+      ? ALLOWED_SCREENSHOT_MIME_TYPES.includes(
+          mimeMatch[1] as (typeof ALLOWED_SCREENSHOT_MIME_TYPES)[number]
+        )
+      : false;
+  }, "Screenshot type must be PNG, JPG, or WEBP")
+  .refine(
+    (value) => getDataUrlPayloadLength(value) > 0,
+    "Screenshot payload is empty"
+  )
+  .refine(
+    (value) =>
+      getApproxBase64PayloadBytes(value) <= MAX_SUBMIT_SCREENSHOT_BYTES,
+    `Screenshot must be at most ${(MAX_SUBMIT_SCREENSHOT_BYTES / 1_000_000).toFixed(1)} MB`
   );
 
 export const submitRunInputSchema = z.object({
@@ -46,6 +97,7 @@ export const submitRunInputSchema = z.object({
   primaryWeaponKey: z.string().trim().min(1, "Primary weapon is required"),
   secondaryWeaponKey: z.string().trim().min(1, "Secondary weapon is required"),
   youtubeLink: youtubeLinkSchema.optional(),
+  screenshotBase64: screenshotBase64Schema.optional(),
   tags: z
     .array(
       z

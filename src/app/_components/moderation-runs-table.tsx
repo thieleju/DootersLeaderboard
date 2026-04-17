@@ -63,6 +63,7 @@ type PendingRunRow = Pick<
     submittedAtMs: number;
     runTimeMs: number;
     youtubeLink: string | null;
+    screenshotBase64: string | null;
     categoryId: RunCategoryId;
     tagLabels: string[];
     primaryWeaponKey: string;
@@ -80,6 +81,7 @@ type PendingRunRow = Pick<
   | "submittedAtMs"
   | "runTimeMs"
   | "youtubeLink"
+  | "screenshotBase64"
   | "categoryId"
   | "tagLabels"
   | "primaryWeaponKey"
@@ -100,6 +102,7 @@ type ReviewedRunRow = Pick<
     submittedAtMs: number;
     runTimeMs: number;
     youtubeLink: string | null;
+    screenshotBase64: string | null;
     categoryId: RunCategoryId;
     tagLabels: string[];
     status: "approved" | "rejected";
@@ -121,6 +124,7 @@ type ReviewedRunRow = Pick<
   | "submittedAtMs"
   | "runTimeMs"
   | "youtubeLink"
+  | "screenshotBase64"
   | "categoryId"
   | "tagLabels"
   | "status"
@@ -1050,6 +1054,28 @@ export default function ModerationRunsTable({
 
                               <div className="md:col-span-3">
                                 <div className="mb-1 text-[10px] tracking-[0.16em] text-gray-500 uppercase">
+                                  Screenshot
+                                </div>
+                                {run.screenshotBase64 ? (
+                                  <div className="overflow-hidden rounded-xl border border-gray-700/80 bg-black/25">
+                                    <Image
+                                      src={run.screenshotBase64}
+                                      alt="Run screenshot"
+                                      width={1280}
+                                      height={720}
+                                      unoptimized
+                                      className="h-auto w-full"
+                                    />
+                                  </div>
+                                ) : (
+                                  <span className="text-xs text-gray-500">
+                                    -
+                                  </span>
+                                )}
+                              </div>
+
+                              <div className="md:col-span-3">
+                                <div className="mb-1 text-[10px] tracking-[0.16em] text-gray-500 uppercase">
                                   Tags
                                 </div>
 
@@ -1797,6 +1823,28 @@ export default function ModerationRunsTable({
 
                                   <div className="md:col-span-3">
                                     <div className="mb-1 text-[10px] tracking-[0.16em] text-gray-500 uppercase">
+                                      Screenshot
+                                    </div>
+                                    {run.screenshotBase64 ? (
+                                      <div className="overflow-hidden rounded-xl border border-gray-700/80 bg-black/25">
+                                        <Image
+                                          src={run.screenshotBase64}
+                                          alt="Run screenshot"
+                                          width={1280}
+                                          height={720}
+                                          unoptimized
+                                          className="h-auto w-full"
+                                        />
+                                      </div>
+                                    ) : (
+                                      <span className="text-xs text-gray-500">
+                                        -
+                                      </span>
+                                    )}
+                                  </div>
+
+                                  <div className="md:col-span-3">
+                                    <div className="mb-1 text-[10px] tracking-[0.16em] text-gray-500 uppercase">
                                       Tags
                                     </div>
 
@@ -2029,6 +2077,28 @@ export default function ModerationRunsTable({
                                         <ExternalLink className="h-3.5 w-3.5" />
                                         Open YouTube Video
                                       </a>
+                                    ) : (
+                                      <span className="text-xs text-gray-500">
+                                        -
+                                      </span>
+                                    )}
+                                  </div>
+
+                                  <div className="md:col-span-3">
+                                    <div className="mb-1 text-[10px] tracking-[0.16em] text-gray-500 uppercase">
+                                      Screenshot
+                                    </div>
+                                    {run.screenshotBase64 ? (
+                                      <div className="overflow-hidden rounded-xl border border-gray-700/80 bg-black/25">
+                                        <Image
+                                          src={run.screenshotBase64}
+                                          alt="Run screenshot"
+                                          width={1280}
+                                          height={720}
+                                          unoptimized
+                                          className="h-auto w-full"
+                                        />
+                                      </div>
                                     ) : (
                                       <span className="text-xs text-gray-500">
                                         -

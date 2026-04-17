@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useEffect, useMemo, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   AlertCircle,
@@ -20,10 +20,12 @@ import {
   UserRound,
   X,
   Ban,
-  Trash2
+  Trash2,
+  ImagePlus
 } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
+import { type FileRejection, useDropzone } from "react-dropzone";
 
 import { QUERY_DEFAULT_STALE_TIME_MS } from "~/constants";
 import { extractYouTubeVideoId } from "~/lib/youtube";
@@ -34,6 +36,7 @@ import type {
 import { type RunCategoryId } from "~/server/types/leaderboard";
 import {
   MAX_SUBMIT_HUNTER_NAME_LENGTH,
+  MAX_SUBMIT_SCREENSHOT_BYTES,
   MAX_SUBMIT_TAG_LENGTH,
   MAX_SUBMIT_TAGS,
   MAX_SUBMIT_YOUTUBE_LINK_LENGTH,
@@ -66,6 +69,8 @@ interface FormState {
   primaryWeaponKey: string;
   secondaryWeaponKey: string;
   youtubeLink: string;
+  screenshotBase64: string;
+  screenshotFileName: string;
   tags: string[];
 }
 
@@ -93,8 +98,32 @@ function emptyFormState(questId: string): FormState {
     primaryWeaponKey: "",
     secondaryWeaponKey: "",
     youtubeLink: "",
+    screenshotBase64: "",
+    screenshotFileName: "",
     tags: []
   };
+}
+
+const allowedScreenshotMimeTypes = new Set([
+  "image/png",
+  "image/jpeg",
+  "image/webp"
+]);
+
+function fileToDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const value = reader.result;
+      if (typeof value === "string") {
+        resolve(value);
+      } else {
+        reject(new Error("Failed to read screenshot file."));
+      }
+    };
+    reader.onerror = () => reject(new Error("Failed to read screenshot file."));
+    reader.readAsDataURL(file);
+  });
 }
 
 function statusBadge(status: "pending" | "approved" | "rejected") {
@@ -273,6 +302,69 @@ export default function PlayerProfileView({
     return youtubeVideoId ? null : "Please enter a valid YouTube video URL.";
   }, [formWithDefaultQuest.youtubeLink, youtubeVideoId]);
 
+  const screenshotBase64 = formWithDefaultQuest.screenshotBase64.trim();
+
+  const screenshotError = useMemo(() => {
+    if (!screenshotBase64) return null;
+    if (!screenshotBase64.startsWith("data:image/")) {
+      return "Screenshot must be PNG, JPG, or WEBP.";
+    }
+    return null;
+  }, [screenshotBase64]);
+
+  const onDropScreenshot = useCallback(
+    (acceptedFiles: File[], fileRejections: FileRejection[]) => {
+      if (fileRejections.length > 0) {
+        const rejectionCode = fileRejections[0]?.errors[0]?.code;
+
+        if (rejectionCode === "file-too-large") {
+          setFormError(
+            `Screenshot must be at most ${(MAX_SUBMIT_SCREENSHOT_BYTES / 1_000_000).toFixed(1)} MB.`
+          );
+          return;
+        }
+
+        if (rejectionCode === "file-invalid-type") {
+          setFormError("Screenshot must be PNG, JPG, or WEBP.");
+          return;
+        }
+
+        setFormError("Screenshot upload failed. Please try another file.");
+        return;
+      }
+
+      const file = acceptedFiles[0];
+      if (!file) return;
+
+      if (!allowedScreenshotMimeTypes.has(file.type)) {
+        setFormError("Screenshot must be PNG, JPG, or WEBP.");
+        return;
+      }
+
+      if (file.size > MAX_SUBMIT_SCREENSHOT_BYTES) {
+        setFormError(
+          `Screenshot must be at most ${(MAX_SUBMIT_SCREENSHOT_BYTES / 1_000_000).toFixed(1)} MB.`
+        );
+        return;
+      }
+
+      void (async () => {
+        try {
+          const dataUrl = await fileToDataUrl(file);
+          setForm((current) => ({
+            ...current,
+            screenshotBase64: dataUrl,
+            screenshotFileName: file.name
+          }));
+          setFormError(null);
+        } catch {
+          setFormError("Could not read screenshot file.");
+        }
+      })();
+    },
+    []
+  );
+
   const submitMutation = api.players.submitRun.useMutation({
     onSuccess: async () => {
       setForm(emptyFormState(defaultQuestId));
@@ -287,6 +379,17 @@ export default function PlayerProfileView({
     },
     onError: (error) => {
       setFormError(error.message || "Could not submit run.");
+    }
+  });
+
+  const { getRootProps, getInputProps, isDragActive } = useDropzone({
+    onDrop: onDropScreenshot,
+    multiple: false,
+    disabled: submitMutation.isPending,
+    accept: {
+      "image/png": [".png"],
+      "image/jpeg": [".jpg", ".jpeg"],
+      "image/webp": [".webp"]
     }
   });
 
@@ -373,6 +476,11 @@ export default function PlayerProfileView({
       return;
     }
 
+    if (screenshotError) {
+      setFormError(screenshotError);
+      return;
+    }
+
     if (isArenaQuest && formWithDefaultQuest.category !== "arena") {
       setFormError("Arena quests must use arena category.");
       return;
@@ -391,6 +499,8 @@ export default function PlayerProfileView({
       primaryWeaponKey: formWithDefaultQuest.primaryWeaponKey,
       secondaryWeaponKey: formWithDefaultQuest.secondaryWeaponKey,
       youtubeLink: formWithDefaultQuest.youtubeLink.trim() || undefined,
+      screenshotBase64:
+        formWithDefaultQuest.screenshotBase64.trim() || undefined,
       tags: formWithDefaultQuest.tags
     };
 
@@ -819,6 +929,10 @@ export default function PlayerProfileView({
                 canModerateOwnRuns &&
                 run.status !== "rejected";
               const runYoutubeLink = getStringField(run, "youtubeLink");
+              const runScreenshotBase64 = getStringField(
+                run,
+                "screenshotBase64"
+              );
               const statusLabel =
                 run.status === "approved"
                   ? "Approved"
@@ -1136,6 +1250,28 @@ export default function PlayerProfileView({
                                     <ExternalLink className="h-3.5 w-3.5" />
                                     Open YouTube Video
                                   </a>
+                                ) : (
+                                  <span className="text-xs text-gray-500">
+                                    -
+                                  </span>
+                                )}
+                              </div>
+
+                              <div className="md:col-span-3">
+                                <div className="mb-1 text-[10px] tracking-[0.16em] text-gray-500 uppercase">
+                                  Screenshot
+                                </div>
+                                {runScreenshotBase64 ? (
+                                  <div className="overflow-hidden rounded-xl border border-gray-700/80 bg-black/25">
+                                    <Image
+                                      src={runScreenshotBase64}
+                                      alt="Run screenshot"
+                                      width={1280}
+                                      height={720}
+                                      unoptimized
+                                      className="h-auto w-full"
+                                    />
+                                  </div>
                                 ) : (
                                   <span className="text-xs text-gray-500">
                                     -
@@ -1513,8 +1649,8 @@ export default function PlayerProfileView({
               </div>
             </div>
 
-            <div className="space-y-2 md:col-span-2">
-              <label className="space-y-1">
+            <div className="space-y-4 md:col-span-2">
+              <div className="space-y-1">
                 <span className="text-xs tracking-[0.16em] text-gray-500 uppercase">
                   YouTube Link (optional)
                 </span>
@@ -1538,56 +1674,116 @@ export default function PlayerProfileView({
                 {youtubeLinkError ? (
                   <p className="text-xs text-red-300">{youtubeLinkError}</p>
                 ) : null}
-              </label>
-
-              <span className="text-xs tracking-[0.16em] text-gray-500 uppercase">
-                Tags
-              </span>
-              <div className="flex flex-wrap gap-2">
-                {formWithDefaultQuest.tags.map((tag) => (
-                  <span
-                    key={tag}
-                    className="inline-flex items-center gap-1 rounded-full border border-amber-300/30 bg-amber-400/10 px-2 py-1 text-xs whitespace-nowrap text-amber-200"
-                  >
-                    {tag}
-                    <button
-                      type="button"
-                      onClick={() => removeTag(tag)}
-                      className="cursor-pointer text-amber-300 transition-colors hover:text-amber-200"
-                      aria-label={`Remove ${tag}`}
-                    >
-                      <X className="h-3 w-3" />
-                    </button>
-                  </span>
-                ))}
               </div>
 
-              <div className="flex flex-wrap items-center gap-2">
-                <input
-                  type="text"
-                  value={tagInput}
-                  maxLength={MAX_SUBMIT_TAG_LENGTH}
-                  onChange={(event) => setTagInput(event.target.value)}
-                  onKeyDown={(event) => {
-                    if (event.key !== "Enter") return;
-                    event.preventDefault();
-                    addTag(tagInput);
-                    setTagInput("");
-                  }}
-                  placeholder="Add tag"
-                  className="min-w-[12rem] flex-1 rounded-lg border border-gray-700 bg-gray-900/70 px-3 py-2 text-sm text-gray-100 transition-colors outline-none focus:border-amber-400"
-                />
-                <button
-                  type="button"
-                  onClick={() => {
-                    addTag(tagInput);
-                    setTagInput("");
-                  }}
-                  className="inline-flex cursor-pointer items-center gap-1 rounded-lg border border-gray-700 px-3 py-2 text-sm text-gray-200 transition-colors hover:border-amber-400 hover:text-amber-300"
-                >
-                  <Plus className="h-4 w-4" />
-                  Add
-                </button>
+              <div className="space-y-1">
+                <span className="text-xs tracking-[0.16em] text-gray-500 uppercase">
+                  Screenshot (optional)
+                </span>
+                {formWithDefaultQuest.screenshotBase64 ? (
+                  <div className="mt-1 flex flex-wrap items-center gap-2">
+                    <span className="inline-flex max-w-full items-center gap-2 rounded-full border border-amber-300/30 bg-amber-400/10 px-3 py-1.5 text-xs text-amber-100">
+                      <span className="truncate">
+                        {formWithDefaultQuest.screenshotFileName ||
+                          "Selected screenshot"}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setForm((current) => ({
+                            ...current,
+                            screenshotBase64: "",
+                            screenshotFileName: ""
+                          }))
+                        }
+                        className="inline-flex cursor-pointer items-center rounded-full border border-amber-200/40 p-1 text-amber-100 transition-colors hover:border-red-300/60 hover:text-red-200"
+                        aria-label="Remove screenshot"
+                        title="Remove screenshot"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </span>
+                  </div>
+                ) : (
+                  <div
+                    {...getRootProps()}
+                    className={`cursor-pointer rounded-lg border border-dashed px-4 py-4 text-sm transition-colors ${
+                      isDragActive
+                        ? "border-amber-300 bg-amber-400/10"
+                        : "border-gray-700 bg-gray-900/60 hover:border-amber-400/70"
+                    }`}
+                  >
+                    <input {...getInputProps()} />
+                    <div className="flex items-center gap-2 text-gray-200">
+                      <ImagePlus className="h-4 w-4 text-amber-300" />
+                      <span>
+                        {isDragActive
+                          ? "Drop screenshot here..."
+                          : "Drag & drop screenshot, or click to select"}
+                      </span>
+                    </div>
+                    <p className="mt-1 text-xs text-gray-400">
+                      PNG/JPG/WEBP, max{" "}
+                      {(MAX_SUBMIT_SCREENSHOT_BYTES / 1_000_000).toFixed(1)} MB
+                    </p>
+                  </div>
+                )}
+
+                {screenshotError ? (
+                  <p className="text-xs text-red-300">{screenshotError}</p>
+                ) : null}
+              </div>
+
+              <div className="space-y-1">
+                <span className="text-xs tracking-[0.16em] text-gray-500 uppercase">
+                  Tags
+                </span>
+                <div className="flex flex-wrap gap-2">
+                  {formWithDefaultQuest.tags.map((tag) => (
+                    <span
+                      key={tag}
+                      className="inline-flex items-center gap-1 rounded-full border border-amber-300/30 bg-amber-400/10 px-2 py-1 text-xs whitespace-nowrap text-amber-200"
+                    >
+                      {tag}
+                      <button
+                        type="button"
+                        onClick={() => removeTag(tag)}
+                        className="cursor-pointer text-amber-300 transition-colors hover:text-amber-200"
+                        aria-label={`Remove ${tag}`}
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2">
+                  <input
+                    type="text"
+                    value={tagInput}
+                    maxLength={MAX_SUBMIT_TAG_LENGTH}
+                    onChange={(event) => setTagInput(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key !== "Enter") return;
+                      event.preventDefault();
+                      addTag(tagInput);
+                      setTagInput("");
+                    }}
+                    placeholder="Add tag"
+                    className="min-w-[12rem] flex-1 rounded-lg border border-gray-700 bg-gray-900/70 px-3 py-2 text-sm text-gray-100 transition-colors outline-none focus:border-amber-400"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      addTag(tagInput);
+                      setTagInput("");
+                    }}
+                    className="inline-flex cursor-pointer items-center gap-1 rounded-lg border border-gray-700 px-3 py-2 text-sm text-gray-200 transition-colors hover:border-amber-400 hover:text-amber-300"
+                  >
+                    <Plus className="h-4 w-4" />
+                    Add
+                  </button>
+                </div>
               </div>
 
               {(submitOptionsQuery.data?.existingTags.length ?? 0) > 0 ? (

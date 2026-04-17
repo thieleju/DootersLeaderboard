@@ -120,6 +120,7 @@ export const runs = createTable(
     category: d.text({ length: 64 }).$type<RunCategoryId>().notNull(),
     tags: d.text({ length: 4000 }).notNull().default("null"),
     youtubeLink: d.text({ length: 2048 }),
+    screenshotBase64: d.text({ length: 2_100_000 }),
     primaryWeapon: d.text({ length: 255 }).notNull(),
     secondaryWeapon: d.text({ length: 255 }),
     approvedByUserId: d.text({ length: 255 }).references(() => users.id),

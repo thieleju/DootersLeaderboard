@@ -298,6 +298,13 @@ export default function LeaderboardTable({ delay = 0 }: LeaderboardTableProps) {
               const rowYoutubeVideoId = rowYoutubeLink
                 ? extractYouTubeVideoId(rowYoutubeLink)
                 : null;
+              const rowScreenshotBase64 =
+                typeof row.screenshotBase64 === "string"
+                  ? row.screenshotBase64
+                  : null;
+              const hasMedia = Boolean(
+                rowYoutubeVideoId ?? rowScreenshotBase64
+              );
               const category = allCategories.find(
                 (item) => item.id === row.categoryId
               );
@@ -477,20 +484,47 @@ export default function LeaderboardTable({ delay = 0 }: LeaderboardTableProps) {
                             className="overflow-hidden"
                           >
                             <div className="bg-gray-900 px-4 py-4">
-                              {rowYoutubeVideoId ? (
-                                <div className="overflow-hidden rounded-xl border border-gray-700/80 bg-black/35">
-                                  <iframe
-                                    className="aspect-video w-full"
-                                    src={`https://www.youtube.com/embed/${rowYoutubeVideoId}`}
-                                    title="YouTube video"
-                                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                                    referrerPolicy="strict-origin-when-cross-origin"
-                                    allowFullScreen
-                                  />
+                              {hasMedia ? (
+                                <div className="grid gap-3 md:grid-cols-2">
+                                  {rowYoutubeVideoId ? (
+                                    <div className="space-y-1">
+                                      <div className="text-[10px] tracking-[0.16em] text-gray-500 uppercase">
+                                        Video
+                                      </div>
+                                      <div className="overflow-hidden rounded-xl border border-gray-700/80 bg-black/35">
+                                        <iframe
+                                          className="aspect-video w-full"
+                                          src={`https://www.youtube.com/embed/${rowYoutubeVideoId}`}
+                                          title="YouTube video"
+                                          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                                          referrerPolicy="strict-origin-when-cross-origin"
+                                          allowFullScreen
+                                        />
+                                      </div>
+                                    </div>
+                                  ) : null}
+
+                                  {rowScreenshotBase64 ? (
+                                    <div className="space-y-1">
+                                      <div className="text-[10px] tracking-[0.16em] text-gray-500 uppercase">
+                                        Screenshot
+                                      </div>
+                                      <div className="overflow-hidden rounded-xl border border-gray-700/80 bg-black/25">
+                                        <Image
+                                          src={rowScreenshotBase64}
+                                          alt="Run screenshot"
+                                          width={1280}
+                                          height={720}
+                                          unoptimized
+                                          className="h-auto w-full"
+                                        />
+                                      </div>
+                                    </div>
+                                  ) : null}
                                 </div>
                               ) : (
                                 <span className="text-xs text-gray-500">
-                                  No video
+                                  No video or screenshot
                                 </span>
                               )}
                             </div>

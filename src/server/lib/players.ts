@@ -316,6 +316,7 @@ export async function getPlayerProfile(
       runId: runsTable.id,
       hunterName: runsTable.hunterName,
       youtubeLink: sql<string | null>`${runsTable.youtubeLink}`,
+      screenshotBase64: sql<string | null>`${runsTable.screenshotBase64}`,
       categoryId: runsTable.category,
       tags: runsTable.tags,
       submittedAt: runsTable.submittedAt,
@@ -389,6 +390,7 @@ export async function getPlayerProfile(
       runId: run.runId,
       hunterName: run.hunterName,
       youtubeLink: run.youtubeLink,
+      screenshotBase64: run.screenshotBase64,
       questTitle: run.questTitle,
       monster: run.monster,
       difficultyStars: run.difficultyStars,
@@ -549,6 +551,7 @@ export async function getPendingRunsForModeration(
       submittedAt: runsTable.submittedAt,
       runTimeMs: runsTable.runTimeMs,
       youtubeLink: sql<string | null>`${runsTable.youtubeLink}`,
+      screenshotBase64: sql<string | null>`${runsTable.screenshotBase64}`,
       primaryWeaponKey: runsTable.primaryWeapon,
       secondaryWeaponKey: runsTable.secondaryWeapon,
       questTitle: questsTable.title,
@@ -584,6 +587,7 @@ export async function getPendingRunsForModeration(
         : new Date(run.submittedAt).getTime(),
     runTimeMs: run.runTimeMs,
     youtubeLink: run.youtubeLink,
+    screenshotBase64: run.screenshotBase64,
     categoryId: run.categoryId,
     tagLabels: parseRunTags(run.tags),
     primaryWeaponKey: run.primaryWeaponKey,
@@ -863,6 +867,7 @@ export async function getReviewedRunsForModeration(
       submittedAt: runsTable.submittedAt,
       runTimeMs: runsTable.runTimeMs,
       youtubeLink: sql<string | null>`${runsTable.youtubeLink}`,
+      screenshotBase64: sql<string | null>`${runsTable.screenshotBase64}`,
       primaryWeaponKey: runsTable.primaryWeapon,
       secondaryWeaponKey: runsTable.secondaryWeapon,
       approvedByUserId: runsTable.approvedByUserId,
@@ -929,6 +934,7 @@ export async function getReviewedRunsForModeration(
         : new Date(run.submittedAt).getTime(),
     runTimeMs: run.runTimeMs,
     youtubeLink: run.youtubeLink,
+    screenshotBase64: run.screenshotBase64,
     categoryId: run.categoryId,
     tagLabels: parseRunTags(run.tags),
     status: run.approvedByUserId ? "approved" : "rejected",
@@ -997,6 +1003,10 @@ export async function submitRun(input: SubmitRunInput, userId: string) {
     typeof valueRecord.youtubeLink === "string"
       ? valueRecord.youtubeLink
       : null;
+  const screenshotBase64 =
+    typeof valueRecord.screenshotBase64 === "string"
+      ? valueRecord.screenshotBase64
+      : null;
 
   const runId = crypto.randomUUID();
   await db.insert(runsTable).values({
@@ -1007,6 +1017,7 @@ export async function submitRun(input: SubmitRunInput, userId: string) {
     category: value.category,
     tags: tags.length > 0 ? JSON.stringify(tags) : "null",
     youtubeLink,
+    screenshotBase64,
     submittedAt: new Date(),
     runTimeMs: parseRunTimeInputToMs(value.runTime),
     primaryWeapon: value.primaryWeaponKey,
