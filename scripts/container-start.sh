@@ -20,6 +20,25 @@ on_exit() {
 
 trap on_exit EXIT
 
+BOT_PID=""
+SERVER_PID=""
+
+cleanup() {
+  if [ -n "$BOT_PID" ] && kill -0 "$BOT_PID" 2>/dev/null; then
+    log "Stopping Discord bot (pid $BOT_PID)"
+    kill "$BOT_PID" 2>/dev/null || true
+    wait "$BOT_PID" 2>/dev/null || true
+  fi
+
+  if [ -n "$SERVER_PID" ] && kill -0 "$SERVER_PID" 2>/dev/null; then
+    log "Stopping Next.js server (pid $SERVER_PID)"
+    kill "$SERVER_PID" 2>/dev/null || true
+    wait "$SERVER_PID" 2>/dev/null || true
+  fi
+}
+
+trap cleanup INT TERM
+
 DB_DIR="/app/db"
 DB_FILE="${DB_DIR}/db.sqlite"
 DB_CREATED=0
@@ -39,6 +58,11 @@ for required_var in AUTH_SECRET NEXTAUTH_URL AUTH_DISCORD_ID AUTH_DISCORD_SECRET
     missing="$missing $required_var"
   fi
 done
+
+BOT_ENABLED=0
+if [ -n "${DISCORD_BOT_TOKEN:-}" ]; then
+  BOT_ENABLED=1
+fi
 
 if [ -n "$missing" ]; then
   log "Missing required environment variables:$missing"
@@ -72,4 +96,20 @@ if [ "$DB_CREATED" -eq 1 ]; then
 fi
 
 log "Starting Next.js standalone server"
-exec node server.js
+if [ "$BOT_ENABLED" -eq 1 ]; then
+  log "Starting Discord bot"
+  pnpm run dev:bot &
+  BOT_PID=$!
+fi
+
+node server.js &
+SERVER_PID=$!
+
+wait "$SERVER_PID"
+SERVER_EXIT=$?
+
+if [ "$BOT_ENABLED" -eq 1 ]; then
+  cleanup
+fi
+
+exit "$SERVER_EXIT"

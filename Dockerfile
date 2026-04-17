@@ -72,6 +72,7 @@ COPY --from=builder --chown=node:node /app/src/server/db ./src/server/db
 COPY --from=builder --chown=node:node /app/src/server/scripts ./src/server/scripts
 COPY --from=builder --chown=node:node /app/src/server/resources ./src/server/resources
 COPY --from=builder --chown=node:node /app/src/server/types ./src/server/types
+COPY --from=builder --chown=node:node /app/src/bot ./src/bot
 COPY --from=dependencies --chown=node:node /app/node_modules ./node_modules
 COPY --chown=node:node ./scripts/container-start.sh /app/container-start.sh
 

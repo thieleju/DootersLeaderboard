@@ -1310,8 +1310,9 @@ export default function PlayerProfileView({
             <div>
               <h2 className="text-2xl font-bold text-white">Submit New Run</h2>
               <p className="mt-1 text-sm text-gray-400">
-                Pending runs are reviewed before being shown on the leaderboard.
-                Please also post a screenshot of the endscreen in the discord.
+                Submitted runs are reviewed before being shown on the
+                leaderboard. Please add a screenshot or video to your run
+                submission.
               </p>
             </div>
           </div>

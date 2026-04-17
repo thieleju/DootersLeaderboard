@@ -14,6 +14,7 @@ export const env = createEnv({
     NEXTAUTH_URL: z.string().url(),
     AUTH_DISCORD_ID: z.string(),
     AUTH_DISCORD_SECRET: z.string(),
+    DISCORD_BOT_TOKEN: z.string().optional(),
     DISCORD_ADMIN_ID: z.string(),
     DATABASE_URL: z.string().url(),
     NODE_ENV: z
@@ -39,6 +40,7 @@ export const env = createEnv({
     NEXTAUTH_URL: process.env.NEXTAUTH_URL,
     AUTH_DISCORD_ID: process.env.AUTH_DISCORD_ID,
     AUTH_DISCORD_SECRET: process.env.AUTH_DISCORD_SECRET,
+    DISCORD_BOT_TOKEN: process.env.DISCORD_BOT_TOKEN,
     DISCORD_ADMIN_ID: process.env.DISCORD_ADMIN_ID,
     DATABASE_URL: process.env.DATABASE_URL,
     NODE_ENV: process.env.NODE_ENV
