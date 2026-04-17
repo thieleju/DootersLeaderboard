@@ -1112,7 +1112,14 @@ export async function deleteRun(
     throw new TRPCError({ code: "FORBIDDEN", message: "Cannot delete run" });
   }
 
-  await db.delete(runsTable).where(eq(runsTable.id, runId));
+  // Remove queued/sent bot notifications linked to this run first to avoid FK errors.
+  await db.transaction(async (tx) => {
+    await tx
+      .delete(botNotificationQueueTable)
+      .where(eq(botNotificationQueueTable.runId, runId));
+
+    await tx.delete(runsTable).where(eq(runsTable.id, runId));
+  });
 
   return { runId };
 }

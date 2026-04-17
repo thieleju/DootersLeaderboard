@@ -188,11 +188,13 @@ export async function deleteQuest(input: { questId: string }) {
   }
 
   try {
-    await db
-      .delete(botNotificationQueueTable)
-      .where(eq(botNotificationQueueTable.questId, input.questId));
+    await db.transaction(async (tx) => {
+      await tx
+        .delete(botNotificationQueueTable)
+        .where(eq(botNotificationQueueTable.questId, input.questId));
 
-    await db.delete(questsTable).where(eq(questsTable.id, input.questId));
+      await tx.delete(questsTable).where(eq(questsTable.id, input.questId));
+    });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "";
     if (message.toLowerCase().includes("foreign key")) {
