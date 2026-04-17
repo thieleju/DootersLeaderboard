@@ -8,12 +8,14 @@ import {
   Check,
   ChevronDown,
   Clock3,
+  ExternalLink,
   Flame,
   Loader2,
   Plus,
   RotateCcw,
   Save,
   Shield,
+  Sword,
   Tag,
   Trash2,
   X
@@ -22,13 +24,16 @@ import Image from "next/image";
 import { useSession } from "next-auth/react";
 import type {
   LeaderboardCategoryOption,
-  LeaderboardWeaponResource
+  LeaderboardWeaponResource,
+  RunCategoryId
 } from "~/server/types/leaderboard";
 
+import { extractYouTubeVideoId } from "~/lib/youtube";
 import { api } from "~/trpc/react";
 import {
   MAX_SUBMIT_TAG_LENGTH,
-  MAX_SUBMIT_TAGS
+  MAX_SUBMIT_TAGS,
+  MAX_SUBMIT_YOUTUBE_LINK_LENGTH
 } from "~/server/validation/players";
 import AnimatedCard from "./animated-card";
 import CategoryTooltip from "./category-tooltip";
@@ -57,7 +62,8 @@ type PendingRunRow = Pick<
     areaLabel: string;
     submittedAtMs: number;
     runTimeMs: number;
-    categoryId: "fs" | "rr" | "ta-wiki";
+    youtubeLink: string | null;
+    categoryId: RunCategoryId;
     tagLabels: string[];
     primaryWeaponKey: string;
     secondaryWeaponKey: string | null;
@@ -73,6 +79,7 @@ type PendingRunRow = Pick<
   | "areaLabel"
   | "submittedAtMs"
   | "runTimeMs"
+  | "youtubeLink"
   | "categoryId"
   | "tagLabels"
   | "primaryWeaponKey"
@@ -92,7 +99,8 @@ type ReviewedRunRow = Pick<
     areaLabel: string;
     submittedAtMs: number;
     runTimeMs: number;
-    categoryId: "fs" | "rr" | "ta-wiki";
+    youtubeLink: string | null;
+    categoryId: RunCategoryId;
     tagLabels: string[];
     status: "approved" | "rejected";
     reviewerDisplayName: string | null;
@@ -112,6 +120,7 @@ type ReviewedRunRow = Pick<
   | "areaLabel"
   | "submittedAtMs"
   | "runTimeMs"
+  | "youtubeLink"
   | "categoryId"
   | "tagLabels"
   | "status"
@@ -125,7 +134,8 @@ type ReviewedRunRow = Pick<
 const categoryIconMap = {
   flame: Flame,
   shield: Shield,
-  "book-open": BookOpen
+  "book-open": BookOpen,
+  sword: Sword
 } as const;
 
 const defaultRunCategory = {
@@ -158,6 +168,11 @@ function asWeapons(value: unknown): LeaderboardWeaponResource[] {
   return asArray<LeaderboardWeaponResource>(
     (value as { weapons?: unknown }).weapons
   );
+}
+
+function asExistingTags(value: unknown): string[] {
+  if (!value || typeof value !== "object") return [];
+  return asArray<string>((value as { existingTags?: unknown }).existingTags);
 }
 
 export default function ModerationRunsTable({
@@ -204,6 +219,9 @@ export default function ModerationRunsTable({
   >({});
   const [secondaryWeaponDraftByRunId, setSecondaryWeaponDraftByRunId] =
     useState<Record<string, string>>({});
+  const [youtubeLinkDraftByRunId, setYoutubeLinkDraftByRunId] = useState<
+    Record<string, string>
+  >({});
 
   const pendingRuns = useMemo<PendingRunRow[]>(
     () => asArray<PendingRunRow>(pendingRunsQuery.data),
@@ -219,6 +237,10 @@ export default function ModerationRunsTable({
   );
   const weapons = useMemo<LeaderboardWeaponResource[]>(
     () => asWeapons(submitOptionsQuery.data),
+    [submitOptionsQuery.data]
+  );
+  const existingTags = useMemo<string[]>(
+    () => asExistingTags(submitOptionsQuery.data),
     [submitOptionsQuery.data]
   );
   const viewerUserId = session?.user?.id ?? null;
@@ -408,6 +430,11 @@ export default function ModerationRunsTable({
         [run.runId]: run.secondaryWeaponKey ?? run.primaryWeaponKey
       };
     });
+
+    setYoutubeLinkDraftByRunId((current) => {
+      if (current[run.runId] !== undefined) return current;
+      return { ...current, [run.runId]: run.youtubeLink ?? "" };
+    });
   };
 
   const resetDrafts = (run: PendingRunRow | ReviewedRunRow) => {
@@ -427,12 +454,22 @@ export default function ModerationRunsTable({
       ...current,
       [run.runId]: run.secondaryWeaponKey ?? run.primaryWeaponKey
     }));
+    setYoutubeLinkDraftByRunId((current) => ({
+      ...current,
+      [run.runId]: run.youtubeLink ?? ""
+    }));
     setTagInputByRunId((current) => ({ ...current, [run.runId]: "" }));
     setOpenDropdownKey(null);
   };
 
   const addTag = (runId: string) => {
     const nextTag = (tagInputByRunId[runId] ?? "").trim();
+    addTagValue(runId, nextTag);
+    setTagInputByRunId((current) => ({ ...current, [runId]: "" }));
+  };
+
+  const addTagValue = (runId: string, rawTag: string) => {
+    const nextTag = rawTag.trim();
     if (!nextTag) return;
 
     if (nextTag.length > MAX_SUBMIT_TAG_LENGTH) {
@@ -451,8 +488,6 @@ export default function ModerationRunsTable({
       setRunError(null);
       return { ...current, [runId]: [...tags, nextTag] };
     });
-
-    setTagInputByRunId((current) => ({ ...current, [runId]: "" }));
   };
 
   const removeTag = (runId: string, tag: string) => {
@@ -489,7 +524,8 @@ export default function ModerationRunsTable({
     draftTags: string[],
     draftCategoryId: string,
     draftPrimaryWeaponKey: string,
-    draftSecondaryWeaponKey: string
+    draftSecondaryWeaponKey: string,
+    draftYoutubeLink: string
   ) => {
     const tagsChanged =
       draftTags.length !== run.tagLabels.length ||
@@ -499,9 +535,15 @@ export default function ModerationRunsTable({
       tagsChanged ||
       draftCategoryId !== run.categoryId ||
       draftPrimaryWeaponKey !== run.primaryWeaponKey ||
+      draftYoutubeLink.trim() !== (run.youtubeLink ?? "") ||
       draftSecondaryWeaponKey !==
         (run.secondaryWeaponKey ?? run.primaryWeaponKey)
     );
+  };
+
+  const isValidYoutubeDraft = (value: string) => {
+    const trimmed = value.trim();
+    return !trimmed || extractYouTubeVideoId(trimmed) !== null;
   };
 
   return (
@@ -560,13 +602,16 @@ export default function ModerationRunsTable({
                   secondaryWeaponDraftByRunId[run.runId] ??
                   run.secondaryWeaponKey ??
                   run.primaryWeaponKey;
+                const draftYoutubeLink =
+                  youtubeLinkDraftByRunId[run.runId] ?? run.youtubeLink ?? "";
 
                 const hasChanges = hasRunDraftChanges(
                   run,
                   draftTags,
                   draftCategoryId,
                   draftPrimaryWeaponKey,
-                  draftSecondaryWeaponKey
+                  draftSecondaryWeaponKey,
+                  draftYoutubeLink
                 );
 
                 const category = getCategoryMeta(draftCategoryId);
@@ -986,6 +1031,25 @@ export default function ModerationRunsTable({
 
                               <div className="md:col-span-3">
                                 <div className="mb-1 text-[10px] tracking-[0.16em] text-gray-500 uppercase">
+                                  Video
+                                </div>
+                                <input
+                                  type="url"
+                                  value={draftYoutubeLink}
+                                  maxLength={MAX_SUBMIT_YOUTUBE_LINK_LENGTH}
+                                  onChange={(event) =>
+                                    setYoutubeLinkDraftByRunId((current) => ({
+                                      ...current,
+                                      [run.runId]: event.target.value
+                                    }))
+                                  }
+                                  placeholder="https://www.youtube.com/watch?v=..."
+                                  className="w-full rounded-lg border border-gray-700 bg-gray-900/70 px-3 py-2 text-sm text-gray-100 transition-colors outline-none focus:border-amber-400"
+                                />
+                              </div>
+
+                              <div className="md:col-span-3">
+                                <div className="mb-1 text-[10px] tracking-[0.16em] text-gray-500 uppercase">
                                   Tags
                                 </div>
 
@@ -1054,6 +1118,15 @@ export default function ModerationRunsTable({
                                       !hasChanges
                                     }
                                     onClick={() => {
+                                      if (
+                                        !isValidYoutubeDraft(draftYoutubeLink)
+                                      ) {
+                                        setRunError(
+                                          "YouTube link must point to a valid YouTube video"
+                                        );
+                                        return;
+                                      }
+
                                       setRunError(null);
                                       setSavingRunId(run.runId);
                                       updateRunDetailsMutation.mutate({
@@ -1062,6 +1135,8 @@ export default function ModerationRunsTable({
                                         primaryWeaponKey: draftPrimaryWeaponKey,
                                         secondaryWeaponKey:
                                           draftSecondaryWeaponKey,
+                                        youtubeLink:
+                                          draftYoutubeLink.trim() || undefined,
                                         tags: draftTags
                                       });
                                     }}
@@ -1085,6 +1160,23 @@ export default function ModerationRunsTable({
                                     </button>
                                   ) : null}
                                 </div>
+
+                                {existingTags.length > 0 ? (
+                                  <div className="mt-3 flex flex-wrap gap-2">
+                                    {existingTags.slice(0, 18).map((tag) => (
+                                      <button
+                                        key={`${run.runId}-existing-${tag}`}
+                                        type="button"
+                                        onClick={() =>
+                                          addTagValue(run.runId, tag)
+                                        }
+                                        className="rounded-full border border-gray-700 bg-white/5 px-2 py-1 text-xs whitespace-nowrap text-gray-300 transition-colors hover:border-amber-400 hover:text-amber-300"
+                                      >
+                                        {tag}
+                                      </button>
+                                    ))}
+                                  </div>
+                                ) : null}
                               </div>
                             </div>
                           </motion.div>
@@ -1172,13 +1264,16 @@ export default function ModerationRunsTable({
                   secondaryWeaponDraftByRunId[run.runId] ??
                   run.secondaryWeaponKey ??
                   run.primaryWeaponKey;
+                const draftYoutubeLink =
+                  youtubeLinkDraftByRunId[run.runId] ?? run.youtubeLink ?? "";
 
                 const hasChanges = hasRunDraftChanges(
                   run,
                   draftTags,
                   draftCategoryId,
                   draftPrimaryWeaponKey,
-                  draftSecondaryWeaponKey
+                  draftSecondaryWeaponKey,
+                  draftYoutubeLink
                 );
 
                 const category = getCategoryMeta(run.categoryId);
@@ -1681,6 +1776,27 @@ export default function ModerationRunsTable({
 
                                   <div className="md:col-span-3">
                                     <div className="mb-1 text-[10px] tracking-[0.16em] text-gray-500 uppercase">
+                                      Video
+                                    </div>
+                                    <input
+                                      type="url"
+                                      value={draftYoutubeLink}
+                                      maxLength={MAX_SUBMIT_YOUTUBE_LINK_LENGTH}
+                                      onChange={(event) =>
+                                        setYoutubeLinkDraftByRunId(
+                                          (current) => ({
+                                            ...current,
+                                            [run.runId]: event.target.value
+                                          })
+                                        )
+                                      }
+                                      placeholder="https://www.youtube.com/watch?v=..."
+                                      className="w-full rounded-lg border border-gray-700 bg-gray-900/70 px-3 py-2 text-sm text-gray-100 transition-colors outline-none focus:border-amber-400"
+                                    />
+                                  </div>
+
+                                  <div className="md:col-span-3">
+                                    <div className="mb-1 text-[10px] tracking-[0.16em] text-gray-500 uppercase">
                                       Tags
                                     </div>
 
@@ -1749,6 +1865,17 @@ export default function ModerationRunsTable({
                                           !hasChanges
                                         }
                                         onClick={() => {
+                                          if (
+                                            !isValidYoutubeDraft(
+                                              draftYoutubeLink
+                                            )
+                                          ) {
+                                            setRunError(
+                                              "YouTube link must point to a valid YouTube video"
+                                            );
+                                            return;
+                                          }
+
                                           setRunError(null);
                                           setSavingRunId(run.runId);
                                           updateReviewedRunDetailsMutation.mutate(
@@ -1759,6 +1886,9 @@ export default function ModerationRunsTable({
                                                 draftPrimaryWeaponKey,
                                               secondaryWeaponKey:
                                                 draftSecondaryWeaponKey,
+                                              youtubeLink:
+                                                draftYoutubeLink.trim() ||
+                                                undefined,
                                               tags: draftTags
                                             }
                                           );
@@ -1783,6 +1913,25 @@ export default function ModerationRunsTable({
                                         </button>
                                       ) : null}
                                     </div>
+
+                                    {existingTags.length > 0 ? (
+                                      <div className="mt-3 flex flex-wrap gap-2">
+                                        {existingTags
+                                          .slice(0, 18)
+                                          .map((tag) => (
+                                            <button
+                                              key={`${run.runId}-existing-${tag}`}
+                                              type="button"
+                                              onClick={() =>
+                                                addTagValue(run.runId, tag)
+                                              }
+                                              className="rounded-full border border-gray-700 bg-white/5 px-2 py-1 text-xs whitespace-nowrap text-gray-300 transition-colors hover:border-amber-400 hover:text-amber-300"
+                                            >
+                                              {tag}
+                                            </button>
+                                          ))}
+                                      </div>
+                                    ) : null}
                                   </div>
                                 </div>
                               ) : (
@@ -1843,7 +1992,7 @@ export default function ModerationRunsTable({
                                     </CategoryTooltip>
                                   </div>
 
-                                  <div className="md:col-span-3">
+                                  <div className="md:col-span-2">
                                     <div className="mb-1 text-[10px] tracking-[0.16em] text-gray-500 uppercase">
                                       Tags
                                     </div>
@@ -1864,6 +2013,27 @@ export default function ModerationRunsTable({
                                         </span>
                                       )}
                                     </div>
+                                  </div>
+
+                                  <div>
+                                    <div className="mb-1 text-[10px] tracking-[0.16em] text-gray-500 uppercase">
+                                      Video
+                                    </div>
+                                    {run.youtubeLink ? (
+                                      <a
+                                        href={run.youtubeLink}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        className="inline-flex items-center gap-1.5 rounded-lg border border-cyan-300/30 bg-cyan-400/10 px-3 py-2 text-xs font-semibold text-cyan-100 transition-colors hover:border-cyan-200 hover:bg-cyan-400/20"
+                                      >
+                                        <ExternalLink className="h-3.5 w-3.5" />
+                                        Open YouTube Video
+                                      </a>
+                                    ) : (
+                                      <span className="text-xs text-gray-500">
+                                        -
+                                      </span>
+                                    )}
                                   </div>
                                 </div>
                               )}

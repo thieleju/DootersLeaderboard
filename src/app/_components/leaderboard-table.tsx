@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   BookOpen,
@@ -10,12 +10,14 @@ import {
   Flame,
   Layers,
   Shield,
+  Sword,
   Tag,
   Trophy
 } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
 
+import { extractYouTubeVideoId } from "~/lib/youtube";
 import { api } from "~/trpc/react";
 import type {
   LeaderboardCategoryFilterKey,
@@ -35,7 +37,8 @@ import { categoryToneClasses } from "./theme-classes";
 const categoryIconMap = {
   flame: Flame,
   shield: Shield,
-  "book-open": BookOpen
+  "book-open": BookOpen,
+  sword: Sword
 } as const;
 
 interface LeaderboardTableProps {
@@ -47,10 +50,14 @@ export default function LeaderboardTable({ delay = 0 }: LeaderboardTableProps) {
   const filtersQuery = api.leaderboard.filters.useQuery(undefined, {
     staleTime: Infinity
   });
+  const allCategoriesQuery = api.players.categories.useQuery(undefined, {
+    staleTime: Infinity
+  });
   const [questId, setQuestId] = useState("");
   const [selectedCategoryId, setSelectedCategoryId] =
     useState<LeaderboardCategoryFilterKey>("all");
   const [isQuestMenuOpen, setIsQuestMenuOpen] = useState(false);
+  const [expandedRunId, setExpandedRunId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!questId && filtersQuery.data?.defaultQuestId) {
@@ -66,6 +73,8 @@ export default function LeaderboardTable({ delay = 0 }: LeaderboardTableProps) {
     filtersQuery.data?.quests ?? [];
   const availableCategories: LeaderboardCategoryOption[] =
     filtersQuery.data?.categories ?? [];
+  const allCategories: LeaderboardCategoryOption[] =
+    allCategoriesQuery.data ?? [];
 
   const rows = useMemo(() => {
     const allRows: LeaderboardRow[] = leaderboardQuery.data?.rows ?? [];
@@ -94,6 +103,10 @@ export default function LeaderboardTable({ delay = 0 }: LeaderboardTableProps) {
   useEffect(() => {
     setIsQuestMenuOpen(false);
   }, [questId]);
+
+  useEffect(() => {
+    setExpandedRunId(null);
+  }, [questId, selectedCategoryId]);
 
   return (
     <AnimatedCard
@@ -279,7 +292,13 @@ export default function LeaderboardTable({ delay = 0 }: LeaderboardTableProps) {
             transition={{ duration: 0.22 }}
           >
             {rows.map((row, index) => {
-              const category = availableCategories.find(
+              const isExpanded = expandedRunId === row.runId;
+              const rowYoutubeLink =
+                typeof row.youtubeLink === "string" ? row.youtubeLink : null;
+              const rowYoutubeVideoId = rowYoutubeLink
+                ? extractYouTubeVideoId(rowYoutubeLink)
+                : null;
+              const category = allCategories.find(
                 (item) => item.id === row.categoryId
               );
               const CategoryIcon = category
@@ -291,138 +310,196 @@ export default function LeaderboardTable({ delay = 0 }: LeaderboardTableProps) {
                 : categoryToneClasses.amber;
 
               return (
-                <motion.tr
-                  key={row.runId}
-                  layout
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.2, delay: index * 0.03 }}
-                  className="group border-b border-gray-800/70 transition-colors hover:bg-white/5"
-                >
-                  <td className="px-3 py-4 align-middle">
-                    <div className="justify-left flex items-center">
-                      <span
-                        className={`flex h-8 w-8 items-center justify-center rounded-full border text-sm font-bold ${getRankBadgeClass(row.rank)}`}
-                      >
-                        {row.rank}
-                      </span>
-                    </div>
-                  </td>
-
-                  <td className="px-3 py-4 align-middle">
-                    <Link
-                      href={`/profile/${row.userId}`}
-                      className="flex items-center gap-3 rounded-md transition-colors hover:text-amber-300 focus-visible:ring-2 focus-visible:ring-amber-300/40 focus-visible:outline-none"
-                    >
-                      <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full border border-gray-700 bg-white/5 text-sm font-semibold text-gray-300">
-                        {row.userImage ? (
-                          <Image
-                            src={row.userImage}
-                            alt={row.userName}
-                            width={40}
-                            height={40}
-                            className="h-full w-full object-cover"
-                          />
-                        ) : (
-                          row.userName.slice(0, 2).toUpperCase()
-                        )}
+                <Fragment key={row.runId}>
+                  <motion.tr
+                    layout
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.2, delay: index * 0.03 }}
+                    className={`group cursor-pointer border-b border-gray-800/70 transition-colors ${
+                      isExpanded ? "bg-white/6" : "hover:bg-white/5"
+                    }`}
+                    onClick={() => {
+                      setExpandedRunId((current) =>
+                        current === row.runId ? null : row.runId
+                      );
+                    }}
+                  >
+                    <td className="px-3 py-4 align-middle">
+                      <div className="justify-left flex items-center">
+                        <span
+                          className={`flex h-8 w-8 items-center justify-center rounded-full border text-sm font-bold ${getRankBadgeClass(row.rank)}`}
+                        >
+                          {row.rank}
+                        </span>
                       </div>
-                      <div className="min-w-0">
-                        <div className="truncate text-sm font-semibold text-white">
-                          {row.userName}
-                        </div>
-                        <div className="truncate text-xs text-gray-400">
-                          {row.hunterName}
-                        </div>
-                      </div>
-                    </Link>
-                  </td>
+                    </td>
 
-                  <td className="px-3 py-4 align-middle">
-                    <div className="flex items-center gap-2">
-                      <Image
-                        src={`/weapons/${row.primaryWeaponKey}.png`}
-                        alt={row.primaryWeaponKey.toUpperCase()}
-                        title={row.primaryWeaponKey.toUpperCase()}
-                        width={28}
-                        height={28}
-                        className="h-7 w-7 object-contain"
-                      />
-                      {row.secondaryWeaponKey ? (
+                    <td className="px-3 py-4 align-middle">
+                      <div className="flex items-center gap-2">
+                        <ChevronDown
+                          className={`h-4 w-4 shrink-0 text-gray-500 transition-transform duration-200 ${
+                            isExpanded ? "rotate-180 text-amber-300" : ""
+                          }`}
+                        />
+                        <Link
+                          href={`/profile/${row.userId}`}
+                          onClick={(event) => event.stopPropagation()}
+                          className="flex min-w-0 items-center gap-3 rounded-md transition-colors hover:text-amber-300 focus-visible:ring-2 focus-visible:ring-amber-300/40 focus-visible:outline-none"
+                        >
+                          <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full border border-gray-700 bg-white/5 text-sm font-semibold text-gray-300">
+                            {row.userImage ? (
+                              <Image
+                                src={row.userImage}
+                                alt={row.userName}
+                                width={40}
+                                height={40}
+                                className="h-full w-full object-cover"
+                              />
+                            ) : (
+                              row.userName.slice(0, 2).toUpperCase()
+                            )}
+                          </div>
+                          <div className="min-w-0">
+                            <div className="truncate text-sm font-semibold text-white">
+                              {row.userName}
+                            </div>
+                            <div className="truncate text-xs text-gray-400">
+                              {row.hunterName}
+                            </div>
+                          </div>
+                        </Link>
+                      </div>
+                    </td>
+
+                    <td className="px-3 py-4 align-middle">
+                      <div className="flex items-center gap-2">
                         <Image
-                          src={`/weapons/${row.secondaryWeaponKey}.png`}
-                          alt={row.secondaryWeaponKey.toUpperCase()}
-                          title={row.secondaryWeaponKey.toUpperCase()}
+                          src={`/weapons/${row.primaryWeaponKey}.png`}
+                          alt={row.primaryWeaponKey.toUpperCase()}
+                          title={row.primaryWeaponKey.toUpperCase()}
                           width={28}
                           height={28}
                           className="h-7 w-7 object-contain"
                         />
-                      ) : null}
-                    </div>
-                  </td>
+                        {row.secondaryWeaponKey ? (
+                          <Image
+                            src={`/weapons/${row.secondaryWeaponKey}.png`}
+                            alt={row.secondaryWeaponKey.toUpperCase()}
+                            title={row.secondaryWeaponKey.toUpperCase()}
+                            width={28}
+                            height={28}
+                            className="h-7 w-7 object-contain"
+                          />
+                        ) : null}
+                      </div>
+                    </td>
 
-                  <td className="px-3 py-4 align-middle">
-                    {category ? (
-                      <CategoryTooltip
-                        label={category.label}
-                        description={category.description}
-                        link={category.link}
-                        wrapperClassName="inline-block"
-                      >
+                    <td className="px-3 py-4 align-middle">
+                      {category ? (
+                        <CategoryTooltip
+                          label={category.label}
+                          description={category.description}
+                          link={category.link}
+                          wrapperClassName="inline-block"
+                        >
+                          <span
+                            className={`inline-flex h-6 items-center justify-center gap-1.5 rounded-full border px-2.5 text-xs leading-none ${tone.badge}`}
+                          >
+                            <CategoryIcon
+                              className={`h-3.5 w-3.5 shrink-0 ${tone.icon}`}
+                            />
+                            {category.label}
+                          </span>
+                        </CategoryTooltip>
+                      ) : (
                         <span
                           className={`inline-flex h-6 items-center justify-center gap-1.5 rounded-full border px-2.5 text-xs leading-none ${tone.badge}`}
                         >
                           <CategoryIcon
                             className={`h-3.5 w-3.5 shrink-0 ${tone.icon}`}
                           />
-                          {category.label}
+                          {row.categoryId}
                         </span>
-                      </CategoryTooltip>
-                    ) : (
-                      <span
-                        className={`inline-flex h-6 items-center justify-center gap-1.5 rounded-full border px-2.5 text-xs leading-none ${tone.badge}`}
-                      >
-                        <CategoryIcon
-                          className={`h-3.5 w-3.5 shrink-0 ${tone.icon}`}
-                        />
-                        {row.categoryId}
-                      </span>
-                    )}
-                  </td>
-
-                  <td className="px-3 py-4 align-middle">
-                    <div className="flex flex-wrap items-center gap-2">
-                      {row.tagLabels.length > 0 ? (
-                        row.tagLabels.map((tagLabel) => (
-                          <span
-                            key={`${row.runId}-${tagLabel}`}
-                            className="inline-flex h-6 items-center justify-center gap-1.5 rounded-full border border-gray-700 bg-white/5 px-2.5 text-xs leading-none whitespace-nowrap text-gray-300 transition-all hover:border-amber-300/40 hover:bg-amber-400/10 hover:text-amber-200 hover:shadow-[0_0_0_1px_rgba(251,191,36,0.12),0_6px_18px_rgba(251,191,36,0.1)]"
-                          >
-                            <Tag className="h-3.5 w-3.5 shrink-0 text-gray-500" />
-                            {tagLabel}
-                          </span>
-                        ))
-                      ) : (
-                        <span className="text-xs text-gray-500">-</span>
                       )}
-                    </div>
-                  </td>
+                    </td>
 
-                  <td className="px-3 py-4 text-right align-middle">
-                    <div className="text-lg font-semibold text-amber-300">
-                      +{row.score.toLocaleString("en-US")}
-                    </div>
-                  </td>
+                    <td className="px-3 py-4 align-middle">
+                      <div className="flex flex-wrap items-center gap-2">
+                        {row.tagLabels.length > 0 ? (
+                          row.tagLabels.map((tagLabel) => (
+                            <span
+                              key={`${row.runId}-${tagLabel}`}
+                              className="inline-flex h-6 items-center justify-center gap-1.5 rounded-full border border-gray-700 bg-white/5 px-2.5 text-xs leading-none whitespace-nowrap text-gray-300 transition-all hover:border-amber-300/40 hover:bg-amber-400/10 hover:text-amber-200 hover:shadow-[0_0_0_1px_rgba(251,191,36,0.12),0_6px_18px_rgba(251,191,36,0.1)]"
+                            >
+                              <Tag className="h-3.5 w-3.5 shrink-0 text-gray-500" />
+                              {tagLabel}
+                            </span>
+                          ))
+                        ) : (
+                          <span className="text-xs text-gray-500">-</span>
+                        )}
+                      </div>
+                    </td>
 
-                  <td className="px-3 py-4 text-right align-middle">
-                    <div className="text-lg font-semibold text-amber-300">
-                      {formatRunTime(row.runTimeMs)}
-                    </div>
-                    <div className="text-xs text-gray-400">
-                      {formatFullDateTime(row.submittedAtMs)}
-                    </div>
-                  </td>
-                </motion.tr>
+                    <td className="px-3 py-4 text-right align-middle">
+                      <div className="text-lg font-semibold text-amber-300">
+                        +{row.score.toLocaleString("en-US")}
+                      </div>
+                    </td>
+
+                    <td className="px-3 py-4 text-right align-middle">
+                      <div className="text-lg font-semibold text-amber-300">
+                        {formatRunTime(row.runTimeMs)}
+                      </div>
+                      <div className="text-xs text-gray-400">
+                        {formatFullDateTime(row.submittedAtMs)}
+                      </div>
+                    </td>
+                  </motion.tr>
+
+                  <AnimatePresence initial={false}>
+                    {isExpanded ? (
+                      <motion.tr
+                        key={`${row.runId}-details`}
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        transition={{ duration: 0.2 }}
+                        className="border-b border-gray-800/70"
+                      >
+                        <td colSpan={7} className="px-0 py-0 align-top">
+                          <motion.div
+                            initial={{ height: 0, opacity: 0 }}
+                            animate={{ height: "auto", opacity: 1 }}
+                            exit={{ height: 0, opacity: 0 }}
+                            transition={{ duration: 0.24, ease: "easeOut" }}
+                            className="overflow-hidden"
+                          >
+                            <div className="bg-gray-900 px-4 py-4">
+                              {rowYoutubeVideoId ? (
+                                <div className="overflow-hidden rounded-xl border border-gray-700/80 bg-black/35">
+                                  <iframe
+                                    className="aspect-video w-full"
+                                    src={`https://www.youtube.com/embed/${rowYoutubeVideoId}`}
+                                    title="YouTube video"
+                                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                                    referrerPolicy="strict-origin-when-cross-origin"
+                                    allowFullScreen
+                                  />
+                                </div>
+                              ) : (
+                                <span className="text-xs text-gray-500">
+                                  No video
+                                </span>
+                              )}
+                            </div>
+                          </motion.div>
+                        </td>
+                      </motion.tr>
+                    ) : null}
+                  </AnimatePresence>
+                </Fragment>
               );
             })}
           </motion.tbody>

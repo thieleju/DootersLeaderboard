@@ -24,6 +24,7 @@ export type PlayerOverviewRow = {
 export type PlayerProfileRunRow = {
   runId: string;
   hunterName: string;
+  youtubeLink: string | null;
   questTitle: string;
   monster: string;
   difficultyStars: number;
@@ -73,6 +74,7 @@ export type SubmitRunInput = {
   category: RunCategoryId;
   primaryWeaponKey: string;
   secondaryWeaponKey: string;
+  youtubeLink?: string;
   tags: string[];
 };
 
@@ -88,6 +90,7 @@ export type ModerationRunRow = {
   areaLabel: string;
   submittedAtMs: number;
   runTimeMs: number;
+  youtubeLink: string | null;
   categoryId: RunCategoryId;
   tagLabels: string[];
   primaryWeaponKey: string;
@@ -106,6 +109,7 @@ export type ModerationHistoryRunRow = {
   areaLabel: string;
   submittedAtMs: number;
   runTimeMs: number;
+  youtubeLink: string | null;
   categoryId: RunCategoryId;
   tagLabels: string[];
   status: "approved" | "rejected";

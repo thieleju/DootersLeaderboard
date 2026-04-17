@@ -2,15 +2,19 @@ export type UserRole = "runner" | "moderator" | "admin";
 
 export type QuestType = "event" | "optional" | "arena" | "investigation";
 
-export type RunCategoryId = "fs" | "rr" | "ta-wiki";
+export type RunCategoryId = string;
 
-export type LeaderboardCategoryIcon = "flame" | "shield" | "book-open";
+export type LeaderboardCategoryIcon =
+  | "flame"
+  | "shield"
+  | "book-open"
+  | "sword";
 
 export type LeaderboardCategoryColor = "amber" | "cyan" | "emerald" | "violet";
 
 export type RunTagKey = "heroics";
 
-export type LeaderboardCategoryFilterKey = "all" | RunCategoryId;
+export type LeaderboardCategoryFilterKey = string;
 
 export type LeaderboardWeaponKey =
   | "gs"
@@ -133,6 +137,7 @@ export type LeaderboardRow = {
   questId: string;
   submittedAtMs: number;
   runTimeMs: number;
+  youtubeLink: string | null;
   score: number;
   categoryId: RunCategoryId;
   tagLabels: string[];

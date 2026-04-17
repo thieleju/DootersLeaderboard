@@ -5,7 +5,7 @@
     "icon": "flame",
     "color": "cyan",
     "description": "Runs that don't follow any specific ruleset. This is the most common category for runs.",
-    "link": null,
+    "link": null
   },
   {
     "id": "rr",
@@ -13,7 +13,7 @@
     "icon": "shield",
     "color": "emerald",
     "description": "Runs that follow the Restricted Rules ruleset. Click the link for more details on the ruleset.",
-    "link": "https://docs.google.com/document/d/1OFa9Cf2ZmIA0vxwo6gR5dLmthdABE2UpIUov1OhPKLY/view?tab=t.0",
+    "link": "https://docs.google.com/document/d/1OFa9Cf2ZmIA0vxwo6gR5dLmthdABE2UpIUov1OhPKLY/view?tab=t.0"
   },
   {
     "id": "ta-wiki",
@@ -21,6 +21,14 @@
     "icon": "book-open",
     "color": "violet",
     "description": "Runs that follow the TA Wiki ruleset. Click the link for more details on the ruleset.",
-    "link": "https://docs.google.com/document/d/1Dm2At42ec7uhOQAllt6DhjsKuyyCRdE3L6z0miLNVWk/view?tab=t.0#heading=h.f2ye04lykoq4",
+    "link": "https://docs.google.com/document/d/1Dm2At42ec7uhOQAllt6DhjsKuyyCRdE3L6z0miLNVWk/view?tab=t.0#heading=h.f2ye04lykoq4"
   },
+  {
+    "id": "arena",
+    "label": "Arena Quest",
+    "icon": "sword",
+    "color": "rose",
+    "description": "Arena Quest runs.",
+    "link": null
+  }
 ]

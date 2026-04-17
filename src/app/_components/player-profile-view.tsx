@@ -7,12 +7,14 @@ import {
   BookOpen,
   ChevronDown,
   Clock3,
+  ExternalLink,
   Flame,
   Loader2,
   Upload,
   Plus,
   Send,
   Shield,
+  Sword,
   Check,
   Tag,
   UserRound,
@@ -24,6 +26,7 @@ import Link from "next/link";
 import Image from "next/image";
 
 import { QUERY_DEFAULT_STALE_TIME_MS } from "~/constants";
+import { extractYouTubeVideoId } from "~/lib/youtube";
 import type {
   PlayerProfileRunRow,
   SubmitRunInput
@@ -33,6 +36,7 @@ import {
   MAX_SUBMIT_HUNTER_NAME_LENGTH,
   MAX_SUBMIT_TAG_LENGTH,
   MAX_SUBMIT_TAGS,
+  MAX_SUBMIT_YOUTUBE_LINK_LENGTH,
   submitRunInputSchema
 } from "~/server/validation/players";
 import { maskRunTimeInput } from "~/server/validation/run-time";
@@ -58,16 +62,18 @@ interface FormState {
   questId: string;
   hunterName: string;
   runTime: string;
-  category: RunCategoryId | "";
+  category: RunCategoryId;
   primaryWeaponKey: string;
   secondaryWeaponKey: string;
+  youtubeLink: string;
   tags: string[];
 }
 
 const categoryIconMap = {
   flame: Flame,
   shield: Shield,
-  "book-open": BookOpen
+  "book-open": BookOpen,
+  sword: Sword
 } as const;
 
 const defaultRunCategory = {
@@ -86,6 +92,7 @@ function emptyFormState(questId: string): FormState {
     category: "",
     primaryWeaponKey: "",
     secondaryWeaponKey: "",
+    youtubeLink: "",
     tags: []
   };
 }
@@ -221,6 +228,51 @@ export default function PlayerProfileView({
       ? { ...form, questId: defaultQuestId }
       : form;
 
+  const selectedSubmitQuest = useMemo(() => {
+    return (submitOptionsQuery.data?.quests ?? []).find(
+      (quest) => quest.id === formWithDefaultQuest.questId
+    );
+  }, [formWithDefaultQuest.questId, submitOptionsQuery.data?.quests]);
+
+  const isArenaQuest = selectedSubmitQuest?.type === "arena";
+
+  const selectableCategories = useMemo(() => {
+    const allCategories = submitOptionsQuery.data?.categories ?? [];
+    return allCategories.filter((category) =>
+      isArenaQuest ? category.id === "arena" : category.id !== "arena"
+    );
+  }, [isArenaQuest, submitOptionsQuery.data?.categories]);
+
+  useEffect(() => {
+    setForm((current) => {
+      if (!current.questId) return current;
+
+      if (isArenaQuest) {
+        if (current.category === "arena") return current;
+        return { ...current, category: "arena" };
+      }
+
+      if (current.category && current.category !== "arena") {
+        return current;
+      }
+
+      const fallbackCategory = selectableCategories[0]?.id ?? "";
+      return { ...current, category: fallbackCategory };
+    });
+  }, [isArenaQuest, selectableCategories]);
+
+  const youtubeVideoId = useMemo(() => {
+    const link = formWithDefaultQuest.youtubeLink.trim();
+    if (!link) return null;
+    return extractYouTubeVideoId(link);
+  }, [formWithDefaultQuest.youtubeLink]);
+
+  const youtubeLinkError = useMemo(() => {
+    const link = formWithDefaultQuest.youtubeLink.trim();
+    if (!link) return null;
+    return youtubeVideoId ? null : "Please enter a valid YouTube video URL.";
+  }, [formWithDefaultQuest.youtubeLink, youtubeVideoId]);
+
   const submitMutation = api.players.submitRun.useMutation({
     onSuccess: async () => {
       setForm(emptyFormState(defaultQuestId));
@@ -316,6 +368,21 @@ export default function PlayerProfileView({
   const submitForm = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
+    if (youtubeLinkError) {
+      setFormError(youtubeLinkError);
+      return;
+    }
+
+    if (isArenaQuest && formWithDefaultQuest.category !== "arena") {
+      setFormError("Arena quests must use arena category.");
+      return;
+    }
+
+    if (!isArenaQuest && formWithDefaultQuest.category === "arena") {
+      setFormError("Arena category can only be used for arena quests.");
+      return;
+    }
+
     const payload: SubmitRunInput = {
       questId: formWithDefaultQuest.questId,
       hunterName: formWithDefaultQuest.hunterName,
@@ -323,6 +390,7 @@ export default function PlayerProfileView({
       category: formWithDefaultQuest.category || "fs",
       primaryWeaponKey: formWithDefaultQuest.primaryWeaponKey,
       secondaryWeaponKey: formWithDefaultQuest.secondaryWeaponKey,
+      youtubeLink: formWithDefaultQuest.youtubeLink.trim() || undefined,
       tags: formWithDefaultQuest.tags
     };
 
@@ -750,6 +818,7 @@ export default function PlayerProfileView({
                 canModerateRuns &&
                 canModerateOwnRuns &&
                 run.status !== "rejected";
+              const runYoutubeLink = getStringField(run, "youtubeLink");
               const statusLabel =
                 run.status === "approved"
                   ? "Approved"
@@ -1030,7 +1099,7 @@ export default function PlayerProfileView({
                                 </CategoryTooltip>
                               </div>
 
-                              <div className="md:col-span-3">
+                              <div className="md:col-span-2">
                                 <div className="mb-1 text-[10px] tracking-[0.16em] text-gray-500 uppercase">
                                   Tags
                                 </div>
@@ -1051,6 +1120,27 @@ export default function PlayerProfileView({
                                     </span>
                                   )}
                                 </div>
+                              </div>
+
+                              <div>
+                                <div className="mb-1 text-[10px] tracking-[0.16em] text-gray-500 uppercase">
+                                  Video
+                                </div>
+                                {runYoutubeLink ? (
+                                  <a
+                                    href={runYoutubeLink}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="inline-flex items-center gap-1.5 rounded-lg border border-cyan-300/30 bg-cyan-400/10 px-3 py-2 text-xs font-semibold text-cyan-100 transition-colors hover:border-cyan-200 hover:bg-cyan-400/20"
+                                  >
+                                    <ExternalLink className="h-3.5 w-3.5" />
+                                    Open YouTube Video
+                                  </a>
+                                ) : (
+                                  <span className="text-xs text-gray-500">
+                                    -
+                                  </span>
+                                )}
                               </div>
                             </div>
                           </motion.div>
@@ -1214,14 +1304,20 @@ export default function PlayerProfileView({
                 <button
                   type="button"
                   onClick={() =>
+                    !isArenaQuest &&
                     setOpenDropdown(
                       openDropdown === "category" ? null : "category"
                     )
                   }
-                  className="relative w-full rounded-lg border border-gray-700 bg-gray-900/70 px-3 py-2 pr-10 text-left text-sm text-gray-100 transition-colors outline-none hover:border-amber-400 focus-visible:border-amber-400"
+                  disabled={isArenaQuest}
+                  className={`relative w-full rounded-lg border bg-gray-900/70 px-3 py-2 pr-10 text-left text-sm text-gray-100 transition-colors outline-none ${
+                    isArenaQuest
+                      ? "cursor-not-allowed border-gray-800/90 opacity-70"
+                      : "border-gray-700 hover:border-amber-400 focus-visible:border-amber-400"
+                  }`}
                 >
                   <span className="block truncate">
-                    {(submitOptionsQuery.data?.categories ?? []).find(
+                    {selectableCategories.find(
                       (c) => c.id === formWithDefaultQuest.category
                     )?.label ?? "Select category"}
                   </span>
@@ -1233,7 +1329,7 @@ export default function PlayerProfileView({
                     }`}
                   />
                 </button>
-                {openDropdown === "category" && (
+                {openDropdown === "category" && !isArenaQuest && (
                   <motion.div
                     role="listbox"
                     initial={{ opacity: 0, y: -4, scale: 0.99 }}
@@ -1242,32 +1338,30 @@ export default function PlayerProfileView({
                     transition={{ duration: 0.16 }}
                     className="absolute z-30 mt-2 w-full overflow-y-auto rounded-lg border border-gray-700 bg-gray-900/95 p-1 shadow-2xl shadow-black/35 backdrop-blur-sm"
                   >
-                    {(submitOptionsQuery.data?.categories ?? []).map(
-                      (category) => (
-                        <button
-                          key={category.id}
-                          type="button"
-                          role="option"
-                          aria-selected={
-                            formWithDefaultQuest.category === category.id
-                          }
-                          onClick={() => {
-                            setForm((current) => ({
-                              ...current,
-                              category: category.id
-                            }));
-                            setOpenDropdown(null);
-                          }}
-                          className={`flex w-full rounded-md px-3 py-2 text-left text-sm transition-colors ${
-                            formWithDefaultQuest.category === category.id
-                              ? "bg-amber-400/15 text-amber-100"
-                              : "text-gray-200 hover:bg-white/7"
-                          }`}
-                        >
-                          {category.label}
-                        </button>
-                      )
-                    )}
+                    {selectableCategories.map((category) => (
+                      <button
+                        key={category.id}
+                        type="button"
+                        role="option"
+                        aria-selected={
+                          formWithDefaultQuest.category === category.id
+                        }
+                        onClick={() => {
+                          setForm((current) => ({
+                            ...current,
+                            category: category.id
+                          }));
+                          setOpenDropdown(null);
+                        }}
+                        className={`flex w-full rounded-md px-3 py-2 text-left text-sm transition-colors ${
+                          formWithDefaultQuest.category === category.id
+                            ? "bg-amber-400/15 text-amber-100"
+                            : "text-gray-200 hover:bg-white/7"
+                        }`}
+                      >
+                        {category.label}
+                      </button>
+                    ))}
                   </motion.div>
                 )}
               </div>
@@ -1420,6 +1514,32 @@ export default function PlayerProfileView({
             </div>
 
             <div className="space-y-2 md:col-span-2">
+              <label className="space-y-1">
+                <span className="text-xs tracking-[0.16em] text-gray-500 uppercase">
+                  YouTube Link (optional)
+                </span>
+                <input
+                  type="url"
+                  className={`w-full rounded-lg border bg-gray-900/70 px-3 py-2 text-sm text-gray-100 transition-colors outline-none ${
+                    youtubeLinkError
+                      ? "border-red-400/70 focus:border-red-300"
+                      : "border-gray-700 focus:border-amber-400"
+                  }`}
+                  value={formWithDefaultQuest.youtubeLink}
+                  maxLength={MAX_SUBMIT_YOUTUBE_LINK_LENGTH}
+                  onChange={(event) =>
+                    setForm((current) => ({
+                      ...current,
+                      youtubeLink: event.target.value
+                    }))
+                  }
+                  placeholder="https://www.youtube.com/watch?v=..."
+                />
+                {youtubeLinkError ? (
+                  <p className="text-xs text-red-300">{youtubeLinkError}</p>
+                ) : null}
+              </label>
+
               <span className="text-xs tracking-[0.16em] text-gray-500 uppercase">
                 Tags
               </span>
@@ -1505,6 +1625,21 @@ export default function PlayerProfileView({
                 {submitMutation.isPending ? "Submitting..." : "Submit run"}
               </button>
             </div>
+
+            {youtubeVideoId ? (
+              <div className="md:col-span-2">
+                <div className="overflow-hidden rounded-xl border border-gray-700/80 bg-black/35">
+                  <iframe
+                    className="aspect-video w-full"
+                    src={`https://www.youtube.com/embed/${youtubeVideoId}`}
+                    title="YouTube video preview"
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                    referrerPolicy="strict-origin-when-cross-origin"
+                    allowFullScreen
+                  />
+                </div>
+              </div>
+            ) : null}
           </form>
         </AnimatedCard>
       ) : null}

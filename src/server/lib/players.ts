@@ -12,7 +12,8 @@ import {
   inArray,
   isNotNull,
   isNull,
-  or
+  or,
+  sql
 } from "drizzle-orm";
 import { parse } from "jsonc-parser";
 
@@ -28,6 +29,7 @@ import type {
   LeaderboardCategoryOption,
   LeaderboardCategoryResource,
   LeaderboardQuestOption,
+  QuestType,
   RunCategoryId,
   UserRole,
   LeaderboardWeaponKey,
@@ -100,6 +102,27 @@ function normalizeTags(tags: string[]) {
 function assertCanModerateRuns(viewerRole: UserRole) {
   if (viewerRole !== "moderator" && viewerRole !== "admin") {
     throw new TRPCError({ code: "FORBIDDEN", message: "Cannot moderate runs" });
+  }
+}
+
+function assertCategoryAllowedForQuestType(
+  category: RunCategoryId,
+  questType: QuestType
+) {
+  const isArenaQuest = questType === "arena";
+
+  if (isArenaQuest && category !== "arena") {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message: "Arena quests must use arena category"
+    });
+  }
+
+  if (!isArenaQuest && category === "arena") {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message: "Arena category can only be used for arena quests"
+    });
   }
 }
 
@@ -292,6 +315,7 @@ export async function getPlayerProfile(
     .select({
       runId: runsTable.id,
       hunterName: runsTable.hunterName,
+      youtubeLink: sql<string | null>`${runsTable.youtubeLink}`,
       categoryId: runsTable.category,
       tags: runsTable.tags,
       submittedAt: runsTable.submittedAt,
@@ -364,6 +388,7 @@ export async function getPlayerProfile(
     return {
       runId: run.runId,
       hunterName: run.hunterName,
+      youtubeLink: run.youtubeLink,
       questTitle: run.questTitle,
       monster: run.monster,
       difficultyStars: run.difficultyStars,
@@ -523,6 +548,7 @@ export async function getPendingRunsForModeration(
       tags: runsTable.tags,
       submittedAt: runsTable.submittedAt,
       runTimeMs: runsTable.runTimeMs,
+      youtubeLink: sql<string | null>`${runsTable.youtubeLink}`,
       primaryWeaponKey: runsTable.primaryWeapon,
       secondaryWeaponKey: runsTable.secondaryWeapon,
       questTitle: questsTable.title,
@@ -557,6 +583,7 @@ export async function getPendingRunsForModeration(
         ? run.submittedAt.getTime()
         : new Date(run.submittedAt).getTime(),
     runTimeMs: run.runTimeMs,
+    youtubeLink: run.youtubeLink,
     categoryId: run.categoryId,
     tagLabels: parseRunTags(run.tags),
     primaryWeaponKey: run.primaryWeaponKey,
@@ -573,6 +600,7 @@ export async function updatePendingRunTags(
   const run = await db
     .select({
       id: runsTable.id,
+      questId: runsTable.questId,
       approvedByUserId: runsTable.approvedByUserId,
       rejectedByUserId: runsTable.rejectedByUserId
     })
@@ -624,6 +652,7 @@ export async function updatePendingRunDetails(
     category: RunCategoryId;
     primaryWeaponKey: string;
     secondaryWeaponKey: string;
+    youtubeLink?: string;
     tags: string[];
   },
   viewerRole: UserRole
@@ -633,6 +662,7 @@ export async function updatePendingRunDetails(
   const run = await db
     .select({
       id: runsTable.id,
+      questId: runsTable.questId,
       approvedByUserId: runsTable.approvedByUserId,
       rejectedByUserId: runsTable.rejectedByUserId
     })
@@ -656,6 +686,19 @@ export async function updatePendingRunDetails(
     throw new TRPCError({ code: "BAD_REQUEST", message: "Invalid category" });
   }
 
+  const quest = await db
+    .select({ type: questsTable.type })
+    .from(questsTable)
+    .where(eq(questsTable.id, run.questId))
+    .limit(1)
+    .then((rows) => rows[0] ?? null);
+
+  if (!quest) {
+    throw new TRPCError({ code: "BAD_REQUEST", message: "Invalid quest" });
+  }
+
+  assertCategoryAllowedForQuestType(input.category, quest.type);
+
   if (!weaponByKey.has(input.primaryWeaponKey as LeaderboardWeaponKey)) {
     throw new TRPCError({
       code: "BAD_REQUEST",
@@ -671,6 +714,9 @@ export async function updatePendingRunDetails(
   }
 
   const tags = normalizeTags(input.tags);
+  const youtubeLink = input.youtubeLink?.trim()
+    ? input.youtubeLink.trim()
+    : null;
 
   if (tags.length > MAX_SUBMIT_TAGS) {
     throw new TRPCError({
@@ -694,6 +740,7 @@ export async function updatePendingRunDetails(
       category: input.category,
       primaryWeapon: input.primaryWeaponKey,
       secondaryWeapon: input.secondaryWeaponKey,
+      youtubeLink,
       tags: tags.length > 0 ? JSON.stringify(tags) : "null"
     })
     .where(eq(runsTable.id, input.runId));
@@ -706,11 +753,13 @@ export async function updateReviewedRunDetails(input: {
   category: RunCategoryId;
   primaryWeaponKey: string;
   secondaryWeaponKey: string;
+  youtubeLink?: string;
   tags: string[];
 }) {
   const run = await db
     .select({
       id: runsTable.id,
+      questId: runsTable.questId,
       approvedByUserId: runsTable.approvedByUserId,
       rejectedByUserId: runsTable.rejectedByUserId
     })
@@ -734,6 +783,19 @@ export async function updateReviewedRunDetails(input: {
     throw new TRPCError({ code: "BAD_REQUEST", message: "Invalid category" });
   }
 
+  const quest = await db
+    .select({ type: questsTable.type })
+    .from(questsTable)
+    .where(eq(questsTable.id, run.questId))
+    .limit(1)
+    .then((rows) => rows[0] ?? null);
+
+  if (!quest) {
+    throw new TRPCError({ code: "BAD_REQUEST", message: "Invalid quest" });
+  }
+
+  assertCategoryAllowedForQuestType(input.category, quest.type);
+
   if (!weaponByKey.has(input.primaryWeaponKey as LeaderboardWeaponKey)) {
     throw new TRPCError({
       code: "BAD_REQUEST",
@@ -749,6 +811,9 @@ export async function updateReviewedRunDetails(input: {
   }
 
   const tags = normalizeTags(input.tags);
+  const youtubeLink = input.youtubeLink?.trim()
+    ? input.youtubeLink.trim()
+    : null;
 
   if (tags.length > MAX_SUBMIT_TAGS) {
     throw new TRPCError({
@@ -772,6 +837,7 @@ export async function updateReviewedRunDetails(input: {
       category: input.category,
       primaryWeapon: input.primaryWeaponKey,
       secondaryWeapon: input.secondaryWeaponKey,
+      youtubeLink,
       tags: tags.length > 0 ? JSON.stringify(tags) : "null"
     })
     .where(eq(runsTable.id, input.runId));
@@ -796,6 +862,7 @@ export async function getReviewedRunsForModeration(
       tags: runsTable.tags,
       submittedAt: runsTable.submittedAt,
       runTimeMs: runsTable.runTimeMs,
+      youtubeLink: sql<string | null>`${runsTable.youtubeLink}`,
       primaryWeaponKey: runsTable.primaryWeapon,
       secondaryWeaponKey: runsTable.secondaryWeapon,
       approvedByUserId: runsTable.approvedByUserId,
@@ -861,6 +928,7 @@ export async function getReviewedRunsForModeration(
         ? run.submittedAt.getTime()
         : new Date(run.submittedAt).getTime(),
     runTimeMs: run.runTimeMs,
+    youtubeLink: run.youtubeLink,
     categoryId: run.categoryId,
     tagLabels: parseRunTags(run.tags),
     status: run.approvedByUserId ? "approved" : "rejected",
@@ -893,7 +961,7 @@ export async function submitRun(input: SubmitRunInput, userId: string) {
   const value = parsed.data;
 
   const quest = await db
-    .select({ id: questsTable.id })
+    .select({ id: questsTable.id, type: questsTable.type })
     .from(questsTable)
     .where(eq(questsTable.id, value.questId))
     .limit(1)
@@ -902,6 +970,8 @@ export async function submitRun(input: SubmitRunInput, userId: string) {
   if (!quest) {
     throw new TRPCError({ code: "BAD_REQUEST", message: "Invalid quest" });
   }
+
+  assertCategoryAllowedForQuestType(value.category, quest.type);
 
   if (!weaponByKey.has(value.primaryWeaponKey as LeaderboardWeaponKey)) {
     throw new TRPCError({
@@ -922,6 +992,11 @@ export async function submitRun(input: SubmitRunInput, userId: string) {
   }
 
   const tags = normalizeTags(value.tags);
+  const valueRecord = value as Record<string, unknown>;
+  const youtubeLink =
+    typeof valueRecord.youtubeLink === "string"
+      ? valueRecord.youtubeLink
+      : null;
 
   const runId = crypto.randomUUID();
   await db.insert(runsTable).values({
@@ -931,6 +1006,7 @@ export async function submitRun(input: SubmitRunInput, userId: string) {
     hunterName: value.hunterName,
     category: value.category,
     tags: tags.length > 0 ? JSON.stringify(tags) : "null",
+    youtubeLink,
     submittedAt: new Date(),
     runTimeMs: parseRunTimeInputToMs(value.runTime),
     primaryWeapon: value.primaryWeaponKey,

@@ -83,6 +83,7 @@ export async function getLeaderboardFilters(): Promise<{
 
   const availableCategories = categories
     .slice()
+    .filter((category) => category.id !== "arena")
     .sort((a, b) => a.label.localeCompare(b.label))
     .map<LeaderboardCategoryOption>((category) => ({
       id: category.id,
@@ -167,6 +168,7 @@ export async function getLeaderboardRows(): Promise<{
       tags: runsTable.tags,
       submittedAt: runsTable.submittedAt,
       runTimeMs: runsTable.runTimeMs,
+      youtubeLink: runsTable.youtubeLink,
       primaryWeaponKey: runsTable.primaryWeapon,
       secondaryWeaponKey: runsTable.secondaryWeapon,
       approvedAt: runsTable.approvedAt,
@@ -216,6 +218,7 @@ export async function getLeaderboardRows(): Promise<{
           ? run.submittedAt.getTime()
           : new Date(run.submittedAt).getTime(),
       runTimeMs: run.runTimeMs,
+      youtubeLink: run.youtubeLink,
       score: 0,
       categoryId: category?.id ?? run.category,
       tagLabels: runTags,
