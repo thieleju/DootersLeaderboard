@@ -253,7 +253,6 @@ export default function QuestsTable({
               }
               className="w-full rounded-lg border border-gray-700 bg-gray-900/70 px-3 py-2 text-sm text-gray-100 transition-colors outline-none focus:border-amber-400"
               placeholder="Jin Dahaad Event Quest"
-              required
             />
           </label>
 
@@ -390,7 +389,6 @@ export default function QuestsTable({
               }
               className="w-full rounded-lg border border-gray-700 bg-gray-900/70 px-3 py-2 text-sm text-gray-100 transition-colors outline-none focus:border-amber-400"
               placeholder="8"
-              required
             />
           </label>
 
@@ -409,7 +407,6 @@ export default function QuestsTable({
               }
               className="w-full rounded-lg border border-gray-700 bg-gray-900/70 px-3 py-2 text-sm text-gray-100 transition-colors outline-none focus:border-amber-400"
               placeholder="Jin Dahaad"
-              required
             />
           </label>
 

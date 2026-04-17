@@ -1416,7 +1416,6 @@ export default function PlayerProfileView({
                   }))
                 }
                 placeholder="Your in-game hunter name"
-                required
               />
             </label>
 
@@ -1437,7 +1436,6 @@ export default function PlayerProfileView({
                 }}
                 placeholder={"mm'ss\"cc"}
                 maxLength={11}
-                required
               />
             </label>
 

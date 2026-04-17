@@ -8,7 +8,6 @@ import {
   Check,
   ChevronDown,
   Clock3,
-  ExternalLink,
   Flame,
   ImagePlus,
   Loader2,
@@ -160,6 +159,17 @@ const allowedScreenshotMimeTypes = new Set([
   "image/webp"
 ]);
 
+const allowedScreenshotExtensions = [".png", ".jpg", ".jpeg", ".webp"];
+
+function isAllowedScreenshotFile(file: File): boolean {
+  if (allowedScreenshotMimeTypes.has(file.type.toLowerCase())) {
+    return true;
+  }
+
+  const lowerName = file.name.toLowerCase();
+  return allowedScreenshotExtensions.some((ext) => lowerName.endsWith(ext));
+}
+
 function fileToDataUrl(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -217,7 +227,7 @@ function ScreenshotDropzone({
       const file = acceptedFiles[0];
       if (!file) return;
 
-      if (!allowedScreenshotMimeTypes.has(file.type)) {
+      if (!isAllowedScreenshotFile(file)) {
         onError("Screenshot must be PNG, JPG, or WEBP.");
         return;
       }
@@ -255,45 +265,51 @@ function ScreenshotDropzone({
 
   if (value) {
     return (
-      <div className="mt-1 flex flex-wrap items-center gap-2">
-        <span className="inline-flex max-w-full items-center gap-2 rounded-full border border-amber-300/30 bg-amber-400/10 px-3 py-1.5 text-xs text-amber-100">
-          <span className="truncate">{fileName || "Selected screenshot"}</span>
-          <button
-            type="button"
-            onClick={onRemove}
-            className="inline-flex cursor-pointer items-center rounded-full border border-amber-200/40 p-1 text-amber-100 transition-colors hover:border-red-300/60 hover:text-red-200"
-            aria-label="Remove screenshot"
-            title="Remove screenshot"
-          >
-            <X className="h-3 w-3" />
-          </button>
-        </span>
+      <div className="mt-1" onClick={(event) => event.stopPropagation()}>
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="inline-flex max-w-full items-center gap-2 rounded-full border border-amber-300/30 bg-amber-400/10 px-3 py-1.5 text-xs text-amber-100">
+            <span className="truncate">
+              {fileName || "Selected screenshot"}
+            </span>
+            <button
+              type="button"
+              onClick={onRemove}
+              className="inline-flex cursor-pointer items-center rounded-full border border-amber-200/40 p-1 text-amber-100 transition-colors hover:border-red-300/60 hover:text-red-200"
+              aria-label="Remove screenshot"
+              title="Remove screenshot"
+            >
+              <X className="h-3 w-3" />
+            </button>
+          </span>
+        </div>
       </div>
     );
   }
 
   return (
-    <div
-      {...getRootProps()}
-      className={`cursor-pointer rounded-lg border border-dashed px-4 py-4 text-sm transition-colors ${
-        isDragActive
-          ? "border-amber-300 bg-amber-400/10"
-          : "border-gray-700 bg-gray-900/60 hover:border-amber-400/70"
-      }`}
-    >
-      <input {...getInputProps()} />
-      <div className="flex items-center gap-2 text-gray-200">
-        <ImagePlus className="h-4 w-4 text-amber-300" />
-        <span>
-          {isDragActive
-            ? "Drop screenshot here..."
-            : "Drag & drop screenshot, or click to select"}
-        </span>
+    <div onClick={(event) => event.stopPropagation()}>
+      <div
+        {...getRootProps()}
+        className={`cursor-pointer rounded-lg border border-dashed px-4 py-4 text-sm transition-colors ${
+          isDragActive
+            ? "border-amber-300 bg-amber-400/10"
+            : "border-gray-700 bg-gray-900/60 hover:border-amber-400/70"
+        }`}
+      >
+        <input {...getInputProps()} />
+        <div className="flex items-center gap-2 text-gray-200">
+          <ImagePlus className="h-4 w-4 text-amber-300" />
+          <span>
+            {isDragActive
+              ? "Drop screenshot here..."
+              : "Drag & drop screenshot, or click to select"}
+          </span>
+        </div>
+        <p className="mt-1 text-xs text-gray-400">
+          PNG/JPG/WEBP, max{" "}
+          {(MAX_SUBMIT_SCREENSHOT_BYTES / 1_000_000).toFixed(1)} MB
+        </p>
       </div>
-      <p className="mt-1 text-xs text-gray-400">
-        PNG/JPG/WEBP, max {(MAX_SUBMIT_SCREENSHOT_BYTES / 1_000_000).toFixed(1)}{" "}
-        MB
-      </p>
     </div>
   );
 }
@@ -1286,6 +1302,12 @@ export default function ModerationRunsTable({
                                     disabled={savingRunId === run.runId}
                                   />
                                 ) : null}
+
+                                {runError ? (
+                                  <p className="mt-2 text-xs text-red-300">
+                                    {runError}
+                                  </p>
+                                ) : null}
                               </div>
 
                               <div className="md:col-span-3">
@@ -1535,6 +1557,13 @@ export default function ModerationRunsTable({
                 const tone =
                   categoryToneClasses[category.tone] ??
                   categoryToneClasses.amber;
+                const runYoutubeVideoId = run.youtubeLink
+                  ? extractYouTubeVideoId(run.youtubeLink)
+                  : null;
+                const runScreenshotBase64 = run.screenshotBase64;
+                const hasMedia = Boolean(
+                  runYoutubeVideoId ?? runScreenshotBase64
+                );
 
                 return (
                   <Fragment key={run.runId}>
@@ -2108,6 +2137,12 @@ export default function ModerationRunsTable({
                                       }
                                       disabled={savingRunId === run.runId}
                                     />
+
+                                    {runError ? (
+                                      <p className="mt-2 text-xs text-red-300">
+                                        {runError}
+                                      </p>
+                                    ) : null}
                                   </div>
 
                                   <div className="md:col-span-3">
@@ -2333,45 +2368,48 @@ export default function ModerationRunsTable({
                                     </div>
                                   </div>
 
-                                  <div>
-                                    <div className="mb-1 text-[10px] tracking-[0.16em] text-gray-500 uppercase">
-                                      Video
-                                    </div>
-                                    {run.youtubeLink ? (
-                                      <a
-                                        href={run.youtubeLink}
-                                        target="_blank"
-                                        rel="noreferrer"
-                                        className="inline-flex items-center gap-1.5 rounded-lg border border-cyan-300/30 bg-cyan-400/10 px-3 py-2 text-xs font-semibold text-cyan-100 transition-colors hover:border-cyan-200 hover:bg-cyan-400/20"
-                                      >
-                                        <ExternalLink className="h-3.5 w-3.5" />
-                                        Open YouTube Video
-                                      </a>
-                                    ) : (
-                                      <span className="text-xs text-gray-500">
-                                        -
-                                      </span>
-                                    )}
-                                  </div>
-
                                   <div className="md:col-span-3">
-                                    <div className="mb-1 text-[10px] tracking-[0.16em] text-gray-500 uppercase">
-                                      Screenshot
-                                    </div>
-                                    {run.screenshotBase64 ? (
-                                      <div className="overflow-hidden rounded-xl border border-gray-700/80 bg-black/25">
-                                        <Image
-                                          src={run.screenshotBase64}
-                                          alt="Run screenshot"
-                                          width={1280}
-                                          height={720}
-                                          unoptimized
-                                          className="h-auto w-full"
-                                        />
+                                    {hasMedia ? (
+                                      <div className="grid gap-3 md:grid-cols-2">
+                                        {runYoutubeVideoId ? (
+                                          <div className="space-y-1">
+                                            <div className="text-[10px] tracking-[0.16em] text-gray-500 uppercase">
+                                              Video
+                                            </div>
+                                            <div className="overflow-hidden rounded-xl border border-gray-700/80 bg-black/35">
+                                              <iframe
+                                                className="aspect-video w-full"
+                                                src={`https://www.youtube.com/embed/${runYoutubeVideoId}`}
+                                                title="YouTube video"
+                                                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                                                referrerPolicy="strict-origin-when-cross-origin"
+                                                allowFullScreen
+                                              />
+                                            </div>
+                                          </div>
+                                        ) : null}
+
+                                        {runScreenshotBase64 ? (
+                                          <div className="space-y-1">
+                                            <div className="text-[10px] tracking-[0.16em] text-gray-500 uppercase">
+                                              Screenshot
+                                            </div>
+                                            <div className="overflow-hidden rounded-xl border border-gray-700/80 bg-black/25">
+                                              <Image
+                                                src={runScreenshotBase64}
+                                                alt="Run screenshot"
+                                                width={1280}
+                                                height={720}
+                                                unoptimized
+                                                className="h-auto w-full"
+                                              />
+                                            </div>
+                                          </div>
+                                        ) : null}
                                       </div>
                                     ) : (
                                       <span className="text-xs text-gray-500">
-                                        -
+                                        No video or screenshot
                                       </span>
                                     )}
                                   </div>
