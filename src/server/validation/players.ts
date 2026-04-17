@@ -136,6 +136,7 @@ export const moderateRunDetailsInputSchema = z.object({
   primaryWeaponKey: z.string().trim().min(1, "Primary weapon is required"),
   secondaryWeaponKey: z.string().trim().min(1, "Secondary weapon is required"),
   youtubeLink: youtubeLinkSchema.optional(),
+  screenshotBase64: screenshotBase64Schema.nullable().optional(),
   tags: z
     .array(
       z

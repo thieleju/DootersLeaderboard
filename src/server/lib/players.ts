@@ -658,6 +658,7 @@ export async function updatePendingRunDetails(
     primaryWeaponKey: string;
     secondaryWeaponKey: string;
     youtubeLink?: string;
+    screenshotBase64?: string | null;
     tags: string[];
   },
   viewerRole: UserRole
@@ -722,6 +723,31 @@ export async function updatePendingRunDetails(
   const youtubeLink = input.youtubeLink?.trim()
     ? input.youtubeLink.trim()
     : null;
+  const updateData: {
+    category: RunCategoryId;
+    primaryWeapon: string;
+    secondaryWeapon: string;
+    youtubeLink: string | null;
+    tags: string;
+    screenshotBase64?: string | null;
+  } = {
+    category: input.category,
+    primaryWeapon: input.primaryWeaponKey,
+    secondaryWeapon: input.secondaryWeaponKey,
+    youtubeLink,
+    tags: tags.length > 0 ? JSON.stringify(tags) : "null"
+  };
+
+  if ("screenshotBase64" in input) {
+    if (viewerRole !== "admin") {
+      throw new TRPCError({
+        code: "FORBIDDEN",
+        message: "Only admins can edit screenshots"
+      });
+    }
+
+    updateData.screenshotBase64 = input.screenshotBase64 ?? null;
+  }
 
   if (tags.length > MAX_SUBMIT_TAGS) {
     throw new TRPCError({
@@ -741,13 +767,7 @@ export async function updatePendingRunDetails(
 
   await db
     .update(runsTable)
-    .set({
-      category: input.category,
-      primaryWeapon: input.primaryWeaponKey,
-      secondaryWeapon: input.secondaryWeaponKey,
-      youtubeLink,
-      tags: tags.length > 0 ? JSON.stringify(tags) : "null"
-    })
+    .set(updateData)
     .where(eq(runsTable.id, input.runId));
 
   return { runId: input.runId };
@@ -759,6 +779,7 @@ export async function updateReviewedRunDetails(input: {
   primaryWeaponKey: string;
   secondaryWeaponKey: string;
   youtubeLink?: string;
+  screenshotBase64?: string | null;
   tags: string[];
 }) {
   const run = await db
@@ -819,6 +840,24 @@ export async function updateReviewedRunDetails(input: {
   const youtubeLink = input.youtubeLink?.trim()
     ? input.youtubeLink.trim()
     : null;
+  const updateData: {
+    category: RunCategoryId;
+    primaryWeapon: string;
+    secondaryWeapon: string;
+    youtubeLink: string | null;
+    tags: string;
+    screenshotBase64?: string | null;
+  } = {
+    category: input.category,
+    primaryWeapon: input.primaryWeaponKey,
+    secondaryWeapon: input.secondaryWeaponKey,
+    youtubeLink,
+    tags: tags.length > 0 ? JSON.stringify(tags) : "null"
+  };
+
+  if ("screenshotBase64" in input) {
+    updateData.screenshotBase64 = input.screenshotBase64 ?? null;
+  }
 
   if (tags.length > MAX_SUBMIT_TAGS) {
     throw new TRPCError({
@@ -838,13 +877,7 @@ export async function updateReviewedRunDetails(input: {
 
   await db
     .update(runsTable)
-    .set({
-      category: input.category,
-      primaryWeapon: input.primaryWeaponKey,
-      secondaryWeapon: input.secondaryWeaponKey,
-      youtubeLink,
-      tags: tags.length > 0 ? JSON.stringify(tags) : "null"
-    })
+    .set(updateData)
     .where(eq(runsTable.id, input.runId));
 
   return { runId: input.runId };

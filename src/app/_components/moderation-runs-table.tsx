@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useEffect, useMemo, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   Ban,
@@ -10,6 +10,7 @@ import {
   Clock3,
   ExternalLink,
   Flame,
+  ImagePlus,
   Loader2,
   Plus,
   RotateCcw,
@@ -22,6 +23,7 @@ import {
 } from "lucide-react";
 import Image from "next/image";
 import { useSession } from "next-auth/react";
+import { type FileRejection, useDropzone } from "react-dropzone";
 import type {
   LeaderboardCategoryOption,
   LeaderboardWeaponResource,
@@ -31,6 +33,7 @@ import type {
 import { extractYouTubeVideoId } from "~/lib/youtube";
 import { api } from "~/trpc/react";
 import {
+  MAX_SUBMIT_SCREENSHOT_BYTES,
   MAX_SUBMIT_TAG_LENGTH,
   MAX_SUBMIT_TAGS,
   MAX_SUBMIT_YOUTUBE_LINK_LENGTH
@@ -151,6 +154,150 @@ const defaultRunCategory = {
   link: null
 };
 
+const allowedScreenshotMimeTypes = new Set([
+  "image/png",
+  "image/jpeg",
+  "image/webp"
+]);
+
+function fileToDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const value = reader.result;
+      if (typeof value === "string") {
+        resolve(value);
+      } else {
+        reject(new Error("Failed to read screenshot file."));
+      }
+    };
+    reader.onerror = () => reject(new Error("Failed to read screenshot file."));
+    reader.readAsDataURL(file);
+  });
+}
+
+type ScreenshotDropzoneProps = {
+  value: string;
+  fileName: string;
+  onChange: (nextValue: string, fileName: string) => void;
+  onRemove: () => void;
+  onError: (message: string) => void;
+  disabled?: boolean;
+};
+
+function ScreenshotDropzone({
+  value,
+  fileName,
+  onChange,
+  onRemove,
+  onError,
+  disabled = false
+}: ScreenshotDropzoneProps) {
+  const onDropScreenshot = useCallback(
+    (acceptedFiles: File[], fileRejections: FileRejection[]) => {
+      if (fileRejections.length > 0) {
+        const rejectionCode = fileRejections[0]?.errors[0]?.code;
+
+        if (rejectionCode === "file-too-large") {
+          onError(
+            `Screenshot must be at most ${(MAX_SUBMIT_SCREENSHOT_BYTES / 1_000_000).toFixed(1)} MB.`
+          );
+          return;
+        }
+
+        if (rejectionCode === "file-invalid-type") {
+          onError("Screenshot must be PNG, JPG, or WEBP.");
+          return;
+        }
+
+        onError("Screenshot upload failed. Please try another file.");
+        return;
+      }
+
+      const file = acceptedFiles[0];
+      if (!file) return;
+
+      if (!allowedScreenshotMimeTypes.has(file.type)) {
+        onError("Screenshot must be PNG, JPG, or WEBP.");
+        return;
+      }
+
+      if (file.size > MAX_SUBMIT_SCREENSHOT_BYTES) {
+        onError(
+          `Screenshot must be at most ${(MAX_SUBMIT_SCREENSHOT_BYTES / 1_000_000).toFixed(1)} MB.`
+        );
+        return;
+      }
+
+      void (async () => {
+        try {
+          const dataUrl = await fileToDataUrl(file);
+          onChange(dataUrl, file.name);
+        } catch {
+          onError("Could not read screenshot file.");
+        }
+      })();
+    },
+    [onChange, onError]
+  );
+
+  const { getRootProps, getInputProps, isDragActive } = useDropzone({
+    onDrop: onDropScreenshot,
+    multiple: false,
+    disabled,
+    accept: {
+      "image/png": [".png"],
+      "image/jpeg": [".jpg", ".jpeg"],
+      "image/webp": [".webp"]
+    },
+    maxSize: MAX_SUBMIT_SCREENSHOT_BYTES
+  });
+
+  if (value) {
+    return (
+      <div className="mt-1 flex flex-wrap items-center gap-2">
+        <span className="inline-flex max-w-full items-center gap-2 rounded-full border border-amber-300/30 bg-amber-400/10 px-3 py-1.5 text-xs text-amber-100">
+          <span className="truncate">{fileName || "Selected screenshot"}</span>
+          <button
+            type="button"
+            onClick={onRemove}
+            className="inline-flex cursor-pointer items-center rounded-full border border-amber-200/40 p-1 text-amber-100 transition-colors hover:border-red-300/60 hover:text-red-200"
+            aria-label="Remove screenshot"
+            title="Remove screenshot"
+          >
+            <X className="h-3 w-3" />
+          </button>
+        </span>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      {...getRootProps()}
+      className={`cursor-pointer rounded-lg border border-dashed px-4 py-4 text-sm transition-colors ${
+        isDragActive
+          ? "border-amber-300 bg-amber-400/10"
+          : "border-gray-700 bg-gray-900/60 hover:border-amber-400/70"
+      }`}
+    >
+      <input {...getInputProps()} />
+      <div className="flex items-center gap-2 text-gray-200">
+        <ImagePlus className="h-4 w-4 text-amber-300" />
+        <span>
+          {isDragActive
+            ? "Drop screenshot here..."
+            : "Drag & drop screenshot, or click to select"}
+        </span>
+      </div>
+      <p className="mt-1 text-xs text-gray-400">
+        PNG/JPG/WEBP, max {(MAX_SUBMIT_SCREENSHOT_BYTES / 1_000_000).toFixed(1)}{" "}
+        MB
+      </p>
+    </div>
+  );
+}
+
 function statusBadge(status: "pending" | "approved" | "rejected") {
   if (status === "approved") {
     return "border-emerald-300/30 bg-emerald-400/10 text-emerald-300";
@@ -226,6 +373,11 @@ export default function ModerationRunsTable({
   const [youtubeLinkDraftByRunId, setYoutubeLinkDraftByRunId] = useState<
     Record<string, string>
   >({});
+  const [screenshotDraftByRunId, setScreenshotDraftByRunId] = useState<
+    Record<string, string>
+  >({});
+  const [screenshotFileNameDraftByRunId, setScreenshotFileNameDraftByRunId] =
+    useState<Record<string, string>>({});
 
   const pendingRuns = useMemo<PendingRunRow[]>(
     () => asArray<PendingRunRow>(pendingRunsQuery.data),
@@ -439,6 +591,16 @@ export default function ModerationRunsTable({
       if (current[run.runId] !== undefined) return current;
       return { ...current, [run.runId]: run.youtubeLink ?? "" };
     });
+
+    setScreenshotDraftByRunId((current) => {
+      if (current[run.runId] !== undefined) return current;
+      return { ...current, [run.runId]: run.screenshotBase64 ?? "" };
+    });
+
+    setScreenshotFileNameDraftByRunId((current) => {
+      if (current[run.runId] !== undefined) return current;
+      return { ...current, [run.runId]: "" };
+    });
   };
 
   const resetDrafts = (run: PendingRunRow | ReviewedRunRow) => {
@@ -461,6 +623,14 @@ export default function ModerationRunsTable({
     setYoutubeLinkDraftByRunId((current) => ({
       ...current,
       [run.runId]: run.youtubeLink ?? ""
+    }));
+    setScreenshotDraftByRunId((current) => ({
+      ...current,
+      [run.runId]: run.screenshotBase64 ?? ""
+    }));
+    setScreenshotFileNameDraftByRunId((current) => ({
+      ...current,
+      [run.runId]: ""
     }));
     setTagInputByRunId((current) => ({ ...current, [run.runId]: "" }));
     setOpenDropdownKey(null);
@@ -529,7 +699,8 @@ export default function ModerationRunsTable({
     draftCategoryId: string,
     draftPrimaryWeaponKey: string,
     draftSecondaryWeaponKey: string,
-    draftYoutubeLink: string
+    draftYoutubeLink: string,
+    draftScreenshotBase64: string
   ) => {
     const tagsChanged =
       draftTags.length !== run.tagLabels.length ||
@@ -540,6 +711,7 @@ export default function ModerationRunsTable({
       draftCategoryId !== run.categoryId ||
       draftPrimaryWeaponKey !== run.primaryWeaponKey ||
       draftYoutubeLink.trim() !== (run.youtubeLink ?? "") ||
+      draftScreenshotBase64.trim() !== (run.screenshotBase64 ?? "") ||
       draftSecondaryWeaponKey !==
         (run.secondaryWeaponKey ?? run.primaryWeaponKey)
     );
@@ -608,6 +780,12 @@ export default function ModerationRunsTable({
                   run.primaryWeaponKey;
                 const draftYoutubeLink =
                   youtubeLinkDraftByRunId[run.runId] ?? run.youtubeLink ?? "";
+                const draftScreenshotBase64 =
+                  screenshotDraftByRunId[run.runId] ??
+                  run.screenshotBase64 ??
+                  "";
+                const draftScreenshotFileName =
+                  screenshotFileNameDraftByRunId[run.runId] ?? "";
 
                 const hasChanges = hasRunDraftChanges(
                   run,
@@ -615,7 +793,8 @@ export default function ModerationRunsTable({
                   draftCategoryId,
                   draftPrimaryWeaponKey,
                   draftSecondaryWeaponKey,
-                  draftYoutubeLink
+                  draftYoutubeLink,
+                  draftScreenshotBase64
                 );
 
                 const category = getCategoryMeta(draftCategoryId);
@@ -1056,10 +1235,10 @@ export default function ModerationRunsTable({
                                 <div className="mb-1 text-[10px] tracking-[0.16em] text-gray-500 uppercase">
                                   Screenshot
                                 </div>
-                                {run.screenshotBase64 ? (
+                                {draftScreenshotBase64 ? (
                                   <div className="overflow-hidden rounded-xl border border-gray-700/80 bg-black/25">
                                     <Image
-                                      src={run.screenshotBase64}
+                                      src={draftScreenshotBase64}
                                       alt="Run screenshot"
                                       width={1280}
                                       height={720}
@@ -1072,6 +1251,41 @@ export default function ModerationRunsTable({
                                     -
                                   </span>
                                 )}
+
+                                {isAdmin ? (
+                                  <ScreenshotDropzone
+                                    value={draftScreenshotBase64}
+                                    fileName={draftScreenshotFileName}
+                                    onChange={(nextValue, fileName) => {
+                                      setScreenshotDraftByRunId((current) => ({
+                                        ...current,
+                                        [run.runId]: nextValue
+                                      }));
+                                      setScreenshotFileNameDraftByRunId(
+                                        (current) => ({
+                                          ...current,
+                                          [run.runId]: fileName
+                                        })
+                                      );
+                                      setRunError(null);
+                                    }}
+                                    onRemove={() => {
+                                      setScreenshotDraftByRunId((current) => ({
+                                        ...current,
+                                        [run.runId]: ""
+                                      }));
+                                      setScreenshotFileNameDraftByRunId(
+                                        (current) => ({
+                                          ...current,
+                                          [run.runId]: ""
+                                        })
+                                      );
+                                      setRunError(null);
+                                    }}
+                                    onError={(message) => setRunError(message)}
+                                    disabled={savingRunId === run.runId}
+                                  />
+                                ) : null}
                               </div>
 
                               <div className="md:col-span-3">
@@ -1163,6 +1377,13 @@ export default function ModerationRunsTable({
                                           draftSecondaryWeaponKey,
                                         youtubeLink:
                                           draftYoutubeLink.trim() || undefined,
+                                        ...(isAdmin
+                                          ? {
+                                              screenshotBase64:
+                                                draftScreenshotBase64.trim() ||
+                                                null
+                                            }
+                                          : {}),
                                         tags: draftTags
                                       });
                                     }}
@@ -1292,6 +1513,12 @@ export default function ModerationRunsTable({
                   run.primaryWeaponKey;
                 const draftYoutubeLink =
                   youtubeLinkDraftByRunId[run.runId] ?? run.youtubeLink ?? "";
+                const draftScreenshotBase64 =
+                  screenshotDraftByRunId[run.runId] ??
+                  run.screenshotBase64 ??
+                  "";
+                const draftScreenshotFileName =
+                  screenshotFileNameDraftByRunId[run.runId] ?? "";
 
                 const hasChanges = hasRunDraftChanges(
                   run,
@@ -1299,7 +1526,8 @@ export default function ModerationRunsTable({
                   draftCategoryId,
                   draftPrimaryWeaponKey,
                   draftSecondaryWeaponKey,
-                  draftYoutubeLink
+                  draftYoutubeLink,
+                  draftScreenshotBase64
                 );
 
                 const category = getCategoryMeta(run.categoryId);
@@ -1825,10 +2053,10 @@ export default function ModerationRunsTable({
                                     <div className="mb-1 text-[10px] tracking-[0.16em] text-gray-500 uppercase">
                                       Screenshot
                                     </div>
-                                    {run.screenshotBase64 ? (
+                                    {draftScreenshotBase64 ? (
                                       <div className="overflow-hidden rounded-xl border border-gray-700/80 bg-black/25">
                                         <Image
-                                          src={run.screenshotBase64}
+                                          src={draftScreenshotBase64}
                                           alt="Run screenshot"
                                           width={1280}
                                           height={720}
@@ -1841,6 +2069,45 @@ export default function ModerationRunsTable({
                                         -
                                       </span>
                                     )}
+
+                                    <ScreenshotDropzone
+                                      value={draftScreenshotBase64}
+                                      fileName={draftScreenshotFileName}
+                                      onChange={(nextValue, fileName) => {
+                                        setScreenshotDraftByRunId(
+                                          (current) => ({
+                                            ...current,
+                                            [run.runId]: nextValue
+                                          })
+                                        );
+                                        setScreenshotFileNameDraftByRunId(
+                                          (current) => ({
+                                            ...current,
+                                            [run.runId]: fileName
+                                          })
+                                        );
+                                        setRunError(null);
+                                      }}
+                                      onRemove={() => {
+                                        setScreenshotDraftByRunId(
+                                          (current) => ({
+                                            ...current,
+                                            [run.runId]: ""
+                                          })
+                                        );
+                                        setScreenshotFileNameDraftByRunId(
+                                          (current) => ({
+                                            ...current,
+                                            [run.runId]: ""
+                                          })
+                                        );
+                                        setRunError(null);
+                                      }}
+                                      onError={(message) =>
+                                        setRunError(message)
+                                      }
+                                      disabled={savingRunId === run.runId}
+                                    />
                                   </div>
 
                                   <div className="md:col-span-3">
@@ -1937,6 +2204,9 @@ export default function ModerationRunsTable({
                                               youtubeLink:
                                                 draftYoutubeLink.trim() ||
                                                 undefined,
+                                              screenshotBase64:
+                                                draftScreenshotBase64.trim() ||
+                                                null,
                                               tags: draftTags
                                             }
                                           );
