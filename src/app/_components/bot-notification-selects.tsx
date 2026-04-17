@@ -25,13 +25,10 @@ export function BotNotificationSelects({
   const [guilds, setGuilds] = useState<{ id: string; name: string }[]>([]);
   const [channels, setChannels] = useState<{ id: string; name: string }[]>([]);
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
-  const { data: guildsData, isLoading: guildsLoading } = (
-    api.admin.listBotGuilds as any
-  ).useQuery();
+  const { data: guildsData, isLoading: guildsLoading } =
+    api.admin.listBotGuilds.useQuery();
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
-  const { data: channelsData } = (api.admin.listBotChannels as any).useQuery(
+  const { data: channelsData } = api.admin.listBotChannels.useQuery(
     { guildId },
     { enabled: !!guildId }
   );
@@ -80,12 +77,11 @@ export function BotNotificationSelects({
     <div className={wrapperClass}>
       <select
         value={guildId}
-        onChange={(e) => {
+        onChange={(e: React.ChangeEvent<HTMLSelectElement>) => {
           onGuildChange(e.target.value);
           onChannelChange("");
         }}
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-        disabled={disabled || (guildsLoading ?? false)}
+        disabled={disabled || guildsLoading}
         className={selectClass}
       >
         <option value="">Guild</option>
