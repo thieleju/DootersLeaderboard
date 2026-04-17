@@ -1,6 +1,7 @@
 import { relations, sql } from "drizzle-orm";
 import { index, primaryKey, sqliteTableCreator } from "drizzle-orm/sqlite-core";
 import type { AdapterAccount } from "next-auth/adapters";
+import type { BotNotificationEventKey } from "~/constants";
 
 import type { QuestType, RunCategoryId, UserRole } from "../types/leaderboard";
 
@@ -152,3 +153,79 @@ export const runsRelations = relations(runs, ({ one }) => ({
     references: [users.id]
   })
 }));
+
+export const botNotificationSettings = createTable(
+  "bot_notification_settings",
+  (d) => ({
+    eventKey: d
+      .text({ length: 64 })
+      .$type<BotNotificationEventKey>()
+      .notNull()
+      .primaryKey(),
+    enabled: d.integer({ mode: "boolean" }).notNull().default(false),
+    guildId: d.text({ length: 64 }),
+    channelId: d.text({ length: 64 }),
+    updatedAt: d
+      .integer({ mode: "timestamp" })
+      .notNull()
+      .default(sql`(unixepoch())`)
+  })
+);
+
+export const botNotificationQueue = createTable(
+  "bot_notification_queue",
+  (d) => ({
+    id: d
+      .text({ length: 255 })
+      .notNull()
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    eventKey: d.text({ length: 64 }).$type<BotNotificationEventKey>().notNull(),
+    runId: d.text({ length: 255 }).references(() => runs.id),
+    questId: d.text({ length: 255 }).references(() => quests.id),
+    userId: d.text({ length: 255 }).references(() => users.id),
+    dataJson: d.text({ length: 50000 }).notNull(),
+    createdAt: d
+      .integer({ mode: "timestamp" })
+      .notNull()
+      .default(sql`(unixepoch())`),
+    sentAt: d.integer({ mode: "timestamp" }),
+    failedCount: d.integer().notNull().default(0),
+    lastError: d.text()
+  }),
+  (t) => [
+    index("bot_notification_queue_event_key_idx").on(t.eventKey),
+    index("bot_notification_queue_sent_at_idx").on(t.sentAt),
+    index("bot_notification_queue_run_id_idx").on(t.runId)
+  ]
+);
+
+export const botGuilds = createTable("bot_guild", (d) => ({
+  guildId: d.text({ length: 64 }).notNull().primaryKey(),
+  guildName: d.text({ length: 255 }).notNull(),
+  updatedAt: d
+    .integer({ mode: "timestamp" })
+    .notNull()
+    .default(sql`(unixepoch())`)
+}));
+
+export const botChannels = createTable(
+  "bot_channel",
+  (d) => ({
+    channelId: d.text({ length: 64 }).notNull().primaryKey(),
+    guildId: d
+      .text({ length: 64 })
+      .notNull()
+      .references(() => botGuilds.guildId),
+    channelName: d.text({ length: 255 }).notNull(),
+    isText: d.integer({ mode: "boolean" }).notNull().default(true),
+    updatedAt: d
+      .integer({ mode: "timestamp" })
+      .notNull()
+      .default(sql`(unixepoch())`)
+  }),
+  (t) => [
+    index("bot_channel_guild_id_idx").on(t.guildId),
+    index("bot_channel_is_text_idx").on(t.isText)
+  ]
+);

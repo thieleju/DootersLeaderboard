@@ -3,6 +3,7 @@
 import { useState } from "react";
 
 import BackHomeLink from "./back-home-link";
+import AdminBotNotificationsCard from "./admin-bot-notifications-card";
 import AdminUsersTable from "./admin-users-table";
 
 interface AdminPageClientProps {
@@ -27,6 +28,8 @@ export default function AdminPageClient({
           onInitialReady?.();
         }}
       />
+
+      <AdminBotNotificationsCard delay={1.1} />
     </div>
   );
 }

@@ -3,8 +3,18 @@ import "server-only";
 import { TRPCError } from "@trpc/server";
 import { asc, eq } from "drizzle-orm";
 
+import {
+  BOT_NOTIFICATION_EVENT_KEYS,
+  BOT_NOTIFICATION_EVENT_META,
+  type BotNotificationEventKey
+} from "~/constants";
 import { db } from "~/server/db";
-import { users as usersTable } from "~/server/db/schema";
+import {
+  botChannels as botChannelsTable,
+  botGuilds as botGuildsTable,
+  botNotificationSettings as botNotificationSettingsTable,
+  users as usersTable
+} from "~/server/db/schema";
 import type { UserRole } from "~/server/types/leaderboard";
 
 export type AdminUserRow = {
@@ -15,6 +25,16 @@ export type AdminUserRow = {
   role: UserRole;
   lastLoginAtMs: number | null;
   lastSeenAtMs: number | null;
+};
+
+export type AdminBotNotificationSettingRow = {
+  eventKey: BotNotificationEventKey;
+  eventLabel: string;
+  eventDescription: string;
+  enabled: boolean;
+  guildId: string;
+  channelId: string;
+  updatedAtMs: number | null;
 };
 
 export async function getAdminUsers(): Promise<AdminUserRow[]> {
@@ -73,4 +93,108 @@ export async function updateUserRole(
     .where(eq(usersTable.id, targetUserId));
 
   return { userId: targetUserId, role };
+}
+
+export async function getBotNotificationSettings(): Promise<
+  AdminBotNotificationSettingRow[]
+> {
+  const rows = await db
+    .select({
+      eventKey: botNotificationSettingsTable.eventKey,
+      enabled: botNotificationSettingsTable.enabled,
+      guildId: botNotificationSettingsTable.guildId,
+      channelId: botNotificationSettingsTable.channelId,
+      updatedAt: botNotificationSettingsTable.updatedAt
+    })
+    .from(botNotificationSettingsTable);
+
+  const rowByEventKey = new Map(rows.map((row) => [row.eventKey, row]));
+
+  return BOT_NOTIFICATION_EVENT_KEYS.map((eventKey) => {
+    const row = rowByEventKey.get(eventKey);
+    const meta = BOT_NOTIFICATION_EVENT_META[eventKey];
+
+    return {
+      eventKey,
+      eventLabel: meta.label,
+      eventDescription: meta.description,
+      enabled: row?.enabled ?? false,
+      guildId: row?.guildId ?? "",
+      channelId: row?.channelId ?? "",
+      updatedAtMs:
+        row?.updatedAt instanceof Date ? row.updatedAt.getTime() : null
+    };
+  });
+}
+
+export async function upsertBotNotificationSetting(input: {
+  eventKey: BotNotificationEventKey;
+  enabled: boolean;
+  guildId?: string;
+  channelId?: string;
+}) {
+  const guildId = input.guildId?.trim() ?? "";
+  const channelId = input.channelId?.trim() ?? "";
+
+  if (input.enabled && (!guildId || !channelId)) {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message: "Guild ID and Channel ID are required when event is enabled"
+    });
+  }
+
+  await db
+    .insert(botNotificationSettingsTable)
+    .values({
+      eventKey: input.eventKey,
+      enabled: input.enabled,
+      guildId: guildId || null,
+      channelId: channelId || null,
+      updatedAt: new Date()
+    })
+    .onConflictDoUpdate({
+      target: botNotificationSettingsTable.eventKey,
+      set: {
+        enabled: input.enabled,
+        guildId: guildId || null,
+        channelId: channelId || null,
+        updatedAt: new Date()
+      }
+    });
+
+  return {
+    eventKey: input.eventKey,
+    enabled: input.enabled,
+    guildId,
+    channelId
+  };
+}
+
+export async function getBotGuilds() {
+  const guilds = await db
+    .select({
+      id: botGuildsTable.guildId,
+      name: botGuildsTable.guildName
+    })
+    .from(botGuildsTable)
+    .orderBy(asc(botGuildsTable.guildName));
+
+  return guilds;
+}
+
+export async function getBotChannels(guildId: string) {
+  if (!guildId) {
+    return [];
+  }
+
+  const channels = await db
+    .select({
+      id: botChannelsTable.channelId,
+      name: botChannelsTable.channelName
+    })
+    .from(botChannelsTable)
+    .where(eq(botChannelsTable.guildId, guildId))
+    .orderBy(asc(botChannelsTable.channelName));
+
+  return channels;
 }

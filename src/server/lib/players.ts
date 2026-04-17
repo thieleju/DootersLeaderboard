@@ -19,6 +19,7 @@ import { parse } from "jsonc-parser";
 
 import { db } from "~/server/db";
 import {
+  botNotificationQueue as botNotificationQueueTable,
   quests as questsTable,
   runs as runsTable,
   users as usersTable
@@ -1028,6 +1029,25 @@ export async function submitRun(input: SubmitRunInput, userId: string) {
     rejectedAt: null
   });
 
+  // Queue bot notification for run submission
+  await db.insert(botNotificationQueueTable).values({
+    eventKey: "run_submitted",
+    runId,
+    questId: value.questId,
+    userId,
+    dataJson: JSON.stringify({
+      runId,
+      questId: value.questId,
+      hunterName: value.hunterName,
+      category: value.category,
+      youtubeLink,
+      hasScreenshot: screenshotBase64 ? "yes" : "no",
+      runTimeMs: parseRunTimeInputToMs(value.runTime),
+      primaryWeapon: value.primaryWeaponKey,
+      secondaryWeapon: secondaryWeaponKey
+    })
+  });
+
   return { runId };
 }
 
@@ -1077,6 +1097,7 @@ export async function rejectRun(
   const run = await db
     .select({
       id: runsTable.id,
+      questId: runsTable.questId,
       userId: runsTable.userId,
       approvedByUserId: runsTable.approvedByUserId
     })
@@ -1106,6 +1127,29 @@ export async function rejectRun(
     })
     .where(eq(runsTable.id, runId));
 
+  const reviewer = await db
+    .select({ displayName: usersTable.displayName, name: usersTable.name })
+    .from(usersTable)
+    .where(eq(usersTable.id, viewerUserId))
+    .limit(1)
+    .then((rows) => rows[0] ?? null);
+
+  const rejectedByName = reviewer?.displayName ?? reviewer?.name ?? "Moderator";
+
+  await db.insert(botNotificationQueueTable).values({
+    eventKey: "run_rejected",
+    runId,
+    questId: run.questId,
+    userId: run.userId,
+    dataJson: JSON.stringify({
+      runId,
+      questId: run.questId,
+      userId: run.userId,
+      rejectedByUserId: viewerUserId,
+      rejectedByName
+    })
+  });
+
   return { runId };
 }
 
@@ -1122,6 +1166,7 @@ export async function approveRun(
   const run = await db
     .select({
       id: runsTable.id,
+      questId: runsTable.questId,
       userId: runsTable.userId,
       approvedByUserId: runsTable.approvedByUserId
     })
@@ -1157,6 +1202,29 @@ export async function approveRun(
       rejectedAt: null
     })
     .where(eq(runsTable.id, runId));
+
+  const reviewer = await db
+    .select({ displayName: usersTable.displayName, name: usersTable.name })
+    .from(usersTable)
+    .where(eq(usersTable.id, viewerUserId))
+    .limit(1)
+    .then((rows) => rows[0] ?? null);
+
+  const approvedByName = reviewer?.displayName ?? reviewer?.name ?? "Moderator";
+
+  await db.insert(botNotificationQueueTable).values({
+    eventKey: "run_approved",
+    runId,
+    questId: run.questId,
+    userId: run.userId,
+    dataJson: JSON.stringify({
+      runId,
+      questId: run.questId,
+      userId: run.userId,
+      approvedByUserId: viewerUserId,
+      approvedByName
+    })
+  });
 
   return { runId };
 }

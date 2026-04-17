@@ -8,7 +8,11 @@ import { asc, desc, eq } from "drizzle-orm";
 import { parse } from "jsonc-parser";
 
 import { db } from "~/server/db";
-import { quests as questsTable } from "~/server/db/schema";
+import {
+  botNotificationQueue as botNotificationQueueTable,
+  quests as questsTable,
+  runs as runsTable
+} from "~/server/db/schema";
 import type {
   LeaderboardAreaResource,
   QuestType
@@ -83,6 +87,7 @@ export async function listQuests(): Promise<QuestManagementRow[]> {
 
 export async function createQuest(input: QuestUpsertInput) {
   const questId = crypto.randomUUID();
+
   await db.insert(questsTable).values({
     id: questId,
     title: input.title,
@@ -90,6 +95,20 @@ export async function createQuest(input: QuestUpsertInput) {
     type: input.type,
     area: input.areaKey,
     difficultyStars: input.difficultyStars
+  });
+
+  await db.insert(botNotificationQueueTable).values({
+    eventKey: "quest_modified",
+    questId,
+    dataJson: JSON.stringify({
+      action: "created",
+      questId,
+      title: input.title,
+      monster: input.monster,
+      type: input.type,
+      areaKey: input.areaKey,
+      difficultyStars: input.difficultyStars
+    })
   });
 
   return { questId };
@@ -118,12 +137,33 @@ export async function updateQuest(input: QuestUpdateInput) {
     })
     .where(eq(questsTable.id, input.questId));
 
+  await db.insert(botNotificationQueueTable).values({
+    eventKey: "quest_modified",
+    questId: input.questId,
+    dataJson: JSON.stringify({
+      action: "updated",
+      questId: input.questId,
+      title: input.title,
+      monster: input.monster,
+      type: input.type,
+      areaKey: input.areaKey,
+      difficultyStars: input.difficultyStars
+    })
+  });
+
   return { questId: input.questId };
 }
 
 export async function deleteQuest(input: { questId: string }) {
   const existingQuest = await db
-    .select({ id: questsTable.id })
+    .select({
+      id: questsTable.id,
+      title: questsTable.title,
+      monster: questsTable.monster,
+      type: questsTable.type,
+      areaKey: questsTable.area,
+      difficultyStars: questsTable.difficultyStars
+    })
     .from(questsTable)
     .where(eq(questsTable.id, input.questId))
     .limit(1)
@@ -133,7 +173,25 @@ export async function deleteQuest(input: { questId: string }) {
     throw new TRPCError({ code: "NOT_FOUND", message: "Quest not found" });
   }
 
+  const referencingRun = await db
+    .select({ id: runsTable.id })
+    .from(runsTable)
+    .where(eq(runsTable.questId, input.questId))
+    .limit(1)
+    .then((rows) => rows[0] ?? null);
+
+  if (referencingRun) {
+    throw new TRPCError({
+      code: "CONFLICT",
+      message: "Quest cannot be deleted because runs reference it."
+    });
+  }
+
   try {
+    await db
+      .delete(botNotificationQueueTable)
+      .where(eq(botNotificationQueueTable.questId, input.questId));
+
     await db.delete(questsTable).where(eq(questsTable.id, input.questId));
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "";
@@ -146,6 +204,19 @@ export async function deleteQuest(input: { questId: string }) {
 
     throw error;
   }
+
+  await db.insert(botNotificationQueueTable).values({
+    eventKey: "quest_modified",
+    dataJson: JSON.stringify({
+      action: "deleted",
+      questId: existingQuest.id,
+      title: existingQuest.title,
+      monster: existingQuest.monster,
+      type: existingQuest.type,
+      areaKey: existingQuest.areaKey,
+      difficultyStars: existingQuest.difficultyStars
+    })
+  });
 
   return { questId: input.questId };
 }
