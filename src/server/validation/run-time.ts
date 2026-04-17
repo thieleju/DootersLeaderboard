@@ -20,11 +20,12 @@ export function maskRunTimeInput(input: string): string {
   const digitsOnly = input.replace(/[^0-9]/g, "");
   if (!digitsOnly) return "";
 
-  const limited = digitsOnly.slice(0, 6).padEnd(6, "0");
+  const limitedDigits = digitsOnly.slice(0, 6);
+  const paddedDigits = limitedDigits.padEnd(6, "0");
 
-  let minutes = Number(limited.slice(0, 2));
-  let seconds = Number(limited.slice(2, 4));
-  let centiseconds = Number(limited.slice(4, 6));
+  let minutes = Number(paddedDigits.slice(0, 2));
+  let seconds = Number(paddedDigits.slice(2, 4));
+  let centiseconds = Number(paddedDigits.slice(4, 6));
 
   if (minutes > 50) {
     minutes = 50;
@@ -45,11 +46,13 @@ export function maskRunTimeInput(input: string): string {
 
   const formatted = `${String(minutes).padStart(2, "0")}'${String(seconds).padStart(2, "0")}"${String(centiseconds).padStart(2, "0")}`;
 
-  const len = digitsOnly.length;
+  const len = limitedDigits.length;
   if (len <= 2) {
-    return digitsOnly;
+    return limitedDigits;
   } else if (len <= 4) {
-    return `${digitsOnly.slice(0, 2)}'${digitsOnly.slice(2)}`;
+    return `${limitedDigits.slice(0, 2)}'${limitedDigits.slice(2)}`;
+  } else if (len === 5) {
+    return `${String(minutes).padStart(2, "0")}'${String(seconds).padStart(2, "0")}"${String(centiseconds).padStart(2, "0").slice(0, 1)}`;
   } else {
     return formatted;
   }
