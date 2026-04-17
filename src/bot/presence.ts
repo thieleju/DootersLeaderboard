@@ -1,9 +1,8 @@
 import { ActivityType, type Client } from "discord.js";
-import { and, isNull } from "drizzle-orm";
+import { and, isNotNull, isNull } from "drizzle-orm";
 
 import { db } from "../server/db";
 import { runs as runsTable } from "../server/db/schema";
-import { getHomeStats } from "../server/lib/stats";
 
 type PresenceSnapshot = {
   uploadedRunCount: number;
@@ -12,8 +11,11 @@ type PresenceSnapshot = {
 };
 
 async function getPresenceSnapshot(): Promise<PresenceSnapshot> {
-  const [homeStats, pendingRuns] = await Promise.all([
-    getHomeStats(),
+  const [approvedRuns, pendingRuns] = await Promise.all([
+    db
+      .select({ userId: runsTable.userId })
+      .from(runsTable)
+      .where(isNotNull(runsTable.approvedByUserId)),
     db
       .select({ id: runsTable.id })
       .from(runsTable)
@@ -25,9 +27,12 @@ async function getPresenceSnapshot(): Promise<PresenceSnapshot> {
       )
   ]);
 
+  const uploadedRunCount = approvedRuns.length;
+  const activeRunnerCount = new Set(approvedRuns.map((run) => run.userId)).size;
+
   return {
-    uploadedRunCount: homeStats.uploadedRunCount,
-    activeRunnerCount: homeStats.activeRunnerCount,
+    uploadedRunCount,
+    activeRunnerCount,
     pendingRunCount: pendingRuns.length
   };
 }
