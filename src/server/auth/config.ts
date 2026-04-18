@@ -1,3 +1,4 @@
+import { eq } from "drizzle-orm";
 import { DrizzleAdapter } from "@auth/drizzle-adapter";
 import { type DefaultSession, type NextAuthConfig } from "next-auth";
 import DiscordProvider from "next-auth/providers/discord";
@@ -6,6 +7,7 @@ import { env } from "~/env";
 import { db } from "~/server/db";
 import {
   accounts,
+  botNotificationQueue,
   sessions,
   users,
   verificationTokens
@@ -119,7 +121,17 @@ export const authConfig = {
   },
   events: {
     async signIn({ user, profile, account }) {
-      if (account?.provider !== "discord") return;
+      if (account?.provider !== "discord" || !user.id) return;
+
+      // Check if user already exists (to detect first login)
+      const existingUser = await db
+        .select({ id: users.id })
+        .from(users)
+        .where(eq(users.id, user.id))
+        .limit(1);
+
+      const isFirstLogin = existingUser.length === 0;
+
       const activityAt = new Date();
       const discordProfile = profile as
         | {
@@ -165,6 +177,19 @@ export const authConfig = {
             lastSeenAt: activityAt
           }
         });
+
+      // Queue bot notification for first login
+      if (isFirstLogin) {
+        await db.insert(botNotificationQueue).values({
+          eventKey: "user_first_login",
+          userId: user.id,
+          dataJson: JSON.stringify({
+            userId: user.id,
+            displayName,
+            username
+          })
+        });
+      }
     }
   }
 } satisfies NextAuthConfig;
