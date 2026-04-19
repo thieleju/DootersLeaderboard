@@ -1,6 +1,13 @@
 "use client";
 
-import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
+import {
+  Fragment,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState
+} from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   AlertCircle,
@@ -25,6 +32,7 @@ import {
 import Link from "next/link";
 import Image from "next/image";
 import { type FileRejection, useDropzone } from "react-dropzone";
+import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts";
 
 import { QUERY_DEFAULT_STALE_TIME_MS } from "~/constants";
 import { extractYouTubeVideoId } from "~/lib/youtube";
@@ -32,7 +40,10 @@ import type {
   PlayerProfileRunRow,
   SubmitRunInput
 } from "~/server/types/players";
-import { type RunCategoryId } from "~/server/types/leaderboard";
+import {
+  type LeaderboardWeaponKey,
+  type RunCategoryId
+} from "~/server/types/leaderboard";
 import {
   MAX_SUBMIT_HUNTER_NAME_LENGTH,
   MAX_SUBMIT_SCREENSHOT_BYTES,
@@ -173,6 +184,10 @@ export default function PlayerProfileView({
   const [deletingRunId, setDeletingRunId] = useState<string | null>(null);
   const [openDropdown, setOpenDropdown] = useState<string | null>(null);
   const [expandedRunId, setExpandedRunId] = useState<string | null>(null);
+  const [isWeaponUsageExpanded, setIsWeaponUsageExpanded] = useState(false);
+  const [isWeaponChartReady, setIsWeaponChartReady] = useState(false);
+  const weaponChartHostRef = useRef<HTMLDivElement | null>(null);
+  const [weaponChartWidth, setWeaponChartWidth] = useState(680);
 
   const profileQuery = api.players.profile.useQuery(
     { userId },
@@ -251,6 +266,42 @@ export default function PlayerProfileView({
     document.addEventListener("click", handleClickOutside);
     return () => document.removeEventListener("click", handleClickOutside);
   }, [openDropdown]);
+
+  useEffect(() => {
+    if (!isWeaponUsageExpanded) {
+      setIsWeaponChartReady(false);
+      return;
+    }
+
+    const timeout = window.setTimeout(() => {
+      setIsWeaponChartReady(true);
+    }, 220);
+
+    return () => window.clearTimeout(timeout);
+  }, [isWeaponUsageExpanded]);
+
+  useEffect(() => {
+    if (!isWeaponUsageExpanded) return;
+
+    const host = weaponChartHostRef.current;
+    if (!host) return;
+
+    const updateSize = () => {
+      const nextWidth = Math.floor(host.clientWidth);
+      if (nextWidth > 0) {
+        setWeaponChartWidth(nextWidth);
+      }
+    };
+
+    updateSize();
+
+    const observer = new ResizeObserver(updateSize);
+    observer.observe(host);
+
+    return () => {
+      observer.disconnect();
+    };
+  }, [isWeaponUsageExpanded]);
 
   const formWithDefaultQuest =
     !form.questId && defaultQuestId
@@ -759,6 +810,84 @@ export default function PlayerProfileView({
   );
   const totalRunsCount = allRuns.length;
   const profileRoleLabel = capitalizeFirst(String(profile.user.role));
+  const approvedRuns = allRuns.filter((run) => run.status === "approved");
+
+  const weaponLabelByKey = new Map(
+    (submitOptionsQuery.data?.weapons ?? []).map((weapon) => [
+      weapon.key,
+      weapon.label
+    ])
+  );
+
+  const usageByKey = new Map<
+    string,
+    {
+      key: string;
+      label: string;
+      primary: number;
+      secondary: number;
+    }
+  >();
+
+  for (const run of approvedRuns) {
+    const primaryWeaponKey = run.primaryWeaponKey as LeaderboardWeaponKey;
+    const primaryEntry = usageByKey.get(primaryWeaponKey) ?? {
+      key: primaryWeaponKey,
+      label:
+        weaponLabelByKey.get(primaryWeaponKey) ??
+        primaryWeaponKey.toUpperCase(),
+      primary: 0,
+      secondary: 0
+    };
+    primaryEntry.primary += 1;
+    usageByKey.set(primaryWeaponKey, primaryEntry);
+
+    if (run.secondaryWeaponKey) {
+      const secondaryWeaponKey = run.secondaryWeaponKey as LeaderboardWeaponKey;
+      const secondaryEntry = usageByKey.get(secondaryWeaponKey) ?? {
+        key: secondaryWeaponKey,
+        label:
+          weaponLabelByKey.get(secondaryWeaponKey) ??
+          secondaryWeaponKey.toUpperCase(),
+        primary: 0,
+        secondary: 0
+      };
+      secondaryEntry.secondary += 1;
+      usageByKey.set(secondaryWeaponKey, secondaryEntry);
+    }
+  }
+
+  const weaponUsageData = [...usageByKey.values()]
+    .map((item) => ({
+      ...item,
+      total: item.primary + item.secondary
+    }))
+    .sort((a, b) => b.total - a.total || a.label.localeCompare(b.label));
+
+  const renderWeaponTick = (props: unknown) => {
+    const tick = props as {
+      x?: number;
+      y?: number;
+      payload?: {
+        value?: string;
+      };
+    };
+
+    const weaponKey = tick.payload?.value ?? "";
+
+    return (
+      <g transform={`translate(${tick.x ?? 0},${tick.y ?? 0})`}>
+        <image
+          href={`/weapons/${weaponKey}.png`}
+          x={-20}
+          y={-14}
+          width={28}
+          height={28}
+          preserveAspectRatio="xMidYMid meet"
+        />
+      </g>
+    );
+  };
 
   const hasAnyRunActions = allRuns.some((run) => {
     const canDeleteRun = isAdmin || (isCurrentUser && run.status === "pending");
@@ -771,9 +900,13 @@ export default function PlayerProfileView({
 
   return (
     <div className="space-y-4">
-      <AnimatedCard key="profile-header-card" className="p-8">
+      <AnimatedCard
+        key="profile-header-card"
+        className="cursor-pointer p-8"
+        onClick={() => setIsWeaponUsageExpanded((current) => !current)}
+      >
         <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
-          <div className="flex flex-wrap items-center gap-4">
+          <div className="group flex w-full flex-wrap items-center gap-4 text-left transition-opacity hover:opacity-95 md:w-auto md:flex-1">
             <span className="relative flex h-14 w-14 items-center justify-center overflow-hidden rounded-full border border-gray-700 bg-white/5">
               {profile.user.avatar ? (
                 <Image
@@ -796,6 +929,7 @@ export default function PlayerProfileView({
                 </h1>
                 <Link
                   href="/rankings"
+                  onClick={(event) => event.stopPropagation()}
                   className={`inline-flex cursor-pointer items-center rounded-full border px-2.5 py-1 text-xs font-semibold tracking-[0.12em] uppercase transition-colors hover:brightness-110 ${
                     profile.leaderboardPlacement
                       ? getProfileRankBadgeClass(profile.leaderboardPlacement)
@@ -808,7 +942,8 @@ export default function PlayerProfileView({
                 </Link>
               </div>
               <p className="mt-2 text-sm text-gray-400">
-                {profileRoleLabel} · {formatCountLabel(totalRunsCount, "total run")}
+                {profileRoleLabel} ·{" "}
+                {formatCountLabel(totalRunsCount, "total run")}
               </p>
             </div>
           </div>
@@ -828,6 +963,119 @@ export default function PlayerProfileView({
             />
           </div>
         </div>
+        {weaponUsageData.length > 0 ? (
+          <motion.div
+            initial={false}
+            animate={{
+              maxHeight: isWeaponUsageExpanded ? 460 : 0,
+              opacity: isWeaponUsageExpanded ? 1 : 0
+            }}
+            transition={{
+              duration: 0.28,
+              ease: [0.22, 1, 0.36, 1]
+            }}
+            onClick={(event) => {
+              event.stopPropagation();
+              if (isWeaponUsageExpanded) {
+                setIsWeaponUsageExpanded(false);
+              }
+            }}
+            className="origin-top cursor-pointer overflow-hidden"
+            style={{
+              maxHeight: isWeaponUsageExpanded ? 460 : 0,
+              pointerEvents: isWeaponUsageExpanded ? "auto" : "none"
+            }}
+          >
+            <motion.div
+              animate={{ opacity: isWeaponUsageExpanded ? 1 : 0.65 }}
+              transition={{ duration: 0.18, ease: "easeOut" }}
+              className="mt-6 border-t border-gray-800/70 pt-4"
+            >
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <div>
+                  <h2 className="text-lg font-bold text-white">Weapon Usage</h2>
+                  <p className="mt-1 text-sm text-gray-400">
+                    Primary and secondary weapon usage across all approved runs.
+                  </p>
+                </div>
+
+                <div className="hidden items-center gap-3 text-xs text-gray-400 md:flex">
+                  <span className="inline-flex items-center gap-1.5">
+                    <span
+                      className="h-2.5 w-2.5 rounded-full"
+                      style={{ backgroundColor: "#FFD22F" }}
+                    />
+                    Primary
+                  </span>
+                  <span className="inline-flex items-center gap-1.5">
+                    <span
+                      className="h-2.5 w-2.5 rounded-full"
+                      style={{ backgroundColor: "#c6a326" }}
+                    />
+                    Secondary
+                  </span>
+                </div>
+              </div>
+
+              {isWeaponUsageExpanded ? (
+                <div className="pointer-events-none max-h-[320px] overflow-y-auto pr-1">
+                  <div
+                    ref={weaponChartHostRef}
+                    className="w-full min-w-0 overflow-x-auto"
+                    style={{
+                      height: Math.max(210, weaponUsageData.length * 40 + 24)
+                    }}
+                  >
+                    {isWeaponChartReady ? (
+                      <BarChart
+                        width={Math.max(320, weaponChartWidth)}
+                        height={Math.max(210, weaponUsageData.length * 40 + 24)}
+                        data={weaponUsageData}
+                        layout="vertical"
+                        margin={{ top: 4, right: 10, left: 6, bottom: 4 }}
+                        barCategoryGap={14}
+                        barGap={6}
+                      >
+                        <CartesianGrid
+                          stroke="rgba(255,255,255,0.06)"
+                          strokeDasharray="3 3"
+                          horizontal={false}
+                        />
+                        <XAxis
+                          type="number"
+                          allowDecimals={false}
+                          tick={{ fill: "#9ca3af", fontSize: 12 }}
+                          axisLine={false}
+                          tickLine={false}
+                        />
+                        <YAxis
+                          type="category"
+                          dataKey="key"
+                          width={56}
+                          tick={renderWeaponTick}
+                          axisLine={false}
+                          tickLine={false}
+                        />
+                        <Bar
+                          dataKey="primary"
+                          fill="#FFD22F"
+                          radius={[0, 999, 999, 0]}
+                          barSize={8}
+                        />
+                        <Bar
+                          dataKey="secondary"
+                          fill="#c6a326"
+                          radius={[0, 999, 999, 0]}
+                          barSize={8}
+                        />
+                      </BarChart>
+                    ) : null}
+                  </div>
+                </div>
+              ) : null}
+            </motion.div>
+          </motion.div>
+        ) : null}
       </AnimatedCard>
 
       <AnimatedCard
@@ -1271,22 +1519,20 @@ export default function PlayerProfileView({
                                       </div>
                                     ) : null}
                                   </div>
-                                ) : (
-                                  run.hasScreenshot ? (
-                                    <div className="space-y-1">
-                                      <div className="text-[10px] tracking-[0.16em] text-gray-500 uppercase">
-                                        Screenshot
-                                      </div>
-                                      <div className="overflow-hidden rounded-xl border border-gray-700/80 bg-black/25">
-                                        <LazyScreenshotImage
-                                          runId={run.runId}
-                                          alt="Run screenshot"
-                                          className="h-auto w-full"
-                                        />
-                                      </div>
+                                ) : run.hasScreenshot ? (
+                                  <div className="space-y-1">
+                                    <div className="text-[10px] tracking-[0.16em] text-gray-500 uppercase">
+                                      Screenshot
                                     </div>
-                                  ) : null
-                                )}
+                                    <div className="overflow-hidden rounded-xl border border-gray-700/80 bg-black/25">
+                                      <LazyScreenshotImage
+                                        runId={run.runId}
+                                        alt="Run screenshot"
+                                        className="h-auto w-full"
+                                      />
+                                    </div>
+                                  </div>
+                                ) : null}
                               </div>
                             </div>
                           </motion.div>
@@ -1313,540 +1559,551 @@ export default function PlayerProfileView({
         <div id="submit-run-form">
           <AnimatedCard key="profile-submit-run-card" className="p-6">
             <div className="mb-6 flex items-start gap-3">
-            <div
-              className={`flex h-12 min-h-12 w-12 min-w-12 items-center justify-center rounded-full border ${iconToneClasses.emerald}`}
-            >
-              <Upload className="h-6 w-6" />
+              <div
+                className={`flex h-12 min-h-12 w-12 min-w-12 items-center justify-center rounded-full border ${iconToneClasses.emerald}`}
+              >
+                <Upload className="h-6 w-6" />
+              </div>
+              <div>
+                <h2 className="text-2xl font-bold text-white">
+                  Submit New Run
+                </h2>
+                <p className="mt-1 text-sm text-gray-400">
+                  Submitted runs are reviewed before being shown on the
+                  leaderboard. Please add a screenshot or video to your run
+                  submission.
+                </p>
+              </div>
             </div>
-            <div>
-              <h2 className="text-2xl font-bold text-white">Submit New Run</h2>
-              <p className="mt-1 text-sm text-gray-400">
-                Submitted runs are reviewed before being shown on the
-                leaderboard. Please add a screenshot or video to your run
-                submission.
-              </p>
-            </div>
-          </div>
 
-          <form
-            onSubmit={submitForm}
-            className="grid grid-cols-1 gap-4 md:grid-cols-2"
-          >
-            <div className="space-y-1">
-              <span className="text-xs tracking-[0.16em] text-gray-500 uppercase">
-                Quest
-              </span>
-              <div className="relative">
-                <button
-                  type="button"
-                  onClick={() =>
-                    setOpenDropdown(openDropdown === "quest" ? null : "quest")
-                  }
-                  className="relative w-full rounded-lg border border-gray-700 bg-gray-900/70 px-3 py-2 pr-10 text-left text-sm text-gray-100 transition-colors outline-none hover:border-amber-400 focus-visible:border-amber-400"
-                >
-                  <span className="block truncate">
-                    {(() => {
-                      const quest = (
-                        submitOptionsQuery.data?.quests ?? []
-                      ).find((q) => q.id === formWithDefaultQuest.questId);
-                      return quest
-                        ? `${quest.title} · ${quest.difficultyStars}★ ${quest.monster}`
-                        : "Select quest";
-                    })()}
-                  </span>
-                  <ChevronDown
-                    className={`pointer-events-none absolute top-1/2 right-3 h-4 w-4 -translate-y-1/2 text-gray-400 transition-transform duration-200 ${
-                      openDropdown === "quest"
-                        ? "rotate-180 text-amber-300"
-                        : ""
-                    }`}
-                  />
-                </button>
-                {openDropdown === "quest" && (
-                  <motion.div
-                    role="listbox"
-                    initial={{ opacity: 0, y: -4, scale: 0.99 }}
-                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                    exit={{ opacity: 0, y: -4, scale: 0.99 }}
-                    transition={{ duration: 0.16 }}
-                    className="absolute z-30 mt-2 max-h-64 w-full overflow-y-auto rounded-lg border border-gray-700 bg-gray-900/95 p-1 shadow-2xl shadow-black/35 backdrop-blur-sm"
+            <form
+              onSubmit={submitForm}
+              className="grid grid-cols-1 gap-4 md:grid-cols-2"
+            >
+              <div className="space-y-1">
+                <span className="text-xs tracking-[0.16em] text-gray-500 uppercase">
+                  Quest
+                </span>
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setOpenDropdown(openDropdown === "quest" ? null : "quest")
+                    }
+                    className="relative w-full rounded-lg border border-gray-700 bg-gray-900/70 px-3 py-2 pr-10 text-left text-sm text-gray-100 transition-colors outline-none hover:border-amber-400 focus-visible:border-amber-400"
                   >
-                    {(submitOptionsQuery.data?.quests ?? []).map((quest) => {
-                      return (
+                    <span className="block truncate">
+                      {(() => {
+                        const quest = (
+                          submitOptionsQuery.data?.quests ?? []
+                        ).find((q) => q.id === formWithDefaultQuest.questId);
+                        return quest
+                          ? `${quest.title} · ${quest.difficultyStars}★ ${quest.monster}`
+                          : "Select quest";
+                      })()}
+                    </span>
+                    <ChevronDown
+                      className={`pointer-events-none absolute top-1/2 right-3 h-4 w-4 -translate-y-1/2 text-gray-400 transition-transform duration-200 ${
+                        openDropdown === "quest"
+                          ? "rotate-180 text-amber-300"
+                          : ""
+                      }`}
+                    />
+                  </button>
+                  {openDropdown === "quest" && (
+                    <motion.div
+                      role="listbox"
+                      initial={{ opacity: 0, y: -4, scale: 0.99 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: -4, scale: 0.99 }}
+                      transition={{ duration: 0.16 }}
+                      className="absolute z-30 mt-2 max-h-64 w-full overflow-y-auto rounded-lg border border-gray-700 bg-gray-900/95 p-1 shadow-2xl shadow-black/35 backdrop-blur-sm"
+                    >
+                      {(submitOptionsQuery.data?.quests ?? []).map((quest) => {
+                        return (
+                          <button
+                            key={quest.id}
+                            type="button"
+                            role="option"
+                            aria-selected={
+                              formWithDefaultQuest.questId === quest.id
+                            }
+                            onClick={() => {
+                              setForm((current) => ({
+                                ...current,
+                                questId: quest.id
+                              }));
+                              setOpenDropdown(null);
+                            }}
+                            className={`flex w-full rounded-md px-3 py-2 text-left text-sm transition-colors ${
+                              formWithDefaultQuest.questId === quest.id
+                                ? "bg-amber-400/15 text-amber-100"
+                                : "text-gray-200 hover:bg-white/7"
+                            }`}
+                          >
+                            {quest.title} · {quest.difficultyStars}★{" "}
+                            {quest.monster}
+                          </button>
+                        );
+                      })}
+                    </motion.div>
+                  )}
+                </div>
+              </div>
+
+              <label className="space-y-1">
+                <span className="text-xs tracking-[0.16em] text-gray-500 uppercase">
+                  Hunter Name
+                </span>
+                <input
+                  type="text"
+                  className="w-full rounded-lg border border-gray-700 bg-gray-900/70 px-3 py-2 text-sm text-gray-100 transition-colors outline-none focus:border-amber-400"
+                  value={formWithDefaultQuest.hunterName}
+                  maxLength={MAX_SUBMIT_HUNTER_NAME_LENGTH}
+                  onChange={(event) =>
+                    setForm((current) => ({
+                      ...current,
+                      hunterName: event.target.value
+                    }))
+                  }
+                  placeholder="Your in-game hunter name"
+                />
+              </label>
+
+              <label className="space-y-1">
+                <span className="text-xs tracking-[0.16em] text-gray-500 uppercase">
+                  Run Time
+                </span>
+                <input
+                  type="text"
+                  className="w-full rounded-lg border border-gray-700 bg-gray-900/70 px-3 py-2 text-sm text-gray-100 transition-colors outline-none focus:border-amber-400"
+                  value={formWithDefaultQuest.runTime}
+                  onChange={(event) => {
+                    const masked = maskRunTimeInput(event.target.value);
+                    setForm((current) => ({
+                      ...current,
+                      runTime: masked
+                    }));
+                  }}
+                  placeholder={"mm'ss\"cc"}
+                  maxLength={11}
+                />
+              </label>
+
+              <div className="space-y-1">
+                <span className="text-xs tracking-[0.16em] text-gray-500 uppercase">
+                  Category
+                </span>
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      !isArenaQuest &&
+                      setOpenDropdown(
+                        openDropdown === "category" ? null : "category"
+                      )
+                    }
+                    disabled={isArenaQuest}
+                    className={`relative w-full rounded-lg border bg-gray-900/70 px-3 py-2 pr-10 text-left text-sm text-gray-100 transition-colors outline-none ${
+                      isArenaQuest
+                        ? "cursor-not-allowed border-gray-800/90 opacity-70"
+                        : "border-gray-700 hover:border-amber-400 focus-visible:border-amber-400"
+                    }`}
+                  >
+                    <span className="block truncate">
+                      {selectableCategories.find(
+                        (c) => c.id === formWithDefaultQuest.category
+                      )?.label ?? "Select category"}
+                    </span>
+                    <ChevronDown
+                      className={`pointer-events-none absolute top-1/2 right-3 h-4 w-4 -translate-y-1/2 text-gray-400 transition-transform duration-200 ${
+                        openDropdown === "category"
+                          ? "rotate-180 text-amber-300"
+                          : ""
+                      }`}
+                    />
+                  </button>
+                  {openDropdown === "category" && !isArenaQuest && (
+                    <motion.div
+                      role="listbox"
+                      initial={{ opacity: 0, y: -4, scale: 0.99 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: -4, scale: 0.99 }}
+                      transition={{ duration: 0.16 }}
+                      className="absolute z-30 mt-2 w-full overflow-y-auto rounded-lg border border-gray-700 bg-gray-900/95 p-1 shadow-2xl shadow-black/35 backdrop-blur-sm"
+                    >
+                      {selectableCategories.map((category) => (
                         <button
-                          key={quest.id}
+                          key={category.id}
                           type="button"
                           role="option"
                           aria-selected={
-                            formWithDefaultQuest.questId === quest.id
+                            formWithDefaultQuest.category === category.id
                           }
                           onClick={() => {
                             setForm((current) => ({
                               ...current,
-                              questId: quest.id
+                              category: category.id
                             }));
                             setOpenDropdown(null);
                           }}
                           className={`flex w-full rounded-md px-3 py-2 text-left text-sm transition-colors ${
-                            formWithDefaultQuest.questId === quest.id
+                            formWithDefaultQuest.category === category.id
                               ? "bg-amber-400/15 text-amber-100"
                               : "text-gray-200 hover:bg-white/7"
                           }`}
                         >
-                          {quest.title} · {quest.difficultyStars}★{" "}
-                          {quest.monster}
+                          {category.label}
                         </button>
-                      );
-                    })}
-                  </motion.div>
-                )}
-              </div>
-            </div>
-
-            <label className="space-y-1">
-              <span className="text-xs tracking-[0.16em] text-gray-500 uppercase">
-                Hunter Name
-              </span>
-              <input
-                type="text"
-                className="w-full rounded-lg border border-gray-700 bg-gray-900/70 px-3 py-2 text-sm text-gray-100 transition-colors outline-none focus:border-amber-400"
-                value={formWithDefaultQuest.hunterName}
-                maxLength={MAX_SUBMIT_HUNTER_NAME_LENGTH}
-                onChange={(event) =>
-                  setForm((current) => ({
-                    ...current,
-                    hunterName: event.target.value
-                  }))
-                }
-                placeholder="Your in-game hunter name"
-              />
-            </label>
-
-            <label className="space-y-1">
-              <span className="text-xs tracking-[0.16em] text-gray-500 uppercase">
-                Run Time
-              </span>
-              <input
-                type="text"
-                className="w-full rounded-lg border border-gray-700 bg-gray-900/70 px-3 py-2 text-sm text-gray-100 transition-colors outline-none focus:border-amber-400"
-                value={formWithDefaultQuest.runTime}
-                onChange={(event) => {
-                  const masked = maskRunTimeInput(event.target.value);
-                  setForm((current) => ({
-                    ...current,
-                    runTime: masked
-                  }));
-                }}
-                placeholder={"mm'ss\"cc"}
-                maxLength={11}
-              />
-            </label>
-
-            <div className="space-y-1">
-              <span className="text-xs tracking-[0.16em] text-gray-500 uppercase">
-                Category
-              </span>
-              <div className="relative">
-                <button
-                  type="button"
-                  onClick={() =>
-                    !isArenaQuest &&
-                    setOpenDropdown(
-                      openDropdown === "category" ? null : "category"
-                    )
-                  }
-                  disabled={isArenaQuest}
-                  className={`relative w-full rounded-lg border bg-gray-900/70 px-3 py-2 pr-10 text-left text-sm text-gray-100 transition-colors outline-none ${
-                    isArenaQuest
-                      ? "cursor-not-allowed border-gray-800/90 opacity-70"
-                      : "border-gray-700 hover:border-amber-400 focus-visible:border-amber-400"
-                  }`}
-                >
-                  <span className="block truncate">
-                    {selectableCategories.find(
-                      (c) => c.id === formWithDefaultQuest.category
-                    )?.label ?? "Select category"}
-                  </span>
-                  <ChevronDown
-                    className={`pointer-events-none absolute top-1/2 right-3 h-4 w-4 -translate-y-1/2 text-gray-400 transition-transform duration-200 ${
-                      openDropdown === "category"
-                        ? "rotate-180 text-amber-300"
-                        : ""
-                    }`}
-                  />
-                </button>
-                {openDropdown === "category" && !isArenaQuest && (
-                  <motion.div
-                    role="listbox"
-                    initial={{ opacity: 0, y: -4, scale: 0.99 }}
-                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                    exit={{ opacity: 0, y: -4, scale: 0.99 }}
-                    transition={{ duration: 0.16 }}
-                    className="absolute z-30 mt-2 w-full overflow-y-auto rounded-lg border border-gray-700 bg-gray-900/95 p-1 shadow-2xl shadow-black/35 backdrop-blur-sm"
-                  >
-                    {selectableCategories.map((category) => (
-                      <button
-                        key={category.id}
-                        type="button"
-                        role="option"
-                        aria-selected={
-                          formWithDefaultQuest.category === category.id
-                        }
-                        onClick={() => {
-                          setForm((current) => ({
-                            ...current,
-                            category: category.id
-                          }));
-                          setOpenDropdown(null);
-                        }}
-                        className={`flex w-full rounded-md px-3 py-2 text-left text-sm transition-colors ${
-                          formWithDefaultQuest.category === category.id
-                            ? "bg-amber-400/15 text-amber-100"
-                            : "text-gray-200 hover:bg-white/7"
-                        }`}
-                      >
-                        {category.label}
-                      </button>
-                    ))}
-                  </motion.div>
-                )}
-              </div>
-            </div>
-
-            <div className="space-y-1">
-              <span className="text-xs tracking-[0.16em] text-gray-500 uppercase">
-                Primary Weapon
-              </span>
-              <div className="relative">
-                <button
-                  type="button"
-                  onClick={() =>
-                    setOpenDropdown(
-                      openDropdown === "primary" ? null : "primary"
-                    )
-                  }
-                  className="relative w-full rounded-lg border border-gray-700 bg-gray-900/70 px-3 py-2 pr-10 text-left text-sm text-gray-100 transition-colors outline-none hover:border-amber-400 focus-visible:border-amber-400"
-                >
-                  <span className="block truncate">
-                    {(submitOptionsQuery.data?.weapons ?? []).find(
-                      (w) => w.key === formWithDefaultQuest.primaryWeaponKey
-                    )?.label ?? "Select primary weapon"}
-                  </span>
-                  <ChevronDown
-                    className={`pointer-events-none absolute top-1/2 right-3 h-4 w-4 -translate-y-1/2 text-gray-400 transition-transform duration-200 ${
-                      openDropdown === "primary"
-                        ? "rotate-180 text-amber-300"
-                        : ""
-                    }`}
-                  />
-                </button>
-                {openDropdown === "primary" && (
-                  <motion.div
-                    role="listbox"
-                    initial={{ opacity: 0, y: -4, scale: 0.99 }}
-                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                    exit={{ opacity: 0, y: -4, scale: 0.99 }}
-                    transition={{ duration: 0.16 }}
-                    className="absolute z-30 mt-2 max-h-64 w-full overflow-y-auto rounded-lg border border-gray-700 bg-gray-900/95 p-1 shadow-2xl shadow-black/35 backdrop-blur-sm"
-                  >
-                    {(submitOptionsQuery.data?.weapons ?? []).map((weapon) => (
-                      <button
-                        key={weapon.key}
-                        type="button"
-                        role="option"
-                        aria-selected={
-                          formWithDefaultQuest.primaryWeaponKey === weapon.key
-                        }
-                        onClick={() => {
-                          setForm((current) => ({
-                            ...current,
-                            primaryWeaponKey: weapon.key
-                          }));
-                          setOpenDropdown(null);
-                        }}
-                        className={`flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm transition-colors ${
-                          formWithDefaultQuest.primaryWeaponKey === weapon.key
-                            ? "bg-amber-400/15 text-amber-100"
-                            : "text-gray-200 hover:bg-white/7"
-                        }`}
-                      >
-                        <Image
-                          src={`/weapons/${weapon.key}.png`}
-                          alt={weapon.key.toUpperCase()}
-                          title={weapon.key.toUpperCase()}
-                          width={20}
-                          height={20}
-                          className="h-5 w-5 object-contain"
-                        />
-                        {weapon.label}
-                      </button>
-                    ))}
-                  </motion.div>
-                )}
-              </div>
-            </div>
-
-            <div className="space-y-1">
-              <span className="text-xs tracking-[0.16em] text-gray-500 uppercase">
-                Secondary Weapon
-              </span>
-              <div className="relative">
-                <button
-                  type="button"
-                  onClick={() =>
-                    setOpenDropdown(
-                      openDropdown === "secondary" ? null : "secondary"
-                    )
-                  }
-                  className="relative w-full rounded-lg border border-gray-700 bg-gray-900/70 px-3 py-2 pr-10 text-left text-sm text-gray-100 transition-colors outline-none hover:border-amber-400 focus-visible:border-amber-400"
-                >
-                  <span className="block truncate">
-                    {(submitOptionsQuery.data?.weapons ?? []).find(
-                      (w) => w.key === formWithDefaultQuest.secondaryWeaponKey
-                    )?.label ?? "Select secondary weapon"}
-                  </span>
-                  <ChevronDown
-                    className={`pointer-events-none absolute top-1/2 right-3 h-4 w-4 -translate-y-1/2 text-gray-400 transition-transform duration-200 ${
-                      openDropdown === "secondary"
-                        ? "rotate-180 text-amber-300"
-                        : ""
-                    }`}
-                  />
-                </button>
-                {openDropdown === "secondary" && (
-                  <motion.div
-                    role="listbox"
-                    initial={{ opacity: 0, y: -4, scale: 0.99 }}
-                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                    exit={{ opacity: 0, y: -4, scale: 0.99 }}
-                    transition={{ duration: 0.16 }}
-                    className="absolute z-30 mt-2 max-h-64 w-full overflow-y-auto rounded-lg border border-gray-700 bg-gray-900/95 p-1 shadow-2xl shadow-black/35 backdrop-blur-sm"
-                  >
-                    {(submitOptionsQuery.data?.weapons ?? []).map((weapon) => (
-                      <button
-                        key={weapon.key}
-                        type="button"
-                        role="option"
-                        aria-selected={
-                          formWithDefaultQuest.secondaryWeaponKey === weapon.key
-                        }
-                        onClick={() => {
-                          setForm((current) => ({
-                            ...current,
-                            secondaryWeaponKey: weapon.key
-                          }));
-                          setOpenDropdown(null);
-                        }}
-                        className={`flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm transition-colors ${
-                          formWithDefaultQuest.secondaryWeaponKey === weapon.key
-                            ? "bg-amber-400/15 text-amber-100"
-                            : "text-gray-200 hover:bg-white/7"
-                        }`}
-                      >
-                        <Image
-                          src={`/weapons/${weapon.key}.png`}
-                          alt={weapon.key.toUpperCase()}
-                          title={weapon.key.toUpperCase()}
-                          width={20}
-                          height={20}
-                          className="h-5 w-5 object-contain"
-                        />
-                        {weapon.label}
-                      </button>
-                    ))}
-                  </motion.div>
-                )}
-              </div>
-            </div>
-
-            <div className="space-y-4 md:col-span-2">
-              <div className="space-y-1">
-                <span className="text-xs tracking-[0.16em] text-gray-500 uppercase">
-                  YouTube Link (optional)
-                </span>
-                <input
-                  type="url"
-                  className={`w-full rounded-lg border bg-gray-900/70 px-3 py-2 text-sm text-gray-100 transition-colors outline-none ${
-                    youtubeLinkError
-                      ? "border-red-400/70 focus:border-red-300"
-                      : "border-gray-700 focus:border-amber-400"
-                  }`}
-                  value={formWithDefaultQuest.youtubeLink}
-                  maxLength={MAX_SUBMIT_YOUTUBE_LINK_LENGTH}
-                  onChange={(event) =>
-                    setForm((current) => ({
-                      ...current,
-                      youtubeLink: event.target.value
-                    }))
-                  }
-                  placeholder="https://www.youtube.com/watch?v=..."
-                />
-                {youtubeLinkError ? (
-                  <p className="text-xs text-red-300">{youtubeLinkError}</p>
-                ) : null}
-              </div>
-
-              <div className="space-y-1">
-                <span className="text-xs tracking-[0.16em] text-gray-500 uppercase">
-                  Screenshot (optional)
-                </span>
-                {formWithDefaultQuest.screenshotBase64 ? (
-                  <div className="mt-1 flex flex-wrap items-center gap-2">
-                    <span className="inline-flex max-w-full items-center gap-2 rounded-full border border-amber-300/30 bg-amber-400/10 px-3 py-1.5 text-xs text-amber-100">
-                      <span className="truncate">
-                        {formWithDefaultQuest.screenshotFileName ||
-                          "Selected screenshot"}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setForm((current) => ({
-                            ...current,
-                            screenshotBase64: "",
-                            screenshotFileName: ""
-                          }))
-                        }
-                        className="inline-flex cursor-pointer items-center rounded-full border border-amber-200/40 p-1 text-amber-100 transition-colors hover:border-red-300/60 hover:text-red-200"
-                        aria-label="Remove screenshot"
-                        title="Remove screenshot"
-                      >
-                        <X className="h-3 w-3" />
-                      </button>
-                    </span>
-                  </div>
-                ) : (
-                  <div
-                    {...getRootProps()}
-                    className={`cursor-pointer rounded-lg border border-dashed px-4 py-4 text-sm transition-colors ${
-                      isDragActive
-                        ? "border-amber-300 bg-amber-400/10"
-                        : "border-gray-700 bg-gray-900/60 hover:border-amber-400/70"
-                    }`}
-                  >
-                    <input {...getInputProps()} />
-                    <div className="flex items-center gap-2 text-gray-200">
-                      <ImagePlus className="h-4 w-4 text-amber-300" />
-                      <span>
-                        {isDragActive
-                          ? "Drop screenshot here..."
-                          : "Drag & drop screenshot, or click to select"}
-                      </span>
-                    </div>
-                    <p className="mt-1 text-xs text-gray-400">
-                      PNG/JPG/WEBP, max{" "}
-                      {(MAX_SUBMIT_SCREENSHOT_BYTES / 1_000_000).toFixed(1)} MB
-                    </p>
-                  </div>
-                )}
-
-                {screenshotError ? (
-                  <p className="text-xs text-red-300">{screenshotError}</p>
-                ) : null}
-              </div>
-
-              <div className="space-y-1">
-                <span className="text-xs tracking-[0.16em] text-gray-500 uppercase">
-                  Tags
-                </span>
-                <div className="flex flex-wrap gap-2">
-                  {formWithDefaultQuest.tags.map((tag) => (
-                    <span
-                      key={tag}
-                      className="inline-flex items-center gap-1 rounded-full border border-amber-300/30 bg-amber-400/10 px-2 py-1 text-xs whitespace-nowrap text-amber-200"
-                    >
-                      {tag}
-                      <button
-                        type="button"
-                        onClick={() => removeTag(tag)}
-                        className="cursor-pointer text-amber-300 transition-colors hover:text-amber-200"
-                        aria-label={`Remove ${tag}`}
-                      >
-                        <X className="h-3 w-3" />
-                      </button>
-                    </span>
-                  ))}
+                      ))}
+                    </motion.div>
+                  )}
                 </div>
+              </div>
 
-                <div className="flex flex-wrap items-center gap-2">
-                  <input
-                    type="text"
-                    value={tagInput}
-                    maxLength={MAX_SUBMIT_TAG_LENGTH}
-                    onChange={(event) => setTagInput(event.target.value)}
-                    onKeyDown={(event) => {
-                      if (event.key !== "Enter") return;
-                      event.preventDefault();
-                      addTag(tagInput);
-                      setTagInput("");
-                    }}
-                    placeholder="Add tag"
-                    className="min-w-[12rem] flex-1 rounded-lg border border-gray-700 bg-gray-900/70 px-3 py-2 text-sm text-gray-100 transition-colors outline-none focus:border-amber-400"
-                  />
+              <div className="space-y-1">
+                <span className="text-xs tracking-[0.16em] text-gray-500 uppercase">
+                  Primary Weapon
+                </span>
+                <div className="relative">
                   <button
                     type="button"
-                    onClick={() => {
-                      addTag(tagInput);
-                      setTagInput("");
-                    }}
-                    className="inline-flex cursor-pointer items-center gap-1 rounded-lg border border-gray-700 px-3 py-2 text-sm text-gray-200 transition-colors hover:border-amber-400 hover:text-amber-300"
+                    onClick={() =>
+                      setOpenDropdown(
+                        openDropdown === "primary" ? null : "primary"
+                      )
+                    }
+                    className="relative w-full rounded-lg border border-gray-700 bg-gray-900/70 px-3 py-2 pr-10 text-left text-sm text-gray-100 transition-colors outline-none hover:border-amber-400 focus-visible:border-amber-400"
                   >
-                    <Plus className="h-4 w-4" />
-                    Add
+                    <span className="block truncate">
+                      {(submitOptionsQuery.data?.weapons ?? []).find(
+                        (w) => w.key === formWithDefaultQuest.primaryWeaponKey
+                      )?.label ?? "Select primary weapon"}
+                    </span>
+                    <ChevronDown
+                      className={`pointer-events-none absolute top-1/2 right-3 h-4 w-4 -translate-y-1/2 text-gray-400 transition-transform duration-200 ${
+                        openDropdown === "primary"
+                          ? "rotate-180 text-amber-300"
+                          : ""
+                      }`}
+                    />
                   </button>
+                  {openDropdown === "primary" && (
+                    <motion.div
+                      role="listbox"
+                      initial={{ opacity: 0, y: -4, scale: 0.99 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: -4, scale: 0.99 }}
+                      transition={{ duration: 0.16 }}
+                      className="absolute z-30 mt-2 max-h-64 w-full overflow-y-auto rounded-lg border border-gray-700 bg-gray-900/95 p-1 shadow-2xl shadow-black/35 backdrop-blur-sm"
+                    >
+                      {(submitOptionsQuery.data?.weapons ?? []).map(
+                        (weapon) => (
+                          <button
+                            key={weapon.key}
+                            type="button"
+                            role="option"
+                            aria-selected={
+                              formWithDefaultQuest.primaryWeaponKey ===
+                              weapon.key
+                            }
+                            onClick={() => {
+                              setForm((current) => ({
+                                ...current,
+                                primaryWeaponKey: weapon.key
+                              }));
+                              setOpenDropdown(null);
+                            }}
+                            className={`flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm transition-colors ${
+                              formWithDefaultQuest.primaryWeaponKey ===
+                              weapon.key
+                                ? "bg-amber-400/15 text-amber-100"
+                                : "text-gray-200 hover:bg-white/7"
+                            }`}
+                          >
+                            <Image
+                              src={`/weapons/${weapon.key}.png`}
+                              alt={weapon.key.toUpperCase()}
+                              title={weapon.key.toUpperCase()}
+                              width={20}
+                              height={20}
+                              className="h-5 w-5 object-contain"
+                            />
+                            {weapon.label}
+                          </button>
+                        )
+                      )}
+                    </motion.div>
+                  )}
                 </div>
               </div>
 
-              {(submitOptionsQuery.data?.existingTags.length ?? 0) > 0 ? (
-                <div className="flex flex-wrap gap-2">
-                  {submitOptionsQuery.data?.existingTags
-                    .slice(0, 18)
-                    .map((tag) => (
-                      <button
+              <div className="space-y-1">
+                <span className="text-xs tracking-[0.16em] text-gray-500 uppercase">
+                  Secondary Weapon
+                </span>
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setOpenDropdown(
+                        openDropdown === "secondary" ? null : "secondary"
+                      )
+                    }
+                    className="relative w-full rounded-lg border border-gray-700 bg-gray-900/70 px-3 py-2 pr-10 text-left text-sm text-gray-100 transition-colors outline-none hover:border-amber-400 focus-visible:border-amber-400"
+                  >
+                    <span className="block truncate">
+                      {(submitOptionsQuery.data?.weapons ?? []).find(
+                        (w) => w.key === formWithDefaultQuest.secondaryWeaponKey
+                      )?.label ?? "Select secondary weapon"}
+                    </span>
+                    <ChevronDown
+                      className={`pointer-events-none absolute top-1/2 right-3 h-4 w-4 -translate-y-1/2 text-gray-400 transition-transform duration-200 ${
+                        openDropdown === "secondary"
+                          ? "rotate-180 text-amber-300"
+                          : ""
+                      }`}
+                    />
+                  </button>
+                  {openDropdown === "secondary" && (
+                    <motion.div
+                      role="listbox"
+                      initial={{ opacity: 0, y: -4, scale: 0.99 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: -4, scale: 0.99 }}
+                      transition={{ duration: 0.16 }}
+                      className="absolute z-30 mt-2 max-h-64 w-full overflow-y-auto rounded-lg border border-gray-700 bg-gray-900/95 p-1 shadow-2xl shadow-black/35 backdrop-blur-sm"
+                    >
+                      {(submitOptionsQuery.data?.weapons ?? []).map(
+                        (weapon) => (
+                          <button
+                            key={weapon.key}
+                            type="button"
+                            role="option"
+                            aria-selected={
+                              formWithDefaultQuest.secondaryWeaponKey ===
+                              weapon.key
+                            }
+                            onClick={() => {
+                              setForm((current) => ({
+                                ...current,
+                                secondaryWeaponKey: weapon.key
+                              }));
+                              setOpenDropdown(null);
+                            }}
+                            className={`flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm transition-colors ${
+                              formWithDefaultQuest.secondaryWeaponKey ===
+                              weapon.key
+                                ? "bg-amber-400/15 text-amber-100"
+                                : "text-gray-200 hover:bg-white/7"
+                            }`}
+                          >
+                            <Image
+                              src={`/weapons/${weapon.key}.png`}
+                              alt={weapon.key.toUpperCase()}
+                              title={weapon.key.toUpperCase()}
+                              width={20}
+                              height={20}
+                              className="h-5 w-5 object-contain"
+                            />
+                            {weapon.label}
+                          </button>
+                        )
+                      )}
+                    </motion.div>
+                  )}
+                </div>
+              </div>
+
+              <div className="space-y-4 md:col-span-2">
+                <div className="space-y-1">
+                  <span className="text-xs tracking-[0.16em] text-gray-500 uppercase">
+                    YouTube Link (optional)
+                  </span>
+                  <input
+                    type="url"
+                    className={`w-full rounded-lg border bg-gray-900/70 px-3 py-2 text-sm text-gray-100 transition-colors outline-none ${
+                      youtubeLinkError
+                        ? "border-red-400/70 focus:border-red-300"
+                        : "border-gray-700 focus:border-amber-400"
+                    }`}
+                    value={formWithDefaultQuest.youtubeLink}
+                    maxLength={MAX_SUBMIT_YOUTUBE_LINK_LENGTH}
+                    onChange={(event) =>
+                      setForm((current) => ({
+                        ...current,
+                        youtubeLink: event.target.value
+                      }))
+                    }
+                    placeholder="https://www.youtube.com/watch?v=..."
+                  />
+                  {youtubeLinkError ? (
+                    <p className="text-xs text-red-300">{youtubeLinkError}</p>
+                  ) : null}
+                </div>
+
+                <div className="space-y-1">
+                  <span className="text-xs tracking-[0.16em] text-gray-500 uppercase">
+                    Screenshot (optional)
+                  </span>
+                  {formWithDefaultQuest.screenshotBase64 ? (
+                    <div className="mt-1 flex flex-wrap items-center gap-2">
+                      <span className="inline-flex max-w-full items-center gap-2 rounded-full border border-amber-300/30 bg-amber-400/10 px-3 py-1.5 text-xs text-amber-100">
+                        <span className="truncate">
+                          {formWithDefaultQuest.screenshotFileName ||
+                            "Selected screenshot"}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setForm((current) => ({
+                              ...current,
+                              screenshotBase64: "",
+                              screenshotFileName: ""
+                            }))
+                          }
+                          className="inline-flex cursor-pointer items-center rounded-full border border-amber-200/40 p-1 text-amber-100 transition-colors hover:border-red-300/60 hover:text-red-200"
+                          aria-label="Remove screenshot"
+                          title="Remove screenshot"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </span>
+                    </div>
+                  ) : (
+                    <div
+                      {...getRootProps()}
+                      className={`cursor-pointer rounded-lg border border-dashed px-4 py-4 text-sm transition-colors ${
+                        isDragActive
+                          ? "border-amber-300 bg-amber-400/10"
+                          : "border-gray-700 bg-gray-900/60 hover:border-amber-400/70"
+                      }`}
+                    >
+                      <input {...getInputProps()} />
+                      <div className="flex items-center gap-2 text-gray-200">
+                        <ImagePlus className="h-4 w-4 text-amber-300" />
+                        <span>
+                          {isDragActive
+                            ? "Drop screenshot here..."
+                            : "Drag & drop screenshot, or click to select"}
+                        </span>
+                      </div>
+                      <p className="mt-1 text-xs text-gray-400">
+                        PNG/JPG/WEBP, max{" "}
+                        {(MAX_SUBMIT_SCREENSHOT_BYTES / 1_000_000).toFixed(1)}{" "}
+                        MB
+                      </p>
+                    </div>
+                  )}
+
+                  {screenshotError ? (
+                    <p className="text-xs text-red-300">{screenshotError}</p>
+                  ) : null}
+                </div>
+
+                <div className="space-y-1">
+                  <span className="text-xs tracking-[0.16em] text-gray-500 uppercase">
+                    Tags
+                  </span>
+                  <div className="flex flex-wrap gap-2">
+                    {formWithDefaultQuest.tags.map((tag) => (
+                      <span
                         key={tag}
-                        type="button"
-                        onClick={() => addTag(tag)}
-                        className="rounded-full border border-gray-700 bg-white/5 px-2 py-1 text-xs whitespace-nowrap text-gray-300 transition-colors hover:border-amber-400 hover:text-amber-300"
+                        className="inline-flex items-center gap-1 rounded-full border border-amber-300/30 bg-amber-400/10 px-2 py-1 text-xs whitespace-nowrap text-amber-200"
                       >
                         {tag}
-                      </button>
+                        <button
+                          type="button"
+                          onClick={() => removeTag(tag)}
+                          className="cursor-pointer text-amber-300 transition-colors hover:text-amber-200"
+                          aria-label={`Remove ${tag}`}
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </span>
                     ))}
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-2">
+                    <input
+                      type="text"
+                      value={tagInput}
+                      maxLength={MAX_SUBMIT_TAG_LENGTH}
+                      onChange={(event) => setTagInput(event.target.value)}
+                      onKeyDown={(event) => {
+                        if (event.key !== "Enter") return;
+                        event.preventDefault();
+                        addTag(tagInput);
+                        setTagInput("");
+                      }}
+                      placeholder="Add tag"
+                      className="min-w-[12rem] flex-1 rounded-lg border border-gray-700 bg-gray-900/70 px-3 py-2 text-sm text-gray-100 transition-colors outline-none focus:border-amber-400"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        addTag(tagInput);
+                        setTagInput("");
+                      }}
+                      className="inline-flex cursor-pointer items-center gap-1 rounded-lg border border-gray-700 px-3 py-2 text-sm text-gray-200 transition-colors hover:border-amber-400 hover:text-amber-300"
+                    >
+                      <Plus className="h-4 w-4" />
+                      Add
+                    </button>
+                  </div>
+                </div>
+
+                {(submitOptionsQuery.data?.existingTags.length ?? 0) > 0 ? (
+                  <div className="flex flex-wrap gap-2">
+                    {submitOptionsQuery.data?.existingTags
+                      .slice(0, 18)
+                      .map((tag) => (
+                        <button
+                          key={tag}
+                          type="button"
+                          onClick={() => addTag(tag)}
+                          className="rounded-full border border-gray-700 bg-white/5 px-2 py-1 text-xs whitespace-nowrap text-gray-300 transition-colors hover:border-amber-400 hover:text-amber-300"
+                        >
+                          {tag}
+                        </button>
+                      ))}
+                  </div>
+                ) : null}
+              </div>
+
+              {formError ? (
+                <div className="inline-flex items-center gap-2 rounded-lg border border-red-300/30 bg-red-400/10 px-3 py-2 text-sm text-red-200 md:col-span-2">
+                  <AlertCircle className="h-4 w-4" />
+                  {formError}
                 </div>
               ) : null}
-            </div>
 
-            {formError ? (
-              <div className="inline-flex items-center gap-2 rounded-lg border border-red-300/30 bg-red-400/10 px-3 py-2 text-sm text-red-200 md:col-span-2">
-                <AlertCircle className="h-4 w-4" />
-                {formError}
+              <div className="flex justify-end md:col-span-2">
+                <button
+                  type="submit"
+                  disabled={submitMutation.isPending}
+                  className="inline-flex cursor-pointer items-center gap-2 rounded-lg bg-amber-400 px-4 py-2 font-semibold text-gray-900 transition-colors hover:bg-amber-300 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  <Send className="h-4 w-4" />
+                  {submitMutation.isPending ? "Submitting..." : "Submit run"}
+                </button>
               </div>
-            ) : null}
 
-            <div className="flex justify-end md:col-span-2">
-              <button
-                type="submit"
-                disabled={submitMutation.isPending}
-                className="inline-flex cursor-pointer items-center gap-2 rounded-lg bg-amber-400 px-4 py-2 font-semibold text-gray-900 transition-colors hover:bg-amber-300 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                <Send className="h-4 w-4" />
-                {submitMutation.isPending ? "Submitting..." : "Submit run"}
-              </button>
-            </div>
-
-            {youtubeVideoId ? (
-              <div className="md:col-span-2">
-                <div className="overflow-hidden rounded-xl border border-gray-700/80 bg-black/35">
-                  <iframe
-                    className="aspect-video w-full"
-                    src={`https://www.youtube.com/embed/${youtubeVideoId}`}
-                    title="YouTube video preview"
-                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                    referrerPolicy="strict-origin-when-cross-origin"
-                    allowFullScreen
-                  />
+              {youtubeVideoId ? (
+                <div className="md:col-span-2">
+                  <div className="overflow-hidden rounded-xl border border-gray-700/80 bg-black/35">
+                    <iframe
+                      className="aspect-video w-full"
+                      src={`https://www.youtube.com/embed/${youtubeVideoId}`}
+                      title="YouTube video preview"
+                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                      referrerPolicy="strict-origin-when-cross-origin"
+                      allowFullScreen
+                    />
+                  </div>
                 </div>
-              </div>
-            ) : null}
-          </form>
+              ) : null}
+            </form>
           </AnimatedCard>
         </div>
       ) : null}
