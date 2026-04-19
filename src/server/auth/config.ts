@@ -12,7 +12,39 @@ import {
   users,
   verificationTokens
 } from "~/server/db/schema";
+import { createLogger } from "~/server/lib/logger";
 import type { UserRole } from "~/server/types/leaderboard";
+
+const logger = createLogger("auth");
+
+function summarizeNextAuthDetails(args: unknown[]) {
+  if (!args.length) {
+    return {
+      detailCount: 0
+    };
+  }
+
+  const detailKinds = args.map((item) => {
+    if (item === null) return "null";
+    if (Array.isArray(item)) return "array";
+    return typeof item;
+  });
+
+  const messages = args
+    .flatMap((item) => {
+      if (!item || typeof item !== "object") return [];
+      if (!("message" in item)) return [];
+      const value = (item as { message?: unknown }).message;
+      return typeof value === "string" ? [value] : [];
+    })
+    .slice(0, 2);
+
+  return {
+    detailCount: args.length,
+    detailKinds,
+    messages: messages.length > 0 ? messages : undefined
+  };
+}
 
 /**
  * Module augmentation for `next-auth` types. Allows us to add custom properties to the `session`
@@ -56,6 +88,26 @@ type DiscordProfilePayload = {
 export const authConfig = {
   // debug: process.env.NODE_ENV !== "production",
   trustHost: true,
+  logger: {
+    error(code, ...message) {
+      logger.error("nextauth internal error", {
+        code,
+        ...summarizeNextAuthDetails(message)
+      });
+    },
+    warn(code, ...message) {
+      logger.warn("nextauth internal warning", {
+        code,
+        ...summarizeNextAuthDetails(message)
+      });
+    },
+    debug(code, ...message) {
+      logger.debug("nextauth internal debug", {
+        code,
+        ...summarizeNextAuthDetails(message)
+      });
+    }
+  },
   pages: {
     error: "/auth/error"
   },
@@ -108,20 +160,39 @@ export const authConfig = {
     verificationTokensTable: verificationTokens
   }),
   callbacks: {
-    session: ({ session, user }) => ({
-      ...session,
-      user: {
-        ...session.user,
-        id: user.id,
-        displayName: user.displayName ?? session.user.name ?? "Profile",
-        name: user.username ?? "",
+    session: ({ session, user }) => {
+      const username = user.username ?? user.name ?? session.user.name ?? "";
+
+      logger.debug("session callback resolved", {
+        userId: user.id,
+        username: username || null,
         role: user.role ?? "runner"
-      }
-    })
+      });
+
+      return {
+        ...session,
+        user: {
+          ...session.user,
+          id: user.id,
+          displayName: user.displayName ?? session.user.name ?? "Profile",
+          username,
+          name: user.username ?? "",
+          role: user.role ?? "runner"
+        }
+      };
+    }
   },
   events: {
     async signIn({ user, profile, account }) {
-      if (account?.provider !== "discord" || !user.id) return;
+      if (account?.provider !== "discord" || !user.id) {
+        logger.info("sign-in ignored", {
+          provider: account?.provider ?? null,
+          userId: user.id ?? null,
+          username: user.name ?? null,
+          reason: "unsupported provider or missing user id"
+        });
+        return;
+      }
 
       // Check if user already exists (to detect first login)
       const existingUser = await db
@@ -154,6 +225,15 @@ export const authConfig = {
       const role = isDiscordAdminAccount(account.providerAccountId)
         ? "admin"
         : (user.role ?? "runner");
+
+      logger.info("sign-in received", {
+        provider: account.provider,
+        providerAccountId: account.providerAccountId,
+        userId: user.id,
+        username,
+        role,
+        firstLogin: isFirstLogin
+      });
 
       await db
         .insert(users)
@@ -189,7 +269,22 @@ export const authConfig = {
             username
           })
         });
+
+        logger.info("first login queued notification", {
+          userId: user.id,
+          username
+        });
       }
+    },
+
+    async signOut(message) {
+      const session = "session" in message ? message.session : null;
+      const token = "token" in message ? message.token : null;
+
+      logger.info("sign-out", {
+        userId: session?.userId ?? token?.sub ?? null,
+        username: (typeof token?.name === "string" ? token.name : null) ?? null
+      });
     }
   }
 } satisfies NextAuthConfig;

@@ -9,6 +9,7 @@ import { asc, desc, eq, inArray, isNotNull, sql } from "drizzle-orm";
 
 import { db } from "../server/db";
 import { quests, runs, users } from "../server/db/schema";
+import { createLogger } from "../server/lib/logger";
 import {
   calculatePlacementScore,
   calculateUserScoreAndTop3Placements
@@ -16,6 +17,8 @@ import {
 import { buildErrorEmbed, buildInfoEmbed } from "./embeds";
 import { formatCategoryLabel, formatRunTime } from "./formatting";
 import type { QuestOption } from "./types";
+
+const logger = createLogger("bot.commands");
 
 function truncateChoiceName(value: string) {
   return value.length <= 100 ? value : `${value.slice(0, 97)}...`;
@@ -85,7 +88,11 @@ async function registerCommands() {
 export async function registerCommandsForGuild(guild: Guild) {
   const commands = await registerCommands();
   await guild.commands.set(commands);
-  console.log(`[bot] Registered slash commands for guild ${guild.id}`);
+  logger.info("slash commands registered", {
+    guildId: guild.id,
+    guildName: guild.name,
+    commandCount: commands.length
+  });
 }
 
 export async function registerCommandsForAllGuilds(client: Client) {

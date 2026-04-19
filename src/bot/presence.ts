@@ -3,6 +3,9 @@ import { and, isNotNull, isNull } from "drizzle-orm";
 
 import { db } from "../server/db";
 import { runs as runsTable } from "../server/db/schema";
+import { createLogger } from "../server/lib/logger";
+
+const logger = createLogger("bot.presence");
 
 type PresenceSnapshot = {
   uploadedRunCount: number;
@@ -77,6 +80,6 @@ export async function updateBotPresence(client: Client) {
       activities: [activity]
     });
   } catch (error) {
-    console.error("[bot] Failed to update presence", error);
+    logger.error("failed to update presence", { error });
   }
 }

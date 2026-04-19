@@ -6,7 +6,10 @@ import { ZodError } from "zod";
 import { auth } from "~/server/auth";
 import { db } from "~/server/db";
 import { users as usersTable } from "~/server/db/schema";
+import { createLogger } from "~/server/lib/logger";
 import type { UserRole } from "~/server/types/leaderboard";
+
+const logger = createLogger("trpc");
 
 /**
  * 1. CONTEXT
@@ -45,15 +48,61 @@ export const createTRPCRouter = t.router;
 /**
  * Middleware: timing
  */
-const timingMiddleware = t.middleware(async ({ next, path }) => {
+const timingMiddleware = t.middleware(async ({ next, path, type, ctx }) => {
   const start = Date.now();
+  const user = ctx.session?.user;
+  const userMeta = {
+    userId: user?.id ?? null,
+    username:
+      ("username" in (user ?? {}) &&
+      typeof user?.username === "string" &&
+      user.username.trim()
+        ? user.username
+        : user?.name?.trim()
+          ? user.name
+          : user?.displayName?.trim()
+            ? user.displayName
+            : null) ?? null,
+    userRole: user?.role ?? null
+  };
 
-  const result = await next();
+  if (type === "mutation") {
+    logger.info("mutation started", {
+      path,
+      procedureType: type,
+      ...userMeta
+    });
+  }
 
-  const end = Date.now();
-  console.log(`[TRPC] ${path} took ${end - start}ms`);
+  try {
+    const result = await next();
 
-  return result;
+    const durationMs = Date.now() - start;
+    const baseMeta = {
+      path,
+      procedureType: type,
+      durationMs,
+      ...userMeta
+    };
+
+    if (type === "mutation") {
+      logger.info("mutation completed", baseMeta);
+    } else {
+      logger.debug("request completed", baseMeta);
+    }
+
+    return result;
+  } catch (error) {
+    const durationMs = Date.now() - start;
+    logger.error("request failed", {
+      path,
+      procedureType: type,
+      durationMs,
+      ...userMeta,
+      error
+    });
+    throw error;
+  }
 });
 
 /**

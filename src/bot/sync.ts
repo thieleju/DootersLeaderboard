@@ -3,12 +3,18 @@ import { eq } from "drizzle-orm";
 
 import { db } from "../server/db";
 import { botChannels, botGuilds } from "../server/db/schema";
+import { createLogger } from "../server/lib/logger";
+
+const logger = createLogger("bot.sync");
 
 export async function syncGuildsAndChannels(client: Client) {
   try {
     const guildCollection = await client.guilds.fetch();
+    let guildCount = 0;
+    let textChannelCount = 0;
 
     for (const fetchedGuild of guildCollection.values()) {
+      guildCount += 1;
       const guild = await fetchedGuild.fetch();
 
       await db
@@ -33,6 +39,7 @@ export async function syncGuildsAndChannels(client: Client) {
         if (!fetchedChannel?.isTextBased()) continue;
 
         channelIds.add(fetchedChannel.id);
+        textChannelCount += 1;
 
         await db
           .insert(botChannels)
@@ -81,8 +88,11 @@ export async function syncGuildsAndChannels(client: Client) {
       }
     }
 
-    console.log("[bot] Successfully synced guilds and channels");
+    logger.debug("guild and channel sync completed", {
+      guildCount,
+      textChannelCount
+    });
   } catch (error) {
-    console.error("[bot] Failed to sync guilds and channels", error);
+    logger.error("guild and channel sync failed", { error });
   }
 }

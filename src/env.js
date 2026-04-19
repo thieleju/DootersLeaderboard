@@ -17,6 +17,7 @@ export const env = createEnv({
     DISCORD_BOT_TOKEN: z.string().optional(),
     DISCORD_ADMIN_ID: z.string(),
     DATABASE_URL: z.string().url(),
+    LOG_LEVEL: z.enum(["debug", "info", "warn", "error"]).optional(),
     NODE_ENV: z
       .enum(["development", "test", "production"])
       .default("development")
@@ -43,6 +44,7 @@ export const env = createEnv({
     DISCORD_BOT_TOKEN: process.env.DISCORD_BOT_TOKEN,
     DISCORD_ADMIN_ID: process.env.DISCORD_ADMIN_ID,
     DATABASE_URL: process.env.DATABASE_URL,
+    LOG_LEVEL: process.env.LOG_LEVEL,
     NODE_ENV: process.env.NODE_ENV
   },
   /**

@@ -2,6 +2,7 @@ import "dotenv/config";
 import { Client, GatewayIntentBits } from "discord.js";
 
 import { buildErrorEmbed } from "./embeds";
+import { createLogger } from "../server/lib/logger";
 import {
   handleLeaderboard,
   registerCommandsForAllGuilds,
@@ -10,6 +11,8 @@ import {
 import { pollAndSendNotifications } from "./notifications";
 import { updateBotPresence } from "./presence";
 import { syncGuildsAndChannels } from "./sync";
+
+const logger = createLogger("bot");
 
 const token = process.env.DISCORD_BOT_TOKEN;
 if (!token) {
@@ -27,7 +30,9 @@ const client = new Client({
 
 client.once("clientReady", () => {
   const tag = client.user?.tag ?? "unknown";
-  console.log(`[bot] Logged in as ${tag}`);
+  logger.info("discord client ready", {
+    botTag: tag
+  });
 
   void (async () => {
     try {
@@ -35,7 +40,7 @@ client.once("clientReady", () => {
       await syncGuildsAndChannels(client);
       await updateBotPresence(client);
     } catch (error) {
-      console.error("[bot] Failed to register commands", error);
+      logger.error("startup bootstrap failed", { error });
     }
   })();
 
@@ -58,7 +63,11 @@ client.on("guildCreate", (guild) => {
       await registerCommandsForGuild(guild);
       await syncGuildsAndChannels(client);
     } catch (error) {
-      console.error("[bot] Failed to register commands for new guild", error);
+      logger.error("failed to register commands for new guild", {
+        guildId: guild.id,
+        guildName: guild.name,
+        error
+      });
     }
   })();
 });
@@ -73,10 +82,24 @@ client.on("interactionCreate", (interaction) => {
   void (async () => {
     try {
       if (interaction.commandName === "leaderboard") {
+        logger.info("command received", {
+          command: interaction.commandName,
+          guildId: interaction.guildId,
+          channelId: interaction.channelId,
+          userId: interaction.user.id,
+          username: interaction.user.username
+        });
         await handleLeaderboard(interaction);
       }
     } catch (error) {
-      console.error("[bot] Command failed", error);
+      logger.error("command execution failed", {
+        command: interaction.commandName,
+        guildId: interaction.guildId,
+        channelId: interaction.channelId,
+        userId: interaction.user.id,
+        username: interaction.user.username,
+        error
+      });
 
       if (interaction.replied || interaction.deferred) {
         await interaction.followUp({

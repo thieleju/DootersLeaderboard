@@ -9,12 +9,15 @@ import {
   runs,
   users
 } from "../server/db/schema";
+import { createLogger } from "../server/lib/logger";
 import {
   formatCategoryLabel,
   formatRunTime,
   formatWeaponsValue
 } from "./formatting";
 import type { BotNotificationSettingsRow } from "./types";
+
+const logger = createLogger("bot.notifications");
 
 function buildEventPagePath(
   eventKey: string,
@@ -253,7 +256,7 @@ export async function pollAndSendNotifications(
 
             if (run.youtubeLink) {
               embed.addFields({
-                name: "YouTube",
+                name: "Video",
                 value: `[Watch Here](${run.youtubeLink})`,
                 inline: false
               });
@@ -542,16 +545,28 @@ export async function pollAndSendNotifications(
           await channel.send({ embeds: [embed] });
         }
 
-        console.log(
-          `[bot] Sent ${notification.eventKey} to guild=${targetGuildId} channel=${targetChannelId} (${targetChannelName})`
-        );
+        logger.info("notification sent", {
+          eventKey: notification.eventKey,
+          guildId: targetGuildId,
+          channelId: targetChannelId,
+          channelName: targetChannelName,
+          queueId: notification.id,
+          runId: notification.runId ?? null,
+          userId: notification.userId ?? null
+        });
 
         await db
           .update(botNotificationQueue)
           .set({ sentAt: new Date() })
           .where(eq(botNotificationQueue.id, notification.id));
       } catch (error) {
-        console.error("[bot] Failed to process notification", error);
+        logger.error("failed to process notification", {
+          queueId: notification.id,
+          eventKey: notification.eventKey,
+          runId: notification.runId ?? null,
+          userId: notification.userId ?? null,
+          error
+        });
         await db
           .update(botNotificationQueue)
           .set({
@@ -562,6 +577,6 @@ export async function pollAndSendNotifications(
       }
     }
   } catch (error) {
-    console.error("[bot] Notification polling failed", error);
+    logger.error("notification polling failed", { error });
   }
 }
