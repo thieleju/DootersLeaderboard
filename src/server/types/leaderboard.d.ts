@@ -138,7 +138,7 @@ export type LeaderboardRow = {
   submittedAtMs: number;
   runTimeMs: number;
   youtubeLink: string | null;
-  screenshotBase64: string | null;
+  hasScreenshot: boolean;
   score: number;
   categoryId: RunCategoryId;
   tagLabels: string[];

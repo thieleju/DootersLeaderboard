@@ -46,6 +46,7 @@ import { api } from "~/trpc/react";
 import AnimatedCard from "./animated-card";
 import CategoryTooltip from "./category-tooltip";
 import DataTable, { getRelativeTime } from "./data-table";
+import LazyScreenshotImage from "./lazy-screenshot-image";
 import {
   capitalizeFirst,
   formatCountLabel,
@@ -931,13 +932,7 @@ export default function PlayerProfileView({
               const runYoutubeVideoId = runYoutubeLink
                 ? extractYouTubeVideoId(runYoutubeLink)
                 : null;
-              const runScreenshotBase64 = getStringField(
-                run,
-                "screenshotBase64"
-              );
-              const hasMedia = Boolean(
-                runYoutubeVideoId ?? runScreenshotBase64
-              );
+              const hasMedia = Boolean(runYoutubeVideoId ?? run.hasScreenshot);
               const statusLabel =
                 run.status === "approved"
                   ? "Approved"
@@ -1262,18 +1257,15 @@ export default function PlayerProfileView({
                                       </div>
                                     ) : null}
 
-                                    {runScreenshotBase64 ? (
+                                    {run.hasScreenshot ? (
                                       <div className="space-y-1">
                                         <div className="text-[10px] tracking-[0.16em] text-gray-500 uppercase">
                                           Screenshot
                                         </div>
                                         <div className="overflow-hidden rounded-xl border border-gray-700/80 bg-black/25">
-                                          <Image
-                                            src={runScreenshotBase64}
+                                          <LazyScreenshotImage
+                                            runId={run.runId}
                                             alt="Run screenshot"
-                                            width={1280}
-                                            height={720}
-                                            unoptimized
                                             className="h-auto w-full"
                                           />
                                         </div>
@@ -1281,9 +1273,20 @@ export default function PlayerProfileView({
                                     ) : null}
                                   </div>
                                 ) : (
-                                  <span className="text-xs text-gray-500">
-                                    No video or screenshot
-                                  </span>
+                                  run.hasScreenshot ? (
+                                    <div className="space-y-1">
+                                      <div className="text-[10px] tracking-[0.16em] text-gray-500 uppercase">
+                                        Screenshot
+                                      </div>
+                                      <div className="overflow-hidden rounded-xl border border-gray-700/80 bg-black/25">
+                                        <LazyScreenshotImage
+                                          runId={run.runId}
+                                          alt="Run screenshot"
+                                          className="h-auto w-full"
+                                        />
+                                      </div>
+                                    </div>
+                                  ) : null
                                 )}
                               </div>
                             </div>

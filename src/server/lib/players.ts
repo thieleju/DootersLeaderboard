@@ -317,7 +317,7 @@ export async function getPlayerProfile(
       runId: runsTable.id,
       hunterName: runsTable.hunterName,
       youtubeLink: sql<string | null>`${runsTable.youtubeLink}`,
-      screenshotBase64: sql<string | null>`${runsTable.screenshotBase64}`,
+      hasScreenshot: sql<number>`case when ${runsTable.screenshotBase64} is null then 0 else 1 end`,
       categoryId: runsTable.category,
       tags: runsTable.tags,
       submittedAt: runsTable.submittedAt,
@@ -391,7 +391,7 @@ export async function getPlayerProfile(
       runId: run.runId,
       hunterName: run.hunterName,
       youtubeLink: run.youtubeLink,
-      screenshotBase64: run.screenshotBase64,
+      hasScreenshot: Boolean(run.hasScreenshot),
       questTitle: run.questTitle,
       monster: run.monster,
       difficultyStars: run.difficultyStars,
@@ -551,8 +551,8 @@ export async function getPendingRunsForModeration(
       tags: runsTable.tags,
       submittedAt: runsTable.submittedAt,
       runTimeMs: runsTable.runTimeMs,
+      hasScreenshot: sql<number>`case when ${runsTable.screenshotBase64} is null then 0 else 1 end`,
       youtubeLink: sql<string | null>`${runsTable.youtubeLink}`,
-      screenshotBase64: sql<string | null>`${runsTable.screenshotBase64}`,
       primaryWeaponKey: runsTable.primaryWeapon,
       secondaryWeaponKey: runsTable.secondaryWeapon,
       questTitle: questsTable.title,
@@ -587,8 +587,8 @@ export async function getPendingRunsForModeration(
         ? run.submittedAt.getTime()
         : new Date(run.submittedAt).getTime(),
     runTimeMs: run.runTimeMs,
+    hasScreenshot: Boolean(run.hasScreenshot),
     youtubeLink: run.youtubeLink,
-    screenshotBase64: run.screenshotBase64,
     categoryId: run.categoryId,
     tagLabels: parseRunTags(run.tags),
     primaryWeaponKey: run.primaryWeaponKey,
@@ -739,10 +739,10 @@ export async function updatePendingRunDetails(
   };
 
   if ("screenshotBase64" in input) {
-    if (viewerRole !== "admin") {
+    if (viewerRole !== "admin" && viewerRole !== "moderator") {
       throw new TRPCError({
         code: "FORBIDDEN",
-        message: "Only admins can edit screenshots"
+        message: "Only moderators and admins can edit screenshots"
       });
     }
 
@@ -900,8 +900,8 @@ export async function getReviewedRunsForModeration(
       tags: runsTable.tags,
       submittedAt: runsTable.submittedAt,
       runTimeMs: runsTable.runTimeMs,
+      hasScreenshot: sql<number>`case when ${runsTable.screenshotBase64} is null then 0 else 1 end`,
       youtubeLink: sql<string | null>`${runsTable.youtubeLink}`,
-      screenshotBase64: sql<string | null>`${runsTable.screenshotBase64}`,
       primaryWeaponKey: runsTable.primaryWeapon,
       secondaryWeaponKey: runsTable.secondaryWeapon,
       approvedByUserId: runsTable.approvedByUserId,
@@ -967,8 +967,8 @@ export async function getReviewedRunsForModeration(
         ? run.submittedAt.getTime()
         : new Date(run.submittedAt).getTime(),
     runTimeMs: run.runTimeMs,
+    hasScreenshot: Boolean(run.hasScreenshot),
     youtubeLink: run.youtubeLink,
-    screenshotBase64: run.screenshotBase64,
     categoryId: run.categoryId,
     tagLabels: parseRunTags(run.tags),
     status: run.approvedByUserId ? "approved" : "rejected",
@@ -1267,4 +1267,28 @@ export async function approveRun(
   });
 
   return { runId };
+}
+
+export async function getRunScreenshot(
+  runId: string
+): Promise<{ screenshotBase64: string | null }> {
+  const run = await db
+    .select({
+      screenshotBase64: runsTable.screenshotBase64
+    })
+    .from(runsTable)
+    .where(eq(runsTable.id, runId))
+    .limit(1)
+    .then((rows) => rows[0] ?? null);
+
+  if (!run) {
+    throw new TRPCError({
+      code: "NOT_FOUND",
+      message: "Run not found"
+    });
+  }
+
+  return {
+    screenshotBase64: run.screenshotBase64
+  };
 }

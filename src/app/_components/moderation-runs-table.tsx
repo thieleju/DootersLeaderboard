@@ -43,6 +43,7 @@ import DataTable, {
   DataTableLoadingState,
   getRelativeTime
 } from "./data-table";
+import LazyScreenshotImage from "./lazy-screenshot-image";
 import { capitalizeFirst, formatFullDateTime, formatRunTime } from "./helpers";
 import { categoryToneClasses } from "./theme-classes";
 
@@ -64,8 +65,8 @@ type PendingRunRow = Pick<
     areaLabel: string;
     submittedAtMs: number;
     runTimeMs: number;
+    hasScreenshot: boolean;
     youtubeLink: string | null;
-    screenshotBase64: string | null;
     categoryId: RunCategoryId;
     tagLabels: string[];
     primaryWeaponKey: string;
@@ -82,8 +83,8 @@ type PendingRunRow = Pick<
   | "areaLabel"
   | "submittedAtMs"
   | "runTimeMs"
+  | "hasScreenshot"
   | "youtubeLink"
-  | "screenshotBase64"
   | "categoryId"
   | "tagLabels"
   | "primaryWeaponKey"
@@ -103,8 +104,8 @@ type ReviewedRunRow = Pick<
     areaLabel: string;
     submittedAtMs: number;
     runTimeMs: number;
+    hasScreenshot: boolean;
     youtubeLink: string | null;
-    screenshotBase64: string | null;
     categoryId: RunCategoryId;
     tagLabels: string[];
     status: "approved" | "rejected";
@@ -125,8 +126,8 @@ type ReviewedRunRow = Pick<
   | "areaLabel"
   | "submittedAtMs"
   | "runTimeMs"
+  | "hasScreenshot"
   | "youtubeLink"
-  | "screenshotBase64"
   | "categoryId"
   | "tagLabels"
   | "status"
@@ -394,6 +395,10 @@ export default function ModerationRunsTable({
   >({});
   const [screenshotFileNameDraftByRunId, setScreenshotFileNameDraftByRunId] =
     useState<Record<string, string>>({});
+  const [
+    screenshotMarkedForRemovalByRunId,
+    setScreenshotMarkedForRemovalByRunId
+  ] = useState<Record<string, boolean>>({});
 
   const pendingRuns = useMemo<PendingRunRow[]>(
     () => asArray<PendingRunRow>(pendingRunsQuery.data),
@@ -610,12 +615,17 @@ export default function ModerationRunsTable({
 
     setScreenshotDraftByRunId((current) => {
       if (current[run.runId] !== undefined) return current;
-      return { ...current, [run.runId]: run.screenshotBase64 ?? "" };
+      return { ...current, [run.runId]: "" };
     });
 
     setScreenshotFileNameDraftByRunId((current) => {
       if (current[run.runId] !== undefined) return current;
       return { ...current, [run.runId]: "" };
+    });
+
+    setScreenshotMarkedForRemovalByRunId((current) => {
+      if (current[run.runId] !== undefined) return current;
+      return { ...current, [run.runId]: false };
     });
   };
 
@@ -642,11 +652,15 @@ export default function ModerationRunsTable({
     }));
     setScreenshotDraftByRunId((current) => ({
       ...current,
-      [run.runId]: run.screenshotBase64 ?? ""
+      [run.runId]: ""
     }));
     setScreenshotFileNameDraftByRunId((current) => ({
       ...current,
       [run.runId]: ""
+    }));
+    setScreenshotMarkedForRemovalByRunId((current) => ({
+      ...current,
+      [run.runId]: false
     }));
     setTagInputByRunId((current) => ({ ...current, [run.runId]: "" }));
     setOpenDropdownKey(null);
@@ -716,7 +730,8 @@ export default function ModerationRunsTable({
     draftPrimaryWeaponKey: string,
     draftSecondaryWeaponKey: string,
     draftYoutubeLink: string,
-    draftScreenshotBase64: string
+    draftScreenshotBase64: string,
+    screenshotMarkedForRemoval: boolean
   ) => {
     const tagsChanged =
       draftTags.length !== run.tagLabels.length ||
@@ -727,7 +742,8 @@ export default function ModerationRunsTable({
       draftCategoryId !== run.categoryId ||
       draftPrimaryWeaponKey !== run.primaryWeaponKey ||
       draftYoutubeLink.trim() !== (run.youtubeLink ?? "") ||
-      draftScreenshotBase64.trim() !== (run.screenshotBase64 ?? "") ||
+      draftScreenshotBase64.trim() !== "" ||
+      screenshotMarkedForRemoval ||
       draftSecondaryWeaponKey !==
         (run.secondaryWeaponKey ?? run.primaryWeaponKey)
     );
@@ -778,6 +794,8 @@ export default function ModerationRunsTable({
                   viewerUserId && viewerUserId === run.runnerUserId
                 );
                 const canModerateThisRun = isAdmin || !isOwnRun;
+                const canEditPendingScreenshot =
+                  viewerRole === "moderator" || isAdmin;
                 const submittedLabel = capitalizeFirst(
                   getRelativeTime(run.submittedAtMs)
                 );
@@ -797,11 +815,16 @@ export default function ModerationRunsTable({
                 const draftYoutubeLink =
                   youtubeLinkDraftByRunId[run.runId] ?? run.youtubeLink ?? "";
                 const draftScreenshotBase64 =
-                  screenshotDraftByRunId[run.runId] ??
-                  run.screenshotBase64 ??
-                  "";
+                  screenshotDraftByRunId[run.runId] ?? "";
                 const draftScreenshotFileName =
                   screenshotFileNameDraftByRunId[run.runId] ?? "";
+                const screenshotMarkedForRemoval =
+                  screenshotMarkedForRemovalByRunId[run.runId] ?? false;
+                const hasPersistedScreenshot =
+                  run.hasScreenshot && !screenshotMarkedForRemoval;
+                const shouldShowScreenshotPreview = Boolean(
+                  draftScreenshotBase64 || hasPersistedScreenshot
+                );
 
                 const hasChanges = hasRunDraftChanges(
                   run,
@@ -810,7 +833,8 @@ export default function ModerationRunsTable({
                   draftPrimaryWeaponKey,
                   draftSecondaryWeaponKey,
                   draftYoutubeLink,
-                  draftScreenshotBase64
+                  draftScreenshotBase64,
+                  screenshotMarkedForRemoval
                 );
 
                 const category = getCategoryMeta(draftCategoryId);
@@ -1248,60 +1272,127 @@ export default function ModerationRunsTable({
                               </div>
 
                               <div className="md:col-span-3">
-                                <div className="mb-1 text-[10px] tracking-[0.16em] text-gray-500 uppercase">
-                                  Screenshot
-                                </div>
-                                {draftScreenshotBase64 ? (
-                                  <div className="overflow-hidden rounded-xl border border-gray-700/80 bg-black/25">
-                                    <Image
-                                      src={draftScreenshotBase64}
-                                      alt="Run screenshot"
-                                      width={1280}
-                                      height={720}
-                                      unoptimized
-                                      className="h-auto w-full"
+                                {shouldShowScreenshotPreview ? (
+                                  <div className="mb-2">
+                                    <div className="mb-1 text-[10px] tracking-[0.16em] text-gray-500 uppercase">
+                                      Screenshot
+                                    </div>
+                                    <div className="overflow-hidden rounded-xl border border-gray-700/80 bg-black/25">
+                                      {draftScreenshotBase64 ? (
+                                        <Image
+                                          src={draftScreenshotBase64}
+                                          alt="Run screenshot"
+                                          width={1280}
+                                          height={720}
+                                          unoptimized
+                                          className="h-auto w-full"
+                                        />
+                                      ) : (
+                                        <LazyScreenshotImage
+                                          runId={run.runId}
+                                          alt="Run screenshot"
+                                          className="h-auto w-full"
+                                        />
+                                      )}
+                                    </div>
+                                  </div>
+                                ) : null}
+
+                                {canEditPendingScreenshot && (
+                                  <div>
+                                    {!draftScreenshotBase64 &&
+                                    hasPersistedScreenshot ? (
+                                      <div className="mb-2">
+                                        <span className="inline-flex max-w-full items-center gap-2 rounded-full border border-amber-300/30 bg-amber-400/10 px-3 py-1.5 text-xs text-amber-100">
+                                          <span className="truncate">
+                                            {draftScreenshotFileName.trim() ||
+                                              "Selected screenshot"}
+                                          </span>
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              setScreenshotMarkedForRemovalByRunId(
+                                                (current) => ({
+                                                  ...current,
+                                                  [run.runId]: true
+                                                })
+                                              );
+                                              setScreenshotDraftByRunId(
+                                                (current) => ({
+                                                  ...current,
+                                                  [run.runId]: ""
+                                                })
+                                              );
+                                              setScreenshotFileNameDraftByRunId(
+                                                (current) => ({
+                                                  ...current,
+                                                  [run.runId]: ""
+                                                })
+                                              );
+                                              setRunError(null);
+                                            }}
+                                            className="inline-flex cursor-pointer items-center rounded-full border border-amber-200/40 p-1 text-amber-100 transition-colors hover:border-red-300/60 hover:text-red-200"
+                                            aria-label="Remove screenshot"
+                                            title="Remove screenshot"
+                                          >
+                                            <X className="h-3 w-3" />
+                                          </button>
+                                        </span>
+                                      </div>
+                                    ) : null}
+
+                                    <ScreenshotDropzone
+                                      value={draftScreenshotBase64}
+                                      fileName={draftScreenshotFileName}
+                                      onChange={(nextValue, fileName) => {
+                                        setScreenshotDraftByRunId(
+                                          (current) => ({
+                                            ...current,
+                                            [run.runId]: nextValue
+                                          })
+                                        );
+                                        setScreenshotFileNameDraftByRunId(
+                                          (current) => ({
+                                            ...current,
+                                            [run.runId]: fileName
+                                          })
+                                        );
+                                        setScreenshotMarkedForRemovalByRunId(
+                                          (current) => ({
+                                            ...current,
+                                            [run.runId]: false
+                                          })
+                                        );
+                                        setRunError(null);
+                                      }}
+                                      onRemove={() => {
+                                        setScreenshotDraftByRunId(
+                                          (current) => ({
+                                            ...current,
+                                            [run.runId]: ""
+                                          })
+                                        );
+                                        setScreenshotFileNameDraftByRunId(
+                                          (current) => ({
+                                            ...current,
+                                            [run.runId]: ""
+                                          })
+                                        );
+                                        setScreenshotMarkedForRemovalByRunId(
+                                          (current) => ({
+                                            ...current,
+                                            [run.runId]: false
+                                          })
+                                        );
+                                        setRunError(null);
+                                      }}
+                                      onError={(message) =>
+                                        setRunError(message)
+                                      }
+                                      disabled={savingRunId === run.runId}
                                     />
                                   </div>
-                                ) : (
-                                  <span className="text-xs text-gray-500">
-                                    -
-                                  </span>
                                 )}
-
-                                {isAdmin ? (
-                                  <ScreenshotDropzone
-                                    value={draftScreenshotBase64}
-                                    fileName={draftScreenshotFileName}
-                                    onChange={(nextValue, fileName) => {
-                                      setScreenshotDraftByRunId((current) => ({
-                                        ...current,
-                                        [run.runId]: nextValue
-                                      }));
-                                      setScreenshotFileNameDraftByRunId(
-                                        (current) => ({
-                                          ...current,
-                                          [run.runId]: fileName
-                                        })
-                                      );
-                                      setRunError(null);
-                                    }}
-                                    onRemove={() => {
-                                      setScreenshotDraftByRunId((current) => ({
-                                        ...current,
-                                        [run.runId]: ""
-                                      }));
-                                      setScreenshotFileNameDraftByRunId(
-                                        (current) => ({
-                                          ...current,
-                                          [run.runId]: ""
-                                        })
-                                      );
-                                      setRunError(null);
-                                    }}
-                                    onError={(message) => setRunError(message)}
-                                    disabled={savingRunId === run.runId}
-                                  />
-                                ) : null}
 
                                 {runError ? (
                                   <p className="mt-2 text-xs text-red-300">
@@ -1399,12 +1490,15 @@ export default function ModerationRunsTable({
                                           draftSecondaryWeaponKey,
                                         youtubeLink:
                                           draftYoutubeLink.trim() || undefined,
-                                        ...(isAdmin
-                                          ? {
-                                              screenshotBase64:
-                                                draftScreenshotBase64.trim() ||
-                                                null
-                                            }
+                                        ...(canEditPendingScreenshot
+                                          ? screenshotMarkedForRemoval
+                                            ? { screenshotBase64: null }
+                                            : draftScreenshotBase64.trim()
+                                              ? {
+                                                  screenshotBase64:
+                                                    draftScreenshotBase64.trim()
+                                                }
+                                              : {}
                                           : {}),
                                         tags: draftTags
                                       });
@@ -1536,11 +1630,16 @@ export default function ModerationRunsTable({
                 const draftYoutubeLink =
                   youtubeLinkDraftByRunId[run.runId] ?? run.youtubeLink ?? "";
                 const draftScreenshotBase64 =
-                  screenshotDraftByRunId[run.runId] ??
-                  run.screenshotBase64 ??
-                  "";
+                  screenshotDraftByRunId[run.runId] ?? "";
                 const draftScreenshotFileName =
                   screenshotFileNameDraftByRunId[run.runId] ?? "";
+                const screenshotMarkedForRemoval =
+                  screenshotMarkedForRemovalByRunId[run.runId] ?? false;
+                const hasPersistedScreenshot =
+                  run.hasScreenshot && !screenshotMarkedForRemoval;
+                const shouldShowScreenshotPreview = Boolean(
+                  draftScreenshotBase64 || hasPersistedScreenshot
+                );
 
                 const hasChanges = hasRunDraftChanges(
                   run,
@@ -1549,7 +1648,8 @@ export default function ModerationRunsTable({
                   draftPrimaryWeaponKey,
                   draftSecondaryWeaponKey,
                   draftYoutubeLink,
-                  draftScreenshotBase64
+                  draftScreenshotBase64,
+                  screenshotMarkedForRemoval
                 );
 
                 const category = getCategoryMeta(run.categoryId);
@@ -1560,10 +1660,6 @@ export default function ModerationRunsTable({
                 const runYoutubeVideoId = run.youtubeLink
                   ? extractYouTubeVideoId(run.youtubeLink)
                   : null;
-                const runScreenshotBase64 = run.screenshotBase64;
-                const hasMedia = Boolean(
-                  runYoutubeVideoId ?? runScreenshotBase64
-                );
 
                 return (
                   <Fragment key={run.runId}>
@@ -2079,64 +2175,125 @@ export default function ModerationRunsTable({
                                   </div>
 
                                   <div className="md:col-span-3">
-                                    <div className="mb-1 text-[10px] tracking-[0.16em] text-gray-500 uppercase">
-                                      Screenshot
-                                    </div>
-                                    {draftScreenshotBase64 ? (
-                                      <div className="overflow-hidden rounded-xl border border-gray-700/80 bg-black/25">
-                                        <Image
-                                          src={draftScreenshotBase64}
-                                          alt="Run screenshot"
-                                          width={1280}
-                                          height={720}
-                                          unoptimized
-                                          className="h-auto w-full"
-                                        />
+                                    {shouldShowScreenshotPreview ? (
+                                      <div className="mb-2">
+                                        <div className="mb-1 text-[10px] tracking-[0.16em] text-gray-500 uppercase">
+                                          Screenshot
+                                        </div>
+                                        <div className="overflow-hidden rounded-xl border border-gray-700/80 bg-black/25">
+                                          {draftScreenshotBase64 ? (
+                                            <Image
+                                              src={draftScreenshotBase64}
+                                              alt="Run screenshot"
+                                              width={1280}
+                                              height={720}
+                                              unoptimized
+                                              className="h-auto w-full"
+                                            />
+                                          ) : (
+                                            <LazyScreenshotImage
+                                              runId={run.runId}
+                                              alt="Run screenshot"
+                                              className="h-auto w-full"
+                                            />
+                                          )}
+                                        </div>
                                       </div>
-                                    ) : (
-                                      <span className="text-xs text-gray-500">
-                                        -
-                                      </span>
-                                    )}
+                                    ) : null}
 
-                                    <ScreenshotDropzone
-                                      value={draftScreenshotBase64}
-                                      fileName={draftScreenshotFileName}
-                                      onChange={(nextValue, fileName) => {
-                                        setScreenshotDraftByRunId(
-                                          (current) => ({
-                                            ...current,
-                                            [run.runId]: nextValue
-                                          })
-                                        );
-                                        setScreenshotFileNameDraftByRunId(
-                                          (current) => ({
-                                            ...current,
-                                            [run.runId]: fileName
-                                          })
-                                        );
-                                        setRunError(null);
-                                      }}
-                                      onRemove={() => {
-                                        setScreenshotDraftByRunId(
-                                          (current) => ({
-                                            ...current,
-                                            [run.runId]: ""
-                                          })
-                                        );
-                                        setScreenshotFileNameDraftByRunId(
-                                          (current) => ({
-                                            ...current,
-                                            [run.runId]: ""
-                                          })
-                                        );
-                                        setRunError(null);
-                                      }}
-                                      onError={(message) =>
-                                        setRunError(message)
-                                      }
-                                      disabled={savingRunId === run.runId}
-                                    />
+                                    <div>
+                                      {!draftScreenshotBase64 &&
+                                      hasPersistedScreenshot ? (
+                                        <div className="mb-2">
+                                          <span className="inline-flex max-w-full items-center gap-2 rounded-full border border-amber-300/30 bg-amber-400/10 px-3 py-1.5 text-xs text-amber-100">
+                                            <span className="truncate">
+                                              {draftScreenshotFileName.trim() ||
+                                                "Selected screenshot"}
+                                            </span>
+                                            <button
+                                              type="button"
+                                              onClick={() => {
+                                                setScreenshotMarkedForRemovalByRunId(
+                                                  (current) => ({
+                                                    ...current,
+                                                    [run.runId]: true
+                                                  })
+                                                );
+                                                setScreenshotDraftByRunId(
+                                                  (current) => ({
+                                                    ...current,
+                                                    [run.runId]: ""
+                                                  })
+                                                );
+                                                setScreenshotFileNameDraftByRunId(
+                                                  (current) => ({
+                                                    ...current,
+                                                    [run.runId]: ""
+                                                  })
+                                                );
+                                                setRunError(null);
+                                              }}
+                                              className="inline-flex cursor-pointer items-center rounded-full border border-amber-200/40 p-1 text-amber-100 transition-colors hover:border-red-300/60 hover:text-red-200"
+                                              aria-label="Remove screenshot"
+                                              title="Remove screenshot"
+                                            >
+                                              <X className="h-3 w-3" />
+                                            </button>
+                                          </span>
+                                        </div>
+                                      ) : null}
+
+                                      <ScreenshotDropzone
+                                        value={draftScreenshotBase64}
+                                        fileName={draftScreenshotFileName}
+                                        onChange={(nextValue, fileName) => {
+                                          setScreenshotDraftByRunId(
+                                            (current) => ({
+                                              ...current,
+                                              [run.runId]: nextValue
+                                            })
+                                          );
+                                          setScreenshotFileNameDraftByRunId(
+                                            (current) => ({
+                                              ...current,
+                                              [run.runId]: fileName
+                                            })
+                                          );
+                                          setScreenshotMarkedForRemovalByRunId(
+                                            (current) => ({
+                                              ...current,
+                                              [run.runId]: false
+                                            })
+                                          );
+                                          setRunError(null);
+                                        }}
+                                        onRemove={() => {
+                                          setScreenshotDraftByRunId(
+                                            (current) => ({
+                                              ...current,
+                                              [run.runId]: ""
+                                            })
+                                          );
+                                          setScreenshotFileNameDraftByRunId(
+                                            (current) => ({
+                                              ...current,
+                                              [run.runId]: ""
+                                            })
+                                          );
+                                          setScreenshotMarkedForRemovalByRunId(
+                                            (current) => ({
+                                              ...current,
+                                              [run.runId]: false
+                                            })
+                                          );
+                                          setRunError(null);
+                                        }}
+                                        onError={(message) =>
+                                          setRunError(message)
+                                        }
+                                        disabled={savingRunId === run.runId}
+                                      />
+                                    </div>
 
                                     {runError ? (
                                       <p className="mt-2 text-xs text-red-300">
@@ -2239,9 +2396,14 @@ export default function ModerationRunsTable({
                                               youtubeLink:
                                                 draftYoutubeLink.trim() ||
                                                 undefined,
-                                              screenshotBase64:
-                                                draftScreenshotBase64.trim() ||
-                                                null,
+                                              ...(screenshotMarkedForRemoval
+                                                ? { screenshotBase64: null }
+                                                : draftScreenshotBase64.trim()
+                                                  ? {
+                                                      screenshotBase64:
+                                                        draftScreenshotBase64.trim()
+                                                    }
+                                                  : {}),
                                               tags: draftTags
                                             }
                                           );
@@ -2369,49 +2531,40 @@ export default function ModerationRunsTable({
                                   </div>
 
                                   <div className="md:col-span-3">
-                                    {hasMedia ? (
-                                      <div className="grid gap-3 md:grid-cols-2">
-                                        {runYoutubeVideoId ? (
-                                          <div className="space-y-1">
-                                            <div className="text-[10px] tracking-[0.16em] text-gray-500 uppercase">
-                                              Video
-                                            </div>
-                                            <div className="overflow-hidden rounded-xl border border-gray-700/80 bg-black/35">
-                                              <iframe
-                                                className="aspect-video w-full"
-                                                src={`https://www.youtube.com/embed/${runYoutubeVideoId}`}
-                                                title="YouTube video"
-                                                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                                                referrerPolicy="strict-origin-when-cross-origin"
-                                                allowFullScreen
-                                              />
-                                            </div>
+                                    <div className="grid gap-3 md:grid-cols-2">
+                                      {runYoutubeVideoId ? (
+                                        <div className="space-y-1">
+                                          <div className="text-[10px] tracking-[0.16em] text-gray-500 uppercase">
+                                            Video
                                           </div>
-                                        ) : null}
+                                          <div className="overflow-hidden rounded-xl border border-gray-700/80 bg-black/35">
+                                            <iframe
+                                              className="aspect-video w-full"
+                                              src={`https://www.youtube.com/embed/${runYoutubeVideoId}`}
+                                              title="YouTube video"
+                                              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                                              referrerPolicy="strict-origin-when-cross-origin"
+                                              allowFullScreen
+                                            />
+                                          </div>
+                                        </div>
+                                      ) : null}
 
-                                        {runScreenshotBase64 ? (
-                                          <div className="space-y-1">
-                                            <div className="text-[10px] tracking-[0.16em] text-gray-500 uppercase">
-                                              Screenshot
-                                            </div>
-                                            <div className="overflow-hidden rounded-xl border border-gray-700/80 bg-black/25">
-                                              <Image
-                                                src={runScreenshotBase64}
-                                                alt="Run screenshot"
-                                                width={1280}
-                                                height={720}
-                                                unoptimized
-                                                className="h-auto w-full"
-                                              />
-                                            </div>
+                                      {run.hasScreenshot ? (
+                                        <div className="space-y-1">
+                                          <div className="text-[10px] tracking-[0.16em] text-gray-500 uppercase">
+                                            Screenshot
                                           </div>
-                                        ) : null}
-                                      </div>
-                                    ) : (
-                                      <span className="text-xs text-gray-500">
-                                        No video or screenshot
-                                      </span>
-                                    )}
+                                          <div className="overflow-hidden rounded-xl border border-gray-700/80 bg-black/25">
+                                            <LazyScreenshotImage
+                                              runId={run.runId}
+                                              alt="Run screenshot"
+                                              className="h-auto w-full"
+                                            />
+                                          </div>
+                                        </div>
+                                      ) : null}
+                                    </div>
                                   </div>
                                 </div>
                               )}

@@ -31,6 +31,7 @@ import DataTable, {
   DataTableLoadingState,
   getRankBadgeClass
 } from "./data-table";
+import LazyScreenshotImage from "./lazy-screenshot-image";
 import { formatCountLabel, formatFullDateTime, formatRunTime } from "./helpers";
 import { categoryToneClasses } from "./theme-classes";
 
@@ -298,13 +299,7 @@ export default function LeaderboardTable({ delay = 0 }: LeaderboardTableProps) {
               const rowYoutubeVideoId = rowYoutubeLink
                 ? extractYouTubeVideoId(rowYoutubeLink)
                 : null;
-              const rowScreenshotBase64 =
-                typeof row.screenshotBase64 === "string"
-                  ? row.screenshotBase64
-                  : null;
-              const hasMedia = Boolean(
-                rowYoutubeVideoId ?? rowScreenshotBase64
-              );
+              const hasMedia = Boolean(rowYoutubeVideoId || row.hasScreenshot);
               const category = allCategories.find(
                 (item) => item.id === row.categoryId
               );
@@ -504,29 +499,22 @@ export default function LeaderboardTable({ delay = 0 }: LeaderboardTableProps) {
                                     </div>
                                   ) : null}
 
-                                  {rowScreenshotBase64 ? (
+                                  {row.hasScreenshot ? (
                                     <div className="space-y-1">
                                       <div className="text-[10px] tracking-[0.16em] text-gray-500 uppercase">
                                         Screenshot
                                       </div>
                                       <div className="overflow-hidden rounded-xl border border-gray-700/80 bg-black/25">
-                                        <Image
-                                          src={rowScreenshotBase64}
+                                        <LazyScreenshotImage
+                                          runId={row.runId}
                                           alt="Run screenshot"
-                                          width={1280}
-                                          height={720}
-                                          unoptimized
                                           className="h-auto w-full"
                                         />
                                       </div>
                                     </div>
                                   ) : null}
                                 </div>
-                              ) : (
-                                <span className="text-xs text-gray-500">
-                                  No video or screenshot
-                                </span>
-                              )}
+                              ) : null}
                             </div>
                           </motion.div>
                         </td>

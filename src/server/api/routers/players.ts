@@ -20,7 +20,8 @@ import {
   submitRun,
   updateReviewedRunDetails,
   updatePendingRunDetails,
-  updatePendingRunTags
+  updatePendingRunTags,
+  getRunScreenshot
 } from "~/server/lib/players";
 import {
   moderateRunDetailsInputSchema,
@@ -105,5 +106,13 @@ export const playersRouter = createTRPCRouter({
     )
     .mutation(({ input, ctx }) =>
       rejectRun(input.runId, ctx.session!.user.id, ctx.session!.user.role)
+    ),
+
+  getRunScreenshot: publicProcedure
+    .input(
+      z.object({
+        runId: z.string().trim().min(1)
+      })
     )
+    .query(({ input }) => getRunScreenshot(input.runId))
 });
