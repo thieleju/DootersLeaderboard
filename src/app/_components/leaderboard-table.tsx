@@ -299,7 +299,7 @@ export default function LeaderboardTable({ delay = 0 }: LeaderboardTableProps) {
               const rowYoutubeVideoId = rowYoutubeLink
                 ? extractYouTubeVideoId(rowYoutubeLink)
                 : null;
-              const hasMedia = Boolean(rowYoutubeVideoId || row.hasScreenshot);
+              const hasMedia = Boolean(rowYoutubeVideoId ?? row.hasScreenshot);
               const category = allCategories.find(
                 (item) => item.id === row.categoryId
               );

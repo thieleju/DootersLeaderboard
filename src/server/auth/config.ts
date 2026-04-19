@@ -18,32 +18,21 @@ import type { UserRole } from "~/server/types/leaderboard";
 const logger = createLogger("auth");
 
 function summarizeNextAuthDetails(args: unknown[]) {
-  if (!args.length) {
-    return {
-      detailCount: 0
-    };
+  for (const item of args) {
+    if (typeof item === "string" && item.trim()) {
+      return { detail: item.trim() };
+    }
+
+    if (!item || typeof item !== "object") continue;
+    if (!("message" in item)) continue;
+
+    const value = (item as { message?: unknown }).message;
+    if (typeof value === "string" && value.trim()) {
+      return { detail: value.trim() };
+    }
   }
 
-  const detailKinds = args.map((item) => {
-    if (item === null) return "null";
-    if (Array.isArray(item)) return "array";
-    return typeof item;
-  });
-
-  const messages = args
-    .flatMap((item) => {
-      if (!item || typeof item !== "object") return [];
-      if (!("message" in item)) return [];
-      const value = (item as { message?: unknown }).message;
-      return typeof value === "string" ? [value] : [];
-    })
-    .slice(0, 2);
-
-  return {
-    detailCount: args.length,
-    detailKinds,
-    messages: messages.length > 0 ? messages : undefined
-  };
+  return undefined;
 }
 
 /**
@@ -92,19 +81,19 @@ export const authConfig = {
     error(code, ...message) {
       logger.error("nextauth internal error", {
         code,
-        ...summarizeNextAuthDetails(message)
+        ...(summarizeNextAuthDetails(message) ?? {})
       });
     },
     warn(code, ...message) {
       logger.warn("nextauth internal warning", {
         code,
-        ...summarizeNextAuthDetails(message)
+        ...(summarizeNextAuthDetails(message) ?? {})
       });
     },
     debug(code, ...message) {
       logger.debug("nextauth internal debug", {
         code,
-        ...summarizeNextAuthDetails(message)
+        ...(summarizeNextAuthDetails(message) ?? {})
       });
     }
   },
