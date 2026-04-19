@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useState } from "react";
+import { use, useEffect, useState } from "react";
 
 import BackHomeLink from "~/app/_components/back-home-link";
 import PlayerProfileView from "~/app/_components/player-profile-view";
@@ -14,6 +14,17 @@ interface PlayerPageProps {
 export default function ProfilePage({ params }: PlayerPageProps) {
   const [showBackLink, setShowBackLink] = useState(false);
   const { userId } = use(params);
+
+  useEffect(() => {
+    if (!showBackLink) return;
+    if (window.location.hash !== "#submit-run-form") return;
+
+    window.requestAnimationFrame(() => {
+      document
+        .getElementById("submit-run-form")
+        ?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  }, [showBackLink]);
 
   return (
     <div className="mt-6 mb-20 space-y-4">

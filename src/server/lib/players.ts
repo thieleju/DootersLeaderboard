@@ -258,7 +258,8 @@ export async function getPlayerProfile(
       id: usersTable.id,
       displayName: usersTable.displayName,
       username: usersTable.name,
-      avatar: usersTable.image
+      avatar: usersTable.image,
+      role: usersTable.role
     })
     .from(usersTable)
     .where(eq(usersTable.id, userId))

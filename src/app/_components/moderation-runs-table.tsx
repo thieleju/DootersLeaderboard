@@ -20,6 +20,7 @@ import {
   Trash2,
   X
 } from "lucide-react";
+import Link from "next/link";
 import Image from "next/image";
 import { useSession } from "next-auth/react";
 import { type FileRejection, useDropzone } from "react-dropzone";
@@ -862,7 +863,11 @@ export default function ModerationRunsTable({
                         </span>
                       </td>
                       <td className="px-3 py-4 align-middle">
-                        <div className="inline-flex items-center gap-3 text-gray-200">
+                        <Link
+                          href={`/profile/${run.runnerUserId}`}
+                          onClick={(event) => event.stopPropagation()}
+                          className="inline-flex items-center gap-3 text-gray-200 transition-colors hover:text-amber-300 focus-visible:ring-2 focus-visible:ring-amber-300/40 focus-visible:outline-none"
+                        >
                           <span className="relative flex h-10 w-10 items-center justify-center overflow-hidden rounded-full border border-gray-700 bg-white/5">
                             {run.runnerAvatar ? (
                               <Image
@@ -889,7 +894,7 @@ export default function ModerationRunsTable({
                               {run.hunterName}
                             </span>
                           </span>
-                        </div>
+                        </Link>
                       </td>
                       <td className="px-3 py-4 align-middle">
                         <div className="flex min-w-0 items-start gap-2">
@@ -1686,7 +1691,11 @@ export default function ModerationRunsTable({
                         </span>
                       </td>
                       <td className="px-3 py-4 align-middle">
-                        <div className="inline-flex items-center gap-3 text-gray-200">
+                        <Link
+                          href={`/profile/${run.runnerUserId}`}
+                          onClick={(event) => event.stopPropagation()}
+                          className="inline-flex items-center gap-3 text-gray-200 transition-colors hover:text-amber-300 focus-visible:ring-2 focus-visible:ring-amber-300/40 focus-visible:outline-none"
+                        >
                           <span className="relative flex h-10 w-10 items-center justify-center overflow-hidden rounded-full border border-gray-700 bg-white/5">
                             {run.runnerAvatar ? (
                               <Image
@@ -1713,7 +1722,7 @@ export default function ModerationRunsTable({
                               {run.hunterName}
                             </span>
                           </span>
-                        </div>
+                        </Link>
                       </td>
                       <td className="px-3 py-4 align-middle">
                         <div className="flex min-w-0 items-start gap-2">

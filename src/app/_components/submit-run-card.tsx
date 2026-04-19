@@ -16,7 +16,9 @@ export default async function HomeCtaCard({ delay = 0 }: HomeCtaCardProps) {
     ? "Click the button below to submit your run."
     : "To submit a run, log in with your discord account.";
 
-  const primaryHref = isLoggedIn ? `/profile/${session?.user.id}` : "/login";
+  const primaryHref = isLoggedIn
+    ? `/profile/${session?.user.id}#submit-run-form`
+    : "/login";
   const primaryLabel = isLoggedIn ? "Submit a run" : "Login";
 
   return (

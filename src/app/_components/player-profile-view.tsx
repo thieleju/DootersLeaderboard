@@ -757,9 +757,8 @@ export default function PlayerProfileView({
   const allRuns: PlayerProfileRunRow[] = [...profile.runs].sort(
     (a, b) => b.submittedAtMs - a.submittedAtMs || b.runTimeMs - a.runTimeMs
   );
-  const approvedRunsCount = allRuns.filter(
-    (run) => run.status === "approved"
-  ).length;
+  const totalRunsCount = allRuns.length;
+  const profileRoleLabel = capitalizeFirst(String(profile.user.role));
 
   const hasAnyRunActions = allRuns.some((run) => {
     const canDeleteRun = isAdmin || (isCurrentUser && run.status === "pending");
@@ -809,7 +808,7 @@ export default function PlayerProfileView({
                 </Link>
               </div>
               <p className="mt-2 text-sm text-gray-400">
-                {formatCountLabel(approvedRunsCount, "total run")}
+                {profileRoleLabel} · {formatCountLabel(totalRunsCount, "total run")}
               </p>
             </div>
           </div>
@@ -1311,8 +1310,9 @@ export default function PlayerProfileView({
       </AnimatedCard>
 
       {profile.isCurrentUser ? (
-        <AnimatedCard key="profile-submit-run-card" className="p-6">
-          <div className="mb-6 flex items-start gap-3">
+        <div id="submit-run-form">
+          <AnimatedCard key="profile-submit-run-card" className="p-6">
+            <div className="mb-6 flex items-start gap-3">
             <div
               className={`flex h-12 min-h-12 w-12 min-w-12 items-center justify-center rounded-full border ${iconToneClasses.emerald}`}
             >
@@ -1847,7 +1847,8 @@ export default function PlayerProfileView({
               </div>
             ) : null}
           </form>
-        </AnimatedCard>
+          </AnimatedCard>
+        </div>
       ) : null}
     </div>
   );

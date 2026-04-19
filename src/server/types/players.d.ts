@@ -53,6 +53,7 @@ export type PlayerProfileData = {
     displayName: string;
     username: string | null;
     avatar: string | null;
+    role: UserRole;
   } | null;
   performance: {
     score: number;
