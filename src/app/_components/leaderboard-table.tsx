@@ -1,6 +1,7 @@
 "use client";
 
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   BookOpen,
@@ -32,6 +33,7 @@ import DataTable, {
   getRankBadgeClass
 } from "./data-table";
 import LazyScreenshotImage from "./lazy-screenshot-image";
+import RunWeapons from "./run-weapons";
 import { formatCountLabel, formatFullDateTime, formatRunTime } from "./helpers";
 import { categoryToneClasses } from "./theme-classes";
 
@@ -47,7 +49,11 @@ interface LeaderboardTableProps {
 }
 
 export default function LeaderboardTable({ delay = 0 }: LeaderboardTableProps) {
+  const router = useRouter();
+  const pathname = usePathname();
   const questSelectRef = useRef<HTMLDivElement | null>(null);
+  const didScrollToQuestParamRef = useRef(false);
+  const searchParams = useSearchParams();
   const filtersQuery = api.leaderboard.filters.useQuery(undefined, {
     staleTime: Infinity
   });
@@ -60,11 +66,44 @@ export default function LeaderboardTable({ delay = 0 }: LeaderboardTableProps) {
   const [isQuestMenuOpen, setIsQuestMenuOpen] = useState(false);
   const [expandedRunId, setExpandedRunId] = useState<string | null>(null);
 
+  const handleQuestSelect = (nextQuestId: string) => {
+    setQuestId(nextQuestId);
+    didScrollToQuestParamRef.current = true;
+
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("quest", nextQuestId);
+    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+  };
+
   useEffect(() => {
-    if (!questId && filtersQuery.data?.defaultQuestId) {
-      setQuestId(filtersQuery.data.defaultQuestId);
+    const questParam = searchParams.get("quest");
+    const availableQuestIds = new Set(
+      (filtersQuery.data?.quests ?? []).map((quest) => quest.id)
+    );
+
+    if (questParam && availableQuestIds.has(questParam)) {
+      setQuestId((currentQuestId) =>
+        currentQuestId === questParam ? currentQuestId : questParam
+      );
+
+      if (!didScrollToQuestParamRef.current) {
+        didScrollToQuestParamRef.current = true;
+        requestAnimationFrame(() => {
+          questSelectRef.current?.scrollIntoView({
+            behavior: "smooth",
+            block: "center"
+          });
+        });
+      }
+    } else if (filtersQuery.data?.defaultQuestId) {
+      const defaultQuestId = filtersQuery.data.defaultQuestId;
+      setQuestId((currentQuestId) => currentQuestId || defaultQuestId);
     }
-  }, [filtersQuery.data?.defaultQuestId, questId]);
+  }, [
+    searchParams,
+    filtersQuery.data?.defaultQuestId,
+    filtersQuery.data?.quests
+  ]);
 
   const leaderboardQuery = api.leaderboard.getLeaderboard.useQuery(undefined, {
     staleTime: Infinity
@@ -164,7 +203,7 @@ export default function LeaderboardTable({ delay = 0 }: LeaderboardTableProps) {
                             type="button"
                             role="option"
                             aria-selected={isSelected}
-                            onClick={() => setQuestId(questOption.id)}
+                            onClick={() => handleQuestSelect(questOption.id)}
                             className={`flex w-full flex-col rounded-md px-3 py-2 text-left transition-colors ${
                               isSelected
                                 ? "bg-amber-400/15 text-amber-100"
@@ -375,26 +414,10 @@ export default function LeaderboardTable({ delay = 0 }: LeaderboardTableProps) {
                     </td>
 
                     <td className="px-3 py-4 align-middle">
-                      <div className="flex items-center gap-2">
-                        <Image
-                          src={`/weapons/${row.primaryWeaponKey}.png`}
-                          alt={row.primaryWeaponKey.toUpperCase()}
-                          title={row.primaryWeaponKey.toUpperCase()}
-                          width={28}
-                          height={28}
-                          className="h-7 w-7 object-contain"
-                        />
-                        {row.secondaryWeaponKey ? (
-                          <Image
-                            src={`/weapons/${row.secondaryWeaponKey}.png`}
-                            alt={row.secondaryWeaponKey.toUpperCase()}
-                            title={row.secondaryWeaponKey.toUpperCase()}
-                            width={28}
-                            height={28}
-                            className="h-7 w-7 object-contain"
-                          />
-                        ) : null}
-                      </div>
+                      <RunWeapons
+                        primaryWeaponKey={row.primaryWeaponKey}
+                        secondaryWeaponKey={row.secondaryWeaponKey}
+                      />
                     </td>
 
                     <td className="px-3 py-4 align-middle">
@@ -514,7 +537,11 @@ export default function LeaderboardTable({ delay = 0 }: LeaderboardTableProps) {
                                     </div>
                                   ) : null}
                                 </div>
-                              ) : null}
+                              ) : (
+                                <div className="flex min-h-10 items-center justify-center rounded-xl px-4 py-8 text-sm text-gray-400">
+                                  No screenshot or youtube link
+                                </div>
+                              )}
                             </div>
                           </motion.div>
                         </td>

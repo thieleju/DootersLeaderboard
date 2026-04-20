@@ -23,6 +23,7 @@ import {
   Sword,
   Check,
   Tag,
+  Trophy,
   UserRound,
   X,
   Ban,
@@ -58,6 +59,7 @@ import AnimatedCard from "./animated-card";
 import CategoryTooltip from "./category-tooltip";
 import DataTable, { getRelativeTime } from "./data-table";
 import LazyScreenshotImage from "./lazy-screenshot-image";
+import RunWeapons from "./run-weapons";
 import {
   capitalizeFirst,
   formatCountLabel,
@@ -1090,6 +1092,7 @@ export default function PlayerProfileView({
           columns={[
             { key: "status", label: "Status" },
             { key: "quest", label: "Quest" },
+            { key: "weapons", label: "Weapons" },
             { key: "time", label: "Time" },
             { key: "score", label: "Score" },
             {
@@ -1192,7 +1195,7 @@ export default function PlayerProfileView({
               const scoreLabel =
                 run.score !== null && run.score > 0 ? `+${formattedScore}` : "";
               const columnCount =
-                5 + (canSeeReviewColumn ? 1 : 0) + (hasAnyRunActions ? 1 : 0);
+                6 + (canSeeReviewColumn ? 1 : 0) + (hasAnyRunActions ? 1 : 0);
 
               return (
                 <Fragment key={run.runId}>
@@ -1235,8 +1238,17 @@ export default function PlayerProfileView({
                         </div>
                       </div>
                     </td>
+                    <td className="px-3 py-4 align-middle">
+                      <RunWeapons
+                        primaryWeaponKey={run.primaryWeaponKey}
+                        secondaryWeaponKey={run.secondaryWeaponKey}
+                        className="flex items-center gap-1.5"
+                        iconClassName="h-7 w-7 object-contain"
+                        iconSize={28}
+                      />
+                    </td>
                     <td className="px-3 py-4 text-left align-middle">
-                      <div className="text-lg font-semibold text-white">
+                      <div className="text-lg font-semibold text-amber-300">
                         {formatRunTime(run.runTimeMs)}
                       </div>
                     </td>
@@ -1403,39 +1415,13 @@ export default function PlayerProfileView({
                             transition={{ duration: 0.28, ease: "easeOut" }}
                             className="overflow-hidden"
                           >
-                            <div className="grid gap-4 bg-gray-900 px-4 py-4 md:grid-cols-3">
+                            <div className="grid gap-4 bg-gray-900 px-4 py-4 md:grid-cols-2">
                               <div>
                                 <div className="mb-1 text-[10px] tracking-[0.16em] text-gray-500 uppercase">
                                   Hunter
                                 </div>
                                 <div className="text-sm font-semibold text-white">
                                   {run.hunterName}
-                                </div>
-                              </div>
-
-                              <div>
-                                <div className="mb-1 text-[10px] tracking-[0.16em] text-gray-500 uppercase">
-                                  Weapons
-                                </div>
-                                <div className="flex items-center gap-2">
-                                  <Image
-                                    src={`/weapons/${run.primaryWeaponKey}.png`}
-                                    alt={run.primaryWeaponKey.toUpperCase()}
-                                    title={run.primaryWeaponKey.toUpperCase()}
-                                    width={28}
-                                    height={28}
-                                    className="h-7 w-7 object-contain"
-                                  />
-                                  {run.secondaryWeaponKey ? (
-                                    <Image
-                                      src={`/weapons/${run.secondaryWeaponKey}.png`}
-                                      alt={run.secondaryWeaponKey.toUpperCase()}
-                                      title={run.secondaryWeaponKey.toUpperCase()}
-                                      width={28}
-                                      height={28}
-                                      className="h-7 w-7 object-contain"
-                                    />
-                                  ) : null}
                                 </div>
                               </div>
 
@@ -1483,7 +1469,7 @@ export default function PlayerProfileView({
                                 </div>
                               </div>
 
-                              <div className="md:col-span-3">
+                              <div className="md:col-span-2">
                                 {hasMedia ? (
                                   <div className="grid gap-3 md:grid-cols-2">
                                     {runYoutubeVideoId ? (
@@ -1533,6 +1519,16 @@ export default function PlayerProfileView({
                                     </div>
                                   </div>
                                 ) : null}
+                              </div>
+
+                              <div className="md:col-span-2">
+                                <Link
+                                  href={`/?quest=${run.questId}`}
+                                  className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-blue-300/30 bg-blue-400/10 px-3 py-2 text-sm font-semibold text-blue-100 transition-colors hover:border-blue-200 hover:bg-blue-400/20"
+                                >
+                                  <Trophy className="h-4 w-4" />
+                                  View on quest leaderboard
+                                </Link>
                               </div>
                             </div>
                           </motion.div>
@@ -1821,13 +1817,11 @@ export default function PlayerProfileView({
                                 : "text-gray-200 hover:bg-white/7"
                             }`}
                           >
-                            <Image
-                              src={`/weapons/${weapon.key}.png`}
-                              alt={weapon.key.toUpperCase()}
-                              title={weapon.key.toUpperCase()}
-                              width={20}
-                              height={20}
-                              className="h-5 w-5 object-contain"
+                            <RunWeapons
+                              primaryWeaponKey={weapon.key}
+                              className="flex items-center"
+                              iconClassName="h-5 w-5 object-contain"
+                              iconSize={20}
                             />
                             {weapon.label}
                           </button>
@@ -1898,13 +1892,11 @@ export default function PlayerProfileView({
                                 : "text-gray-200 hover:bg-white/7"
                             }`}
                           >
-                            <Image
-                              src={`/weapons/${weapon.key}.png`}
-                              alt={weapon.key.toUpperCase()}
-                              title={weapon.key.toUpperCase()}
-                              width={20}
-                              height={20}
-                              className="h-5 w-5 object-contain"
+                            <RunWeapons
+                              primaryWeaponKey={weapon.key}
+                              className="flex items-center"
+                              iconClassName="h-5 w-5 object-contain"
+                              iconSize={20}
                             />
                             {weapon.label}
                           </button>

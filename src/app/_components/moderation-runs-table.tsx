@@ -17,6 +17,7 @@ import {
   Shield,
   Sword,
   Tag,
+  Trophy,
   Trash2,
   X
 } from "lucide-react";
@@ -45,6 +46,7 @@ import DataTable, {
   getRelativeTime
 } from "./data-table";
 import LazyScreenshotImage from "./lazy-screenshot-image";
+import RunWeapons from "./run-weapons";
 import { capitalizeFirst, formatFullDateTime, formatRunTime } from "./helpers";
 import { categoryToneClasses } from "./theme-classes";
 
@@ -56,6 +58,7 @@ type ModerationRunsTableProps = {
 type PendingRunRow = Pick<
   {
     runId: string;
+    questId: string;
     runnerUserId: string;
     runnerDisplayName: string;
     runnerAvatar: string | null;
@@ -74,6 +77,7 @@ type PendingRunRow = Pick<
     secondaryWeaponKey: string | null;
   },
   | "runId"
+  | "questId"
   | "runnerUserId"
   | "runnerDisplayName"
   | "runnerAvatar"
@@ -95,6 +99,7 @@ type PendingRunRow = Pick<
 type ReviewedRunRow = Pick<
   {
     runId: string;
+    questId: string;
     runnerUserId: string;
     runnerDisplayName: string;
     runnerAvatar: string | null;
@@ -117,6 +122,7 @@ type ReviewedRunRow = Pick<
     secondaryWeaponKey: string | null;
   },
   | "runId"
+  | "questId"
   | "runnerUserId"
   | "runnerDisplayName"
   | "runnerAvatar"
@@ -771,6 +777,7 @@ export default function ModerationRunsTable({
             { key: "status", label: "Status" },
             { key: "runner", label: "Runner" },
             { key: "quest", label: "Quest" },
+            { key: "weapons", label: "Weapons" },
             { key: "time", label: "Time" },
             { key: "submitted", label: "Submitted" },
             { key: "actions", label: "Actions", className: "text-left" }
@@ -778,7 +785,7 @@ export default function ModerationRunsTable({
         >
           {pendingRunsQuery.isLoading ? (
             <DataTableLoadingState
-              columnCount={6}
+              columnCount={7}
               label="Loading pending runs..."
             />
           ) : (
@@ -914,6 +921,15 @@ export default function ModerationRunsTable({
                           </div>
                         </div>
                       </td>
+                      <td className="px-3 py-4 align-middle">
+                        <RunWeapons
+                          primaryWeaponKey={run.primaryWeaponKey}
+                          secondaryWeaponKey={run.secondaryWeaponKey}
+                          className="gap-1.5"
+                          iconClassName="h-7 w-7 object-contain"
+                          iconSize={28}
+                        />
+                      </td>
                       <td className="px-3 py-4 text-left align-middle">
                         <div className="text-lg font-semibold text-white">
                           {formatRunTime(run.runTimeMs)}
@@ -986,7 +1002,7 @@ export default function ModerationRunsTable({
                         className="overflow-visible border-b border-gray-800/70"
                       >
                         <td
-                          colSpan={6}
+                          colSpan={7}
                           className="overflow-visible px-0 py-0 align-top"
                         >
                           <motion.div
@@ -1154,13 +1170,11 @@ export default function ModerationRunsTable({
                                               : "text-gray-200 hover:bg-white/7"
                                           }`}
                                         >
-                                          <Image
-                                            src={`/weapons/${weapon.key}.png`}
-                                            alt={weapon.key.toUpperCase()}
-                                            title={weapon.key.toUpperCase()}
-                                            width={20}
-                                            height={20}
-                                            className="h-5 w-5 object-contain"
+                                          <RunWeapons
+                                            primaryWeaponKey={weapon.key}
+                                            className="flex items-center"
+                                            iconClassName="h-5 w-5 object-contain"
+                                            iconSize={20}
                                           />
                                           {weapon.label}
                                         </button>
@@ -1241,13 +1255,11 @@ export default function ModerationRunsTable({
                                               : "text-gray-200 hover:bg-white/7"
                                           }`}
                                         >
-                                          <Image
-                                            src={`/weapons/${weapon.key}.png`}
-                                            alt={weapon.key.toUpperCase()}
-                                            title={weapon.key.toUpperCase()}
-                                            width={20}
-                                            height={20}
-                                            className="h-5 w-5 object-contain"
+                                          <RunWeapons
+                                            primaryWeaponKey={weapon.key}
+                                            className="flex items-center"
+                                            iconClassName="h-5 w-5 object-contain"
+                                            iconSize={20}
                                           />
                                           {weapon.label}
                                         </button>
@@ -1527,6 +1539,13 @@ export default function ModerationRunsTable({
                                       Reset
                                     </button>
                                   ) : null}
+                                  <Link
+                                    href={`/?quest=${run.questId}`}
+                                    className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-blue-300/30 bg-blue-400/10 px-3 py-2 text-sm font-semibold text-blue-100 transition-colors hover:border-blue-200 hover:bg-blue-400/20"
+                                  >
+                                    <Trophy className="h-4 w-4" />
+                                    View on quest leaderboard
+                                  </Link>
                                 </div>
 
                                 {existingTags.length > 0 ? (
@@ -1582,6 +1601,7 @@ export default function ModerationRunsTable({
             { key: "status", label: "Status" },
             { key: "runner", label: "Runner" },
             { key: "quest", label: "Quest" },
+            { key: "weapons", label: "Weapons" },
             { key: "time", label: "Time" },
             { key: "submitted", label: "Submitted" },
             { key: "reviewer", label: "Reviewer" },
@@ -1589,7 +1609,7 @@ export default function ModerationRunsTable({
           ]}
         >
           {reviewedRunsQuery.isLoading ? (
-            <DataTableLoadingState columnCount={7} label="Loading runs..." />
+            <DataTableLoadingState columnCount={8} label="Loading runs..." />
           ) : (
             <motion.tbody
               key="moderation-reviewed-runs-rows"
@@ -1742,6 +1762,15 @@ export default function ModerationRunsTable({
                           </div>
                         </div>
                       </td>
+                      <td className="px-3 py-4 align-middle">
+                        <RunWeapons
+                          primaryWeaponKey={run.primaryWeaponKey}
+                          secondaryWeaponKey={run.secondaryWeaponKey}
+                          className="gap-1.5"
+                          iconClassName="h-7 w-7 object-contain"
+                          iconSize={28}
+                        />
+                      </td>
                       <td className="px-3 py-4 text-left align-middle">
                         <div className="text-lg font-semibold text-white">
                           {formatRunTime(run.runTimeMs)}
@@ -1853,7 +1882,7 @@ export default function ModerationRunsTable({
                           className="overflow-visible border-b border-gray-800/70"
                         >
                           <td
-                            colSpan={7}
+                            colSpan={8}
                             className="overflow-visible px-0 py-0 align-top"
                           >
                             <motion.div
@@ -2049,13 +2078,11 @@ export default function ModerationRunsTable({
                                                   : "text-gray-200 hover:bg-white/7"
                                               }`}
                                             >
-                                              <Image
-                                                src={`/weapons/${weapon.key}.png`}
-                                                alt={weapon.key.toUpperCase()}
-                                                title={weapon.key.toUpperCase()}
-                                                width={20}
-                                                height={20}
-                                                className="h-5 w-5 object-contain"
+                                              <RunWeapons
+                                                primaryWeaponKey={weapon.key}
+                                                className="flex items-center"
+                                                iconClassName="h-5 w-5 object-contain"
+                                                iconSize={20}
                                               />
                                               {weapon.label}
                                             </button>
@@ -2146,13 +2173,11 @@ export default function ModerationRunsTable({
                                                   : "text-gray-200 hover:bg-white/7"
                                               }`}
                                             >
-                                              <Image
-                                                src={`/weapons/${weapon.key}.png`}
-                                                alt={weapon.key.toUpperCase()}
-                                                title={weapon.key.toUpperCase()}
-                                                width={20}
-                                                height={20}
-                                                className="h-5 w-5 object-contain"
+                                              <RunWeapons
+                                                primaryWeaponKey={weapon.key}
+                                                className="flex items-center"
+                                                iconClassName="h-5 w-5 object-contain"
+                                                iconSize={20}
                                               />
                                               {weapon.label}
                                             </button>
@@ -2436,6 +2461,13 @@ export default function ModerationRunsTable({
                                           Reset
                                         </button>
                                       ) : null}
+                                      <Link
+                                        href={`/?quest=${run.questId}`}
+                                        className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-blue-300/30 bg-blue-400/10 px-3 py-2 text-sm font-semibold text-blue-100 transition-colors hover:border-blue-200 hover:bg-blue-400/20"
+                                      >
+                                        <Trophy className="h-4 w-4" />
+                                        View on quest leaderboard
+                                      </Link>
                                     </div>
 
                                     {existingTags.length > 0 ? (
@@ -2473,26 +2505,12 @@ export default function ModerationRunsTable({
                                     <div className="mb-1 text-[10px] tracking-[0.16em] text-gray-500 uppercase">
                                       Weapons
                                     </div>
-                                    <div className="flex items-center gap-2">
-                                      <Image
-                                        src={`/weapons/${run.primaryWeaponKey}.png`}
-                                        alt={run.primaryWeaponKey.toUpperCase()}
-                                        title={run.primaryWeaponKey.toUpperCase()}
-                                        width={28}
-                                        height={28}
-                                        className="h-7 w-7 object-contain"
-                                      />
-                                      {run.secondaryWeaponKey ? (
-                                        <Image
-                                          src={`/weapons/${run.secondaryWeaponKey}.png`}
-                                          alt={run.secondaryWeaponKey.toUpperCase()}
-                                          title={run.secondaryWeaponKey.toUpperCase()}
-                                          width={28}
-                                          height={28}
-                                          className="h-7 w-7 object-contain"
-                                        />
-                                      ) : null}
-                                    </div>
+                                    <RunWeapons
+                                      primaryWeaponKey={run.primaryWeaponKey}
+                                      secondaryWeaponKey={
+                                        run.secondaryWeaponKey
+                                      }
+                                    />
                                   </div>
 
                                   <div>

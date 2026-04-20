@@ -23,6 +23,7 @@ export type PlayerOverviewRow = {
 
 export type PlayerProfileRunRow = {
   runId: string;
+  questId: string;
   hunterName: string;
   youtubeLink: string | null;
   hasScreenshot: boolean;
@@ -83,6 +84,7 @@ export type SubmitRunInput = {
 
 export type ModerationRunRow = {
   runId: string;
+  questId: string;
   runnerUserId: string;
   runnerDisplayName: string;
   runnerAvatar: string | null;
@@ -103,6 +105,7 @@ export type ModerationRunRow = {
 
 export type ModerationHistoryRunRow = {
   runId: string;
+  questId: string;
   runnerUserId: string;
   runnerDisplayName: string;
   runnerAvatar: string | null;

@@ -316,6 +316,7 @@ export async function getPlayerProfile(
   const runRows = await db
     .select({
       runId: runsTable.id,
+      questId: runsTable.questId,
       hunterName: runsTable.hunterName,
       youtubeLink: sql<string | null>`${runsTable.youtubeLink}`,
       hasScreenshot: sql<number>`case when ${runsTable.screenshotBase64} is null then 0 else 1 end`,
@@ -390,6 +391,7 @@ export async function getPlayerProfile(
 
     return {
       runId: run.runId,
+      questId: run.questId,
       hunterName: run.hunterName,
       youtubeLink: run.youtubeLink,
       hasScreenshot: Boolean(run.hasScreenshot),
@@ -543,6 +545,7 @@ export async function getPendingRunsForModeration(
   const runRows = await db
     .select({
       runId: runsTable.id,
+      questId: runsTable.questId,
       runnerUserId: runsTable.userId,
       runnerDisplayName: usersTable.displayName,
       runnerAvatar: usersTable.image,
@@ -574,6 +577,7 @@ export async function getPendingRunsForModeration(
 
   return runRows.map((run) => ({
     runId: run.runId,
+    questId: run.questId,
     runnerUserId: run.runnerUserId,
     runnerDisplayName: run.runnerDisplayName ?? run.runnerUsername ?? "Runner",
     runnerAvatar: run.runnerAvatar,
@@ -892,6 +896,7 @@ export async function getReviewedRunsForModeration(
   const runRows = await db
     .select({
       runId: runsTable.id,
+      questId: runsTable.questId,
       runnerUserId: runsTable.userId,
       runnerDisplayName: usersTable.displayName,
       runnerAvatar: usersTable.image,
@@ -954,6 +959,7 @@ export async function getReviewedRunsForModeration(
 
   return runRows.map((run) => ({
     runId: run.runId,
+    questId: run.questId,
     runnerUserId: run.runnerUserId,
     runnerDisplayName: run.runnerDisplayName ?? run.runnerUsername ?? "Runner",
     runnerAvatar: run.runnerAvatar,

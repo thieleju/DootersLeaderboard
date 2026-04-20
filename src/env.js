@@ -18,6 +18,7 @@ export const env = createEnv({
     DISCORD_ADMIN_ID: z.string(),
     DATABASE_URL: z.string().url(),
     LOG_LEVEL: z.enum(["debug", "info", "warn", "error"]).optional(),
+    LOG_PRETTY: z.enum(["true", "false"]).default("true"),
     NODE_ENV: z
       .enum(["development", "test", "production"])
       .default("development")
@@ -45,6 +46,7 @@ export const env = createEnv({
     DISCORD_ADMIN_ID: process.env.DISCORD_ADMIN_ID,
     DATABASE_URL: process.env.DATABASE_URL,
     LOG_LEVEL: process.env.LOG_LEVEL,
+    LOG_PRETTY: process.env.LOG_PRETTY,
     NODE_ENV: process.env.NODE_ENV
   },
   /**
