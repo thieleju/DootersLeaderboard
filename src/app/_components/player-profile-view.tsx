@@ -1093,8 +1093,8 @@ export default function PlayerProfileView({
             { key: "status", label: "Status" },
             { key: "quest", label: "Quest" },
             { key: "weapons", label: "Weapons" },
-            { key: "time", label: "Time" },
             { key: "score", label: "Score" },
+            { key: "time", label: "Time" },
             {
               key: "date",
               label: canSeeSubmittedDate ? "Submitted" : "Approved"
@@ -1248,11 +1248,6 @@ export default function PlayerProfileView({
                       />
                     </td>
                     <td className="px-3 py-4 text-left align-middle">
-                      <div className="text-lg font-semibold text-amber-300">
-                        {formatRunTime(run.runTimeMs)}
-                      </div>
-                    </td>
-                    <td className="px-3 py-4 text-left align-middle">
                       <div>
                         <div className="text-lg font-semibold text-amber-300">
                           {scoreLabel}
@@ -1260,6 +1255,11 @@ export default function PlayerProfileView({
                         <div className="text-xs text-gray-500">
                           {run.rank !== null ? `Rank ${run.rank}` : "-"}
                         </div>
+                      </div>
+                    </td>
+                    <td className="px-3 py-4 text-left align-middle">
+                      <div className="text-lg font-semibold text-amber-300">
+                        {formatRunTime(run.runTimeMs)}
                       </div>
                     </td>
                     <td className="px-3 py-4 align-middle">

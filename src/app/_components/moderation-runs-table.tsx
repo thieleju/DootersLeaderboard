@@ -2491,7 +2491,7 @@ export default function ModerationRunsTable({
                                   </div>
                                 </div>
                               ) : (
-                                <div className="grid gap-4 overflow-visible bg-gray-900 px-4 py-4 md:grid-cols-3">
+                                <div className="grid gap-4 overflow-visible bg-gray-900 px-4 py-4 md:grid-cols-2">
                                   <div>
                                     <div className="mb-1 text-[10px] tracking-[0.16em] text-gray-500 uppercase">
                                       Hunter
@@ -2499,18 +2499,6 @@ export default function ModerationRunsTable({
                                     <div className="text-sm font-semibold text-white">
                                       {run.hunterName}
                                     </div>
-                                  </div>
-
-                                  <div>
-                                    <div className="mb-1 text-[10px] tracking-[0.16em] text-gray-500 uppercase">
-                                      Weapons
-                                    </div>
-                                    <RunWeapons
-                                      primaryWeaponKey={run.primaryWeaponKey}
-                                      secondaryWeaponKey={
-                                        run.secondaryWeaponKey
-                                      }
-                                    />
                                   </div>
 
                                   <div>
@@ -2557,7 +2545,7 @@ export default function ModerationRunsTable({
                                     </div>
                                   </div>
 
-                                  <div className="md:col-span-3">
+                                  <div className="md:col-span-2">
                                     <div className="grid gap-3 md:grid-cols-2">
                                       {runYoutubeVideoId ? (
                                         <div className="space-y-1">
@@ -2592,6 +2580,16 @@ export default function ModerationRunsTable({
                                         </div>
                                       ) : null}
                                     </div>
+                                  </div>
+
+                                  <div className="md:col-span-2">
+                                    <Link
+                                      href={`/?quest=${run.questId}`}
+                                      className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-blue-300/30 bg-blue-400/10 px-3 py-2 text-sm font-semibold text-blue-100 transition-colors hover:border-blue-200 hover:bg-blue-400/20"
+                                    >
+                                      <Trophy className="h-4 w-4" />
+                                      View on quest leaderboard
+                                    </Link>
                                   </div>
                                 </div>
                               )}
