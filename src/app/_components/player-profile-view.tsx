@@ -176,6 +176,15 @@ function getProfileRankBadgeClass(rank: number | null) {
   return "border-indigo-300/30 bg-indigo-400/10 text-indigo-200";
 }
 
+function formatQuestOptionLabel(quest: {
+  title: string;
+  difficultyStars: number;
+  monster: string;
+  areaLabel?: string;
+}) {
+  return `${quest.title} · ${quest.difficultyStars}★ ${quest.monster}${quest.areaLabel ? ` · ${quest.areaLabel}` : ""}`;
+}
+
 export default function PlayerProfileView({
   userId,
   onInitialReady
@@ -186,6 +195,8 @@ export default function PlayerProfileView({
   const [deletingRunId, setDeletingRunId] = useState<string | null>(null);
   const [openDropdown, setOpenDropdown] = useState<string | null>(null);
   const [expandedRunId, setExpandedRunId] = useState<string | null>(null);
+  const [questSearchInput, setQuestSearchInput] = useState("");
+  const hasAutofilledSubmitFormRef = useRef(false);
   const [isWeaponUsageExpanded, setIsWeaponUsageExpanded] = useState(false);
   const [isWeaponChartReady, setIsWeaponChartReady] = useState(false);
   const weaponChartHostRef = useRef<HTMLDivElement | null>(null);
@@ -211,6 +222,7 @@ export default function PlayerProfileView({
     staleTime: Infinity,
     enabled: isCurrentUser
   });
+  const submitOptionsData = submitOptionsQuery.data;
   const categoriesQuery = api.players.categories.useQuery(undefined, {
     staleTime: Infinity
   });
@@ -245,11 +257,11 @@ export default function PlayerProfileView({
   ]);
 
   const defaultQuestId: string = useMemo(() => {
-    const options = submitOptionsQuery.data;
+    const options = submitOptionsData;
     if (!options) return "";
     if (!options.quests[0]) return "";
     return options.quests[0].id;
-  }, [submitOptionsQuery.data]);
+  }, [submitOptionsData]);
 
   const [form, setForm] = useState<FormState>(() => emptyFormState(""));
 
@@ -258,7 +270,7 @@ export default function PlayerProfileView({
       if (
         openDropdown &&
         !(event.target as HTMLElement).closest(
-          '[role="button"], [role="listbox"]'
+          '[role="button"], [role="listbox"], [data-dropdown-root]'
         )
       ) {
         setOpenDropdown(null);
@@ -311,19 +323,88 @@ export default function PlayerProfileView({
       : form;
 
   const selectedSubmitQuest = useMemo(() => {
-    return (submitOptionsQuery.data?.quests ?? []).find(
+    return (submitOptionsData?.quests ?? []).find(
       (quest) => quest.id === formWithDefaultQuest.questId
     );
-  }, [formWithDefaultQuest.questId, submitOptionsQuery.data?.quests]);
+  }, [formWithDefaultQuest.questId, submitOptionsData?.quests]);
+
+  const submitAutofill = submitOptionsData?.autofillFromLastRun ?? null;
+
+  const filteredSubmitQuests = useMemo(() => {
+    const quests = submitOptionsData?.quests ?? [];
+    const search = questSearchInput.trim().toLowerCase();
+
+    if (!search) {
+      return quests;
+    }
+
+    return quests.filter((quest) => {
+      const haystack = [
+        formatQuestOptionLabel(quest),
+        String(quest.difficultyStars)
+      ]
+        .join(" ")
+        .toLowerCase();
+      return haystack.includes(search);
+    });
+  }, [questSearchInput, submitOptionsData?.quests]);
+
+  useEffect(() => {
+    if (openDropdown === "quest") return;
+
+    if (!selectedSubmitQuest) {
+      setQuestSearchInput("");
+      return;
+    }
+
+    // Keep the input empty on initial load even when a default quest is selected.
+    if (!questSearchInput) {
+      return;
+    }
+
+    setQuestSearchInput(formatQuestOptionLabel(selectedSubmitQuest));
+  }, [openDropdown, questSearchInput, selectedSubmitQuest]);
 
   const isArenaQuest = selectedSubmitQuest?.type === "arena";
 
+  useEffect(() => {
+    hasAutofilledSubmitFormRef.current = false;
+  }, [userId]);
+
+  useEffect(() => {
+    if (!isCurrentUser) return;
+    if (!submitAutofill) return;
+    if (hasAutofilledSubmitFormRef.current) return;
+
+    setForm((current) => {
+      const hasManualValues =
+        current.hunterName.trim().length > 0 ||
+        current.category.length > 0 ||
+        current.primaryWeaponKey.length > 0 ||
+        current.secondaryWeaponKey.length > 0;
+
+      if (hasManualValues) {
+        return current;
+      }
+
+      return {
+        ...current,
+        hunterName: submitAutofill.hunterName,
+        category: submitAutofill.category,
+        primaryWeaponKey: submitAutofill.primaryWeaponKey,
+        secondaryWeaponKey: submitAutofill.secondaryWeaponKey
+      };
+    });
+
+    hasAutofilledSubmitFormRef.current = true;
+  }, [isCurrentUser, submitAutofill]);
+
   const selectableCategories = useMemo(() => {
-    const allCategories = submitOptionsQuery.data?.categories ?? [];
+    const allCategories = submitOptionsData?.categories ?? [];
     return allCategories.filter((category) =>
       isArenaQuest ? category.id === "arena" : category.id !== "arena"
     );
-  }, [isArenaQuest, submitOptionsQuery.data?.categories]);
+  }, [isArenaQuest, submitOptionsData?.categories]);
 
   useEffect(() => {
     setForm((current) => {
@@ -419,8 +500,23 @@ export default function PlayerProfileView({
   );
 
   const submitMutation = api.players.submitRun.useMutation({
-    onSuccess: async () => {
-      setForm(emptyFormState(defaultQuestId));
+    onSuccess: async (_result, submittedInput) => {
+      setForm((current) => ({
+        ...current,
+        questId: "",
+        hunterName: submittedInput.hunterName ?? current.hunterName,
+        runTime: "",
+        category: submittedInput.category ?? current.category,
+        primaryWeaponKey:
+          submittedInput.primaryWeaponKey ?? current.primaryWeaponKey,
+        secondaryWeaponKey:
+          submittedInput.secondaryWeaponKey ?? current.secondaryWeaponKey,
+        youtubeLink: "",
+        screenshotBase64: "",
+        screenshotFileName: "",
+        tags: []
+      }));
+      setQuestSearchInput("");
       setTagInput("");
       setFormError(null);
       await Promise.all([
@@ -815,7 +911,7 @@ export default function PlayerProfileView({
   const approvedRuns = allRuns.filter((run) => run.status === "approved");
 
   const weaponLabelByKey = new Map(
-    (submitOptionsQuery.data?.weapons ?? []).map((weapon) => [
+    (submitOptionsData?.weapons ?? []).map((weapon) => [
       weapon.key,
       weapon.label
     ])
@@ -1580,31 +1676,54 @@ export default function PlayerProfileView({
                 <span className="text-xs tracking-[0.16em] text-gray-500 uppercase">
                   Quest
                 </span>
-                <div className="relative">
+                <div className="relative" data-dropdown-root>
+                  <input
+                    type="text"
+                    value={questSearchInput}
+                    onFocus={() => {
+                      setOpenDropdown("quest");
+                    }}
+                    onChange={(event) => {
+                      setQuestSearchInput(event.target.value);
+                      setOpenDropdown("quest");
+                    }}
+                    placeholder="Search quest by name, monster, area or star level"
+                    className="w-full rounded-lg border border-gray-700 bg-gray-900/70 px-3 py-2 pr-10 text-left text-sm text-gray-100 transition-colors outline-none hover:border-amber-400 focus:border-amber-400"
+                  />
                   <button
                     type="button"
-                    onClick={() =>
-                      setOpenDropdown(openDropdown === "quest" ? null : "quest")
+                    onClick={() => {
+                      if (questSearchInput.trim().length > 0) {
+                        setQuestSearchInput("");
+                        setOpenDropdown(null);
+                        return;
+                      }
+
+                      if (openDropdown === "quest") {
+                        setOpenDropdown(null);
+                        return;
+                      }
+
+                      setOpenDropdown("quest");
+                    }}
+                    className="absolute top-1/2 right-2 flex h-6 w-6 -translate-y-1/2 cursor-pointer items-center justify-center text-gray-400 transition-colors hover:text-amber-300"
+                    aria-label={
+                      questSearchInput.trim().length > 0
+                        ? "Clear quest input"
+                        : "Toggle quest list"
                     }
-                    className="relative w-full rounded-lg border border-gray-700 bg-gray-900/70 px-3 py-2 pr-10 text-left text-sm text-gray-100 transition-colors outline-none hover:border-amber-400 focus-visible:border-amber-400"
                   >
-                    <span className="block truncate">
-                      {(() => {
-                        const quest = (
-                          submitOptionsQuery.data?.quests ?? []
-                        ).find((q) => q.id === formWithDefaultQuest.questId);
-                        return quest
-                          ? `${quest.title} · ${quest.difficultyStars}★ ${quest.monster}`
-                          : "Select quest";
-                      })()}
-                    </span>
-                    <ChevronDown
-                      className={`pointer-events-none absolute top-1/2 right-3 h-4 w-4 -translate-y-1/2 text-gray-400 transition-transform duration-200 ${
-                        openDropdown === "quest"
-                          ? "rotate-180 text-amber-300"
-                          : ""
-                      }`}
-                    />
+                    {questSearchInput.trim().length > 0 ? (
+                      <X className="h-4 w-4" />
+                    ) : (
+                      <ChevronDown
+                        className={`h-4 w-4 transition-transform duration-200 ${
+                          openDropdown === "quest"
+                            ? "rotate-180 text-amber-300"
+                            : ""
+                        }`}
+                      />
+                    )}
                   </button>
                   {openDropdown === "quest" && (
                     <motion.div
@@ -1615,7 +1734,7 @@ export default function PlayerProfileView({
                       transition={{ duration: 0.16 }}
                       className="absolute z-30 mt-2 max-h-64 w-full overflow-y-auto rounded-lg border border-gray-700 bg-gray-900/95 p-1 shadow-2xl shadow-black/35 backdrop-blur-sm"
                     >
-                      {(submitOptionsQuery.data?.quests ?? []).map((quest) => {
+                      {filteredSubmitQuests.map((quest) => {
                         return (
                           <button
                             key={quest.id}
@@ -1629,6 +1748,9 @@ export default function PlayerProfileView({
                                 ...current,
                                 questId: quest.id
                               }));
+                              setQuestSearchInput(
+                                formatQuestOptionLabel(quest)
+                              );
                               setOpenDropdown(null);
                             }}
                             className={`flex w-full rounded-md px-3 py-2 text-left text-sm transition-colors ${
@@ -1637,11 +1759,16 @@ export default function PlayerProfileView({
                                 : "text-gray-200 hover:bg-white/7"
                             }`}
                           >
-                            {quest.title} · {quest.difficultyStars}★{" "}
-                            {quest.monster}
+                            {formatQuestOptionLabel(quest)}
                           </button>
                         );
                       })}
+                      {filteredSubmitQuests.length === 0 ? (
+                        <div className="px-3 py-2 text-sm text-gray-400">
+                          No quests found matching &quot;{questSearchInput}
+                          &quot;
+                        </div>
+                      ) : null}
                     </motion.div>
                   )}
                 </div>
@@ -1772,7 +1899,7 @@ export default function PlayerProfileView({
                     className="relative w-full rounded-lg border border-gray-700 bg-gray-900/70 px-3 py-2 pr-10 text-left text-sm text-gray-100 transition-colors outline-none hover:border-amber-400 focus-visible:border-amber-400"
                   >
                     <span className="block truncate">
-                      {(submitOptionsQuery.data?.weapons ?? []).find(
+                      {(submitOptionsData?.weapons ?? []).find(
                         (w) => w.key === formWithDefaultQuest.primaryWeaponKey
                       )?.label ?? "Select primary weapon"}
                     </span>
@@ -1793,40 +1920,36 @@ export default function PlayerProfileView({
                       transition={{ duration: 0.16 }}
                       className="absolute z-30 mt-2 max-h-64 w-full overflow-y-auto rounded-lg border border-gray-700 bg-gray-900/95 p-1 shadow-2xl shadow-black/35 backdrop-blur-sm"
                     >
-                      {(submitOptionsQuery.data?.weapons ?? []).map(
-                        (weapon) => (
-                          <button
-                            key={weapon.key}
-                            type="button"
-                            role="option"
-                            aria-selected={
-                              formWithDefaultQuest.primaryWeaponKey ===
-                              weapon.key
-                            }
-                            onClick={() => {
-                              setForm((current) => ({
-                                ...current,
-                                primaryWeaponKey: weapon.key
-                              }));
-                              setOpenDropdown(null);
-                            }}
-                            className={`flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm transition-colors ${
-                              formWithDefaultQuest.primaryWeaponKey ===
-                              weapon.key
-                                ? "bg-amber-400/15 text-amber-100"
-                                : "text-gray-200 hover:bg-white/7"
-                            }`}
-                          >
-                            <RunWeapons
-                              primaryWeaponKey={weapon.key}
-                              className="flex items-center"
-                              iconClassName="h-5 w-5 object-contain"
-                              iconSize={20}
-                            />
-                            {weapon.label}
-                          </button>
-                        )
-                      )}
+                      {(submitOptionsData?.weapons ?? []).map((weapon) => (
+                        <button
+                          key={weapon.key}
+                          type="button"
+                          role="option"
+                          aria-selected={
+                            formWithDefaultQuest.primaryWeaponKey === weapon.key
+                          }
+                          onClick={() => {
+                            setForm((current) => ({
+                              ...current,
+                              primaryWeaponKey: weapon.key
+                            }));
+                            setOpenDropdown(null);
+                          }}
+                          className={`flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm transition-colors ${
+                            formWithDefaultQuest.primaryWeaponKey === weapon.key
+                              ? "bg-amber-400/15 text-amber-100"
+                              : "text-gray-200 hover:bg-white/7"
+                          }`}
+                        >
+                          <RunWeapons
+                            primaryWeaponKey={weapon.key}
+                            className="flex items-center"
+                            iconClassName="h-5 w-5 object-contain"
+                            iconSize={20}
+                          />
+                          {weapon.label}
+                        </button>
+                      ))}
                     </motion.div>
                   )}
                 </div>
@@ -1847,7 +1970,7 @@ export default function PlayerProfileView({
                     className="relative w-full rounded-lg border border-gray-700 bg-gray-900/70 px-3 py-2 pr-10 text-left text-sm text-gray-100 transition-colors outline-none hover:border-amber-400 focus-visible:border-amber-400"
                   >
                     <span className="block truncate">
-                      {(submitOptionsQuery.data?.weapons ?? []).find(
+                      {(submitOptionsData?.weapons ?? []).find(
                         (w) => w.key === formWithDefaultQuest.secondaryWeaponKey
                       )?.label ?? "Select secondary weapon"}
                     </span>
@@ -1868,40 +1991,38 @@ export default function PlayerProfileView({
                       transition={{ duration: 0.16 }}
                       className="absolute z-30 mt-2 max-h-64 w-full overflow-y-auto rounded-lg border border-gray-700 bg-gray-900/95 p-1 shadow-2xl shadow-black/35 backdrop-blur-sm"
                     >
-                      {(submitOptionsQuery.data?.weapons ?? []).map(
-                        (weapon) => (
-                          <button
-                            key={weapon.key}
-                            type="button"
-                            role="option"
-                            aria-selected={
-                              formWithDefaultQuest.secondaryWeaponKey ===
-                              weapon.key
-                            }
-                            onClick={() => {
-                              setForm((current) => ({
-                                ...current,
-                                secondaryWeaponKey: weapon.key
-                              }));
-                              setOpenDropdown(null);
-                            }}
-                            className={`flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm transition-colors ${
-                              formWithDefaultQuest.secondaryWeaponKey ===
-                              weapon.key
-                                ? "bg-amber-400/15 text-amber-100"
-                                : "text-gray-200 hover:bg-white/7"
-                            }`}
-                          >
-                            <RunWeapons
-                              primaryWeaponKey={weapon.key}
-                              className="flex items-center"
-                              iconClassName="h-5 w-5 object-contain"
-                              iconSize={20}
-                            />
-                            {weapon.label}
-                          </button>
-                        )
-                      )}
+                      {(submitOptionsData?.weapons ?? []).map((weapon) => (
+                        <button
+                          key={weapon.key}
+                          type="button"
+                          role="option"
+                          aria-selected={
+                            formWithDefaultQuest.secondaryWeaponKey ===
+                            weapon.key
+                          }
+                          onClick={() => {
+                            setForm((current) => ({
+                              ...current,
+                              secondaryWeaponKey: weapon.key
+                            }));
+                            setOpenDropdown(null);
+                          }}
+                          className={`flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm transition-colors ${
+                            formWithDefaultQuest.secondaryWeaponKey ===
+                            weapon.key
+                              ? "bg-amber-400/15 text-amber-100"
+                              : "text-gray-200 hover:bg-white/7"
+                          }`}
+                        >
+                          <RunWeapons
+                            primaryWeaponKey={weapon.key}
+                            className="flex items-center"
+                            iconClassName="h-5 w-5 object-contain"
+                            iconSize={20}
+                          />
+                          {weapon.label}
+                        </button>
+                      ))}
                     </motion.div>
                   )}
                 </div>
@@ -2045,20 +2166,18 @@ export default function PlayerProfileView({
                   </div>
                 </div>
 
-                {(submitOptionsQuery.data?.existingTags.length ?? 0) > 0 ? (
+                {(submitOptionsData?.existingTags.length ?? 0) > 0 ? (
                   <div className="flex flex-wrap gap-2">
-                    {submitOptionsQuery.data?.existingTags
-                      .slice(0, 18)
-                      .map((tag) => (
-                        <button
-                          key={tag}
-                          type="button"
-                          onClick={() => addTag(tag)}
-                          className="rounded-full border border-gray-700 bg-white/5 px-2 py-1 text-xs whitespace-nowrap text-gray-300 transition-colors hover:border-amber-400 hover:text-amber-300"
-                        >
-                          {tag}
-                        </button>
-                      ))}
+                    {submitOptionsData?.existingTags.slice(0, 18).map((tag) => (
+                      <button
+                        key={tag}
+                        type="button"
+                        onClick={() => addTag(tag)}
+                        className="rounded-full border border-gray-700 bg-white/5 px-2 py-1 text-xs whitespace-nowrap text-gray-300 transition-colors hover:border-amber-400 hover:text-amber-300"
+                      >
+                        {tag}
+                      </button>
+                    ))}
                   </div>
                 ) : null}
               </div>

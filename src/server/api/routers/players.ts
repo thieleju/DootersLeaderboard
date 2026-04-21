@@ -46,7 +46,9 @@ export const playersRouter = createTRPCRouter({
       )
     ),
 
-  submitOptions: publicProcedure.query(() => getSubmitRunOptions()),
+  submitOptions: publicProcedure.query(({ ctx }) =>
+    getSubmitRunOptions(ctx.session?.user?.id)
+  ),
 
   categories: publicProcedure.query(() => getRunCategories()),
 

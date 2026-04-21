@@ -42,7 +42,8 @@ import {
   type PlayerOverviewRow,
   type PlayerProfileData,
   type PlayerProfileRunRow,
-  type SubmitRunInput
+  type SubmitRunInput,
+  type SubmitRunOptionsData
 } from "~/server/types/players";
 import type { ScoreAggregate, Top3Placements } from "~/server/types/score";
 import { calculateUserScoreAndTop3Placements } from "~/server/lib/score";
@@ -474,7 +475,9 @@ export async function getPlayerProfile(
   };
 }
 
-export async function getSubmitRunOptions() {
+export async function getSubmitRunOptions(
+  userId?: string | null
+): Promise<SubmitRunOptionsData> {
   const quests = await db
     .select({
       id: questsTable.id,
@@ -501,6 +504,21 @@ export async function getSubmitRunOptions() {
     }
   }
 
+  const latestRun = userId
+    ? await db
+        .select({
+          hunterName: runsTable.hunterName,
+          category: runsTable.category,
+          primaryWeaponKey: runsTable.primaryWeapon,
+          secondaryWeaponKey: runsTable.secondaryWeapon
+        })
+        .from(runsTable)
+        .where(eq(runsTable.userId, userId))
+        .orderBy(desc(runsTable.submittedAt))
+        .limit(1)
+        .then((rows) => rows[0] ?? null)
+    : null;
+
   return {
     quests: quests.map((quest): LeaderboardQuestOption => {
       const areaKey = quest.areaKey as LeaderboardAreaKey;
@@ -522,7 +540,15 @@ export async function getSubmitRunOptions() {
       key: weapon.key,
       label: weapon.label
     })),
-    existingTags: [...existingTags].sort((a, b) => a.localeCompare(b))
+    existingTags: [...existingTags].sort((a, b) => a.localeCompare(b)),
+    autofillFromLastRun: latestRun
+      ? {
+          hunterName: latestRun.hunterName,
+          category: latestRun.category,
+          primaryWeaponKey: latestRun.primaryWeaponKey,
+          secondaryWeaponKey: latestRun.secondaryWeaponKey ?? ""
+        }
+      : null
   };
 }
 

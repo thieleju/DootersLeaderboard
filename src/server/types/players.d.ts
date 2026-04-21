@@ -1,4 +1,8 @@
-import type { RunCategoryId, UserRole } from "~/server/types/leaderboard";
+import type {
+  LeaderboardQuestOption,
+  RunCategoryId,
+  UserRole
+} from "~/server/types/leaderboard";
 
 export type PlayerOverviewRow = {
   userId: string;
@@ -80,6 +84,21 @@ export type SubmitRunInput = {
   youtubeLink?: string;
   screenshotBase64?: string;
   tags: string[];
+};
+
+export type SubmitRunAutofill = {
+  hunterName: string;
+  category: RunCategoryId;
+  primaryWeaponKey: string;
+  secondaryWeaponKey: string;
+} | null;
+
+export type SubmitRunOptionsData = {
+  quests: LeaderboardQuestOption[];
+  categories: Array<{ id: RunCategoryId; label: string }>;
+  weapons: Array<{ key: string; label: string }>;
+  existingTags: string[];
+  autofillFromLastRun: SubmitRunAutofill;
 };
 
 export type ModerationRunRow = {
