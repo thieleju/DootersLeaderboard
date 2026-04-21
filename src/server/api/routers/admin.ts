@@ -8,7 +8,8 @@ import {
   getBotGuilds,
   getBotNotificationSettings,
   updateUserRole,
-  upsertBotNotificationSetting
+  upsertBotNotificationSetting,
+  updateUserProfile
 } from "~/server/lib/admin";
 
 const userRoleSchema = z.enum(["runner", "moderator", "admin"]);
@@ -40,6 +41,23 @@ export const adminRouter = createTRPCRouter({
     )
     .mutation(({ input, ctx }) =>
       updateUserRole(input.userId, input.role, ctx.session!.user.id)
+    ),
+
+  updateUserProfile: protectedProcedureAdmin
+    .input(
+      z.object({
+        userId: z.string().trim().min(1),
+        displayName: z.string().trim().max(255),
+        name: z.string().trim().max(255),
+        image: z.string().trim().max(255)
+      })
+    )
+    .mutation(({ input }) =>
+      updateUserProfile(input.userId, {
+        displayName: input.displayName,
+        name: input.name,
+        image: input.image
+      })
     ),
 
   listBotGuilds: protectedProcedureAdmin.query(() => getBotGuilds()),

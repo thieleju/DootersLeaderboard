@@ -37,6 +37,19 @@ export type AdminBotNotificationSettingRow = {
   updatedAtMs: number | null;
 };
 
+export type AdminUserProfileUpdateInput = {
+  displayName: string;
+  name: string;
+  image: string;
+};
+
+export type AdminUserProfileUpdateResult = {
+  userId: string;
+  displayName: string | null;
+  name: string | null;
+  image: string | null;
+};
+
 export async function getAdminUsers(): Promise<AdminUserRow[]> {
   const rows = await db
     .select({
@@ -93,6 +106,42 @@ export async function updateUserRole(
     .where(eq(usersTable.id, targetUserId));
 
   return { userId: targetUserId, role };
+}
+
+export async function updateUserProfile(
+  userId: string,
+  input: AdminUserProfileUpdateInput
+): Promise<AdminUserProfileUpdateResult> {
+  const existingUser = await db
+    .select({ id: usersTable.id })
+    .from(usersTable)
+    .where(eq(usersTable.id, userId))
+    .limit(1)
+    .then((rows) => rows[0] ?? null);
+
+  if (!existingUser) {
+    throw new TRPCError({ code: "NOT_FOUND", message: "User not found" });
+  }
+
+  const displayName = input.displayName.trim();
+  const name = input.name.trim();
+  const image = input.image.trim();
+
+  await db
+    .update(usersTable)
+    .set({
+      displayName: displayName || null,
+      name: name || null,
+      image: image || null
+    })
+    .where(eq(usersTable.id, userId));
+
+  return {
+    userId,
+    displayName: displayName || null,
+    name: name || null,
+    image: image || null
+  };
 }
 
 export async function getBotNotificationSettings(): Promise<
