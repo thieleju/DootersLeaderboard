@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { motion } from "framer-motion";
 import {
   ChevronDown,
@@ -9,7 +10,8 @@ import {
   Plus,
   Save,
   Trash2,
-  X
+  X,
+  TrendingUp
 } from "lucide-react";
 
 import { api } from "~/trpc/react";
@@ -214,6 +216,10 @@ export default function QuestsTable({
 
     createQuestMutation.mutate(parsed.data);
   };
+
+  const sortedQuests = [...quests].sort(
+    (a, b) => b.approvedRunCount - a.approvedRunCount
+  );
 
   return (
     <div className="space-y-4">
@@ -465,16 +471,15 @@ export default function QuestsTable({
           icon={<ListTodo className="h-6 w-6" />}
           iconColor="cyan"
           columns={[
-            { key: "stars", label: "Difficulty", className: "text-center" },
-            { key: "title", label: "Title" },
-            { key: "monster", label: "Monster" },
+            { key: "runs", label: "Runs" },
             { key: "type", label: "Type" },
-            { key: "area", label: "Area" },
+            { key: "quest", label: "Quest" },
+            { key: "runners", label: "Runners" },
             { key: "actions", label: "Actions", className: "text-left" }
           ]}
         >
           {questsQuery.isLoading ? (
-            <DataTableLoadingState columnCount={6} label="Loading quests..." />
+            <DataTableLoadingState columnCount={5} label="Loading quests..." />
           ) : (
             <motion.tbody
               key="quest-rows"
@@ -483,75 +488,146 @@ export default function QuestsTable({
               exit={{ opacity: 0, y: -6 }}
               transition={{ duration: 0.22 }}
             >
-              {quests.map((quest, index) => (
-                <motion.tr
-                  key={quest.id}
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.2, delay: index * 0.02 }}
-                  className="border-b border-gray-800/70 text-sm transition-colors hover:bg-white/5"
-                >
-                  <td className="px-3 py-4 text-center align-middle">
-                    <span className="inline-flex rounded-full border border-amber-300/30 bg-amber-400/10 px-2.5 py-1 text-xs font-semibold text-amber-300">
-                      {quest.difficultyStars}★
-                    </span>
-                  </td>
-                  <td className="px-3 py-4 align-middle">
-                    <div className="min-w-0">
-                      <div className="truncate text-sm font-semibold text-white">
-                        {quest.title}
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-3 py-4 align-middle text-gray-300">
-                    {quest.monster}
-                  </td>
-                  <td className="px-3 py-4 align-middle text-gray-300">
-                    {capitalizeFirst(quest.type)}
-                  </td>
-                  <td className="px-3 py-4 align-middle text-gray-300">
-                    {quest.areaLabel}
-                  </td>
-                  <td className="px-3 py-4 text-left align-middle">
-                    <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setEditingQuestId(quest.id);
-                          setForm({
-                            title: quest.title,
-                            monster: quest.monster,
-                            type: quest.type,
-                            areaKey: quest.areaKey,
-                            difficultyStars: String(quest.difficultyStars)
-                          });
-                          setFormError(null);
-                          window.scrollTo({ top: 0, behavior: "smooth" });
-                        }}
-                        aria-label="Edit quest"
-                        title="Edit quest"
-                        className="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg border border-cyan-300/30 bg-cyan-400/10 text-cyan-100 transition-colors hover:border-cyan-200 hover:bg-cyan-400/20"
-                      >
-                        <Pencil className="h-4 w-4" />
-                      </button>
+              {sortedQuests.map((quest, index) => {
+                const typeColorClasses: Record<
+                  string,
+                  { border: string; bg: string; text: string }
+                > = {
+                  optional: {
+                    border: "border-blue-300/40",
+                    bg: "bg-blue-400/15",
+                    text: "text-blue-200"
+                  },
+                  arena: {
+                    border: "border-purple-300/40",
+                    bg: "bg-purple-400/15",
+                    text: "text-purple-200"
+                  },
+                  event: {
+                    border: "border-yellow-300/40",
+                    bg: "bg-yellow-400/15",
+                    text: "text-yellow-200"
+                  },
+                  investigation: {
+                    border: "border-green-300/40",
+                    bg: "bg-green-400/15",
+                    text: "text-green-200"
+                  }
+                };
 
-                      <button
-                        type="button"
-                        disabled={isDeleting}
-                        onClick={() => {
-                          setFormError(null);
-                          deleteQuestMutation.mutate({ questId: quest.id });
-                        }}
-                        aria-label="Delete quest"
-                        title="Delete quest"
-                        className="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg border border-red-300/30 bg-red-400/10 text-red-100 transition-colors hover:border-red-200 hover:bg-red-400/20 disabled:cursor-not-allowed disabled:opacity-60"
+                const typeColors =
+                  typeColorClasses[quest.type] ?? typeColorClasses.optional!;
+
+                return (
+                  <motion.tr
+                    key={quest.id}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.2, delay: index * 0.02 }}
+                    className="border-b border-gray-800/70 text-sm transition-colors hover:bg-white/5"
+                  >
+                    <td className="px-3 py-4 align-middle">
+                      <span className="inline-flex rounded-full border border-gray-400/30 bg-gray-700/40 px-2.5 py-1 text-xs font-semibold text-gray-300">
+                        {quest.approvedRunCount}
+                      </span>
+                    </td>
+                    <td className="px-3 py-4 align-middle">
+                      <span
+                        className={`inline-flex rounded-full border ${typeColors.border} ${typeColors.bg} px-2.5 py-1 text-xs font-semibold ${typeColors.text}`}
                       >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
-                    </div>
-                  </td>
-                </motion.tr>
-              ))}
+                        {capitalizeFirst(quest.type)}
+                      </span>
+                    </td>
+                    <td className="px-3 py-4 align-middle">
+                      <div className="min-w-0">
+                        <div className="truncate text-sm font-semibold text-white">
+                          {quest.title}
+                        </div>
+                        <div className="mt-1 truncate text-xs text-gray-400">
+                          {quest.difficultyStars}★ {quest.monster} •{" "}
+                          {quest.areaLabel}
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-3 py-4 align-middle">
+                      <div className="flex flex-wrap gap-1">
+                        {(
+                          (quest.approvers as Array<{
+                            userId: string;
+                            name: string;
+                          }>) ?? []
+                        ).length > 0 ? (
+                          (
+                            (quest.approvers as Array<{
+                              userId: string;
+                              name: string;
+                            }>) ?? []
+                          ).map(
+                            (approver: { userId: string; name: string }) => (
+                              <Link
+                                key={approver.userId}
+                                href={`/profile/${approver.userId}`}
+                                className="inline-flex cursor-pointer rounded-full border border-gray-400/30 bg-gray-700/40 px-2 py-1 text-xs text-gray-300 transition-colors hover:border-amber-300/30 hover:bg-amber-400/10 hover:text-amber-200"
+                              >
+                                {approver.name}
+                              </Link>
+                            )
+                          )
+                        ) : (
+                          <span className="text-xs text-gray-500">No runs</span>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-3 py-4 text-left align-middle">
+                      <div className="flex items-center gap-2">
+                        <Link
+                          href={`/?quest=${quest.id}`}
+                          aria-label="View quest leaderboard"
+                          title="View quest leaderboard"
+                          className="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg border border-green-300/30 bg-green-400/10 text-green-100 transition-colors hover:border-green-200 hover:bg-green-400/20"
+                        >
+                          <TrendingUp className="h-4 w-4" />
+                        </Link>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditingQuestId(quest.id);
+                            setForm({
+                              title: quest.title,
+                              monster: quest.monster,
+                              type: quest.type,
+                              areaKey: quest.areaKey,
+                              difficultyStars: String(quest.difficultyStars)
+                            });
+                            setFormError(null);
+                            window.scrollTo({ top: 0, behavior: "smooth" });
+                          }}
+                          aria-label="Edit quest"
+                          title="Edit quest"
+                          className="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg border border-cyan-300/30 bg-cyan-400/10 text-cyan-100 transition-colors hover:border-cyan-200 hover:bg-cyan-400/20"
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </button>
+
+                        <button
+                          type="button"
+                          disabled={isDeleting}
+                          onClick={() => {
+                            setFormError(null);
+                            deleteQuestMutation.mutate({ questId: quest.id });
+                          }}
+                          aria-label="Delete quest"
+                          title="Delete quest"
+                          className="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg border border-red-300/30 bg-red-400/10 text-red-100 transition-colors hover:border-red-200 hover:bg-red-400/20 disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </td>
+                  </motion.tr>
+                );
+              })}
             </motion.tbody>
           )}
         </DataTable>

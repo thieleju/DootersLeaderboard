@@ -4,14 +4,15 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 
 import { TRPCError } from "@trpc/server";
-import { asc, desc, eq } from "drizzle-orm";
+import { asc, eq, isNotNull } from "drizzle-orm";
 import { parse } from "jsonc-parser";
 
 import { db } from "~/server/db";
 import {
   botNotificationQueue as botNotificationQueueTable,
   quests as questsTable,
-  runs as runsTable
+  runs as runsTable,
+  users as usersTable
 } from "~/server/db/schema";
 import type {
   LeaderboardAreaResource,
@@ -59,7 +60,8 @@ export function getQuestFormOptions(): QuestFormOptions {
 }
 
 export async function listQuests(): Promise<QuestManagementRow[]> {
-  const rows = await db
+  // Get all quests
+  const questRows = await db
     .select({
       id: questsTable.id,
       title: questsTable.title,
@@ -68,11 +70,86 @@ export async function listQuests(): Promise<QuestManagementRow[]> {
       areaKey: questsTable.area,
       difficultyStars: questsTable.difficultyStars
     })
-    .from(questsTable)
-    .orderBy(desc(questsTable.difficultyStars), asc(questsTable.title));
+    .from(questsTable);
 
-  return rows.map((row) => {
+  // Get all approved runs with necessary fields to count best per player/category
+  const approvedRunRows = await db
+    .select({
+      questId: runsTable.questId,
+      userId: runsTable.userId,
+      category: runsTable.category,
+      runTimeMs: runsTable.runTimeMs,
+      submittedAt: runsTable.submittedAt
+    })
+    .from(runsTable)
+    .where(isNotNull(runsTable.approvedByUserId))
+    .orderBy(
+      asc(runsTable.questId),
+      asc(runsTable.runTimeMs),
+      asc(runsTable.submittedAt)
+    );
+
+  // Keep only best run per player per category per quest
+  const bestRunByQuestUserCategory = new Map<
+    string,
+    (typeof approvedRunRows)[number]
+  >();
+  for (const run of approvedRunRows) {
+    const key = `${run.questId}:${run.userId}:${run.category}`;
+    if (!bestRunByQuestUserCategory.has(key)) {
+      bestRunByQuestUserCategory.set(key, run);
+    }
+  }
+
+  // Count best runs per quest and track unique users per quest
+  const approvedRunCountByQuestId = new Map<string, number>();
+  const approverUserIdsByQuestId = new Map<string, Set<string>>();
+  for (const run of bestRunByQuestUserCategory.values()) {
+    const currentCount = approvedRunCountByQuestId.get(run.questId) ?? 0;
+    approvedRunCountByQuestId.set(run.questId, currentCount + 1);
+
+    const userIds =
+      approverUserIdsByQuestId.get(run.questId) ?? new Set<string>();
+    userIds.add(run.userId);
+    approverUserIdsByQuestId.set(run.questId, userIds);
+  }
+
+  // Get user names for all approvers
+  const allApproverUserIds = Array.from(
+    new Set(
+      Array.from(approverUserIdsByQuestId.values()).flatMap((set) =>
+        Array.from(set)
+      )
+    )
+  );
+
+  const userNameById = new Map<string, string>();
+  if (allApproverUserIds.length > 0) {
+    const users = await db
+      .select({
+        id: usersTable.id,
+        displayName: usersTable.displayName,
+        name: usersTable.name
+      })
+      .from(usersTable);
+
+    for (const user of users) {
+      const displayName = user.displayName ?? user.name ?? "Unknown";
+      userNameById.set(user.id, displayName);
+    }
+  }
+
+  return questRows.map((row) => {
     const areaKey = row.areaKey as QuestManagementRow["areaKey"];
+    const approverIds =
+      approverUserIdsByQuestId.get(row.id) ?? new Set<string>();
+    const approvers = Array.from(approverIds)
+      .map((userId) => ({
+        userId,
+        name: userNameById.get(userId) ?? "Unknown"
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+
     return {
       id: row.id,
       title: row.title,
@@ -80,7 +157,9 @@ export async function listQuests(): Promise<QuestManagementRow[]> {
       type: row.type,
       areaKey,
       areaLabel: areaLabelByKey.get(areaKey) ?? areaKey,
-      difficultyStars: row.difficultyStars
+      difficultyStars: row.difficultyStars,
+      approvedRunCount: approvedRunCountByQuestId.get(row.id) ?? 0,
+      approvers
     };
   });
 }

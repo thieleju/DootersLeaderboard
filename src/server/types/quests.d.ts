@@ -8,6 +8,8 @@ export type QuestManagementRow = {
   areaKey: LeaderboardAreaKey;
   areaLabel: string;
   difficultyStars: number;
+  approvedRunCount: number;
+  approvers: Array<{ userId: string; name: string }>;
 };
 
 export type QuestUpsertInput = {
