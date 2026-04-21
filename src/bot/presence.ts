@@ -48,7 +48,7 @@ function buildPresenceMessages(snapshot: PresenceSnapshot) {
     },
     {
       type: ActivityType.Playing,
-      name: `with ${snapshot.activeRunnerCount.toLocaleString("en-US")} hunters`
+      name: `with ${snapshot.activeRunnerCount.toLocaleString("en-US")} runners`
     },
     snapshot.pendingRunCount > 0
       ? {

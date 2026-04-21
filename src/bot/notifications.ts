@@ -290,7 +290,8 @@ export async function pollAndSendNotifications(
               secondaryWeapon: runs.secondaryWeapon,
               questId: runs.questId,
               userId: runs.userId,
-              approvedByUserId: runs.approvedByUserId
+              approvedByUserId: runs.approvedByUserId,
+              screenshotBase64: runs.screenshotBase64
             })
             .from(runs)
             .where(eq(runs.id, notification.runId))
@@ -349,6 +350,21 @@ export async function pollAndSendNotifications(
                   inline: false
                 }
               );
+
+            if (run.screenshotBase64) {
+              attachment = buildScreenshotAttachment(run.screenshotBase64);
+
+              if (attachment) {
+                const attachmentName = attachment.name ?? "run-screenshot.png";
+                embed.setImage(`attachment://${attachmentName}`);
+              } else {
+                embed.addFields({
+                  name: "Screenshot",
+                  value: "Provided, but could not be attached",
+                  inline: false
+                });
+              }
+            }
           }
         } else if (
           notification.eventKey === "run_rejected" &&
@@ -362,7 +378,8 @@ export async function pollAndSendNotifications(
               primaryWeapon: runs.primaryWeapon,
               secondaryWeapon: runs.secondaryWeapon,
               questId: runs.questId,
-              userId: runs.userId
+              userId: runs.userId,
+              screenshotBase64: runs.screenshotBase64
             })
             .from(runs)
             .where(eq(runs.id, notification.runId))
@@ -421,6 +438,21 @@ export async function pollAndSendNotifications(
                   inline: false
                 }
               );
+
+            if (run.screenshotBase64) {
+              attachment = buildScreenshotAttachment(run.screenshotBase64);
+
+              if (attachment) {
+                const attachmentName = attachment.name ?? "run-screenshot.png";
+                embed.setImage(`attachment://${attachmentName}`);
+              } else {
+                embed.addFields({
+                  name: "Screenshot",
+                  value: "Provided, but could not be attached",
+                  inline: false
+                });
+              }
+            }
           }
         } else if (notification.eventKey === "quest_modified") {
           const action =
