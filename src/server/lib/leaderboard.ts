@@ -51,19 +51,43 @@ export async function getLeaderboardFilters(): Promise<{
   categories: LeaderboardCategoryOption[];
   defaultQuestId: string;
 }> {
-  const approvedQuestStats = await db
+  // Get all approved runs with necessary fields to determine best per player/category
+  const approvedRunRows = await db
     .select({
       questId: runsTable.questId,
-      approvedRunCount: sql<number>`count(*)`
+      userId: runsTable.userId,
+      category: runsTable.category,
+      runTimeMs: runsTable.runTimeMs,
+      submittedAt: runsTable.submittedAt
     })
     .from(runsTable)
     .where(isNotNull(runsTable.approvedByUserId))
-    .groupBy(runsTable.questId);
+    .orderBy(
+      asc(runsTable.questId),
+      asc(runsTable.runTimeMs),
+      asc(runsTable.submittedAt)
+    );
 
-  const approvedRunCountByQuestId = new Map(
-    approvedQuestStats.map((row) => [row.questId, Number(row.approvedRunCount)])
-  );
-  const approvedQuestIds = approvedQuestStats.map((row) => row.questId);
+  // Keep only best run per player per category per quest
+  const bestRunByQuestUserCategory = new Map<
+    string,
+    (typeof approvedRunRows)[number]
+  >();
+  for (const run of approvedRunRows) {
+    const key = `${run.questId}:${run.userId}:${run.category}`;
+    if (!bestRunByQuestUserCategory.has(key)) {
+      bestRunByQuestUserCategory.set(key, run);
+    }
+  }
+
+  // Count best runs per quest
+  const approvedRunCountByQuestId = new Map<string, number>();
+  for (const run of bestRunByQuestUserCategory.values()) {
+    const currentCount = approvedRunCountByQuestId.get(run.questId) ?? 0;
+    approvedRunCountByQuestId.set(run.questId, currentCount + 1);
+  }
+
+  const approvedQuestIds = Array.from(approvedRunCountByQuestId.keys());
 
   const quests =
     approvedQuestIds.length > 0

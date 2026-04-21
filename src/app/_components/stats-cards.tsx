@@ -73,7 +73,7 @@ export default function HomeStatsCards() {
         <div className="mb-3 flex justify-center">
           <Upload className="h-8 w-8 text-emerald-400" />
         </div>
-        <div className="mb-2 text-sm text-gray-400">Uploaded Runs</div>
+        <div className="mb-2 text-sm text-gray-400">Submitted Runs</div>
         <div className="flex h-8 items-center justify-center text-2xl leading-none font-bold text-white">
           {stats ? formatNumber(stats.uploadedRunCount) : <ValueSkeleton />}
         </div>
