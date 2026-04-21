@@ -18,6 +18,11 @@ const config = {
         protocol: "https",
         hostname: "cdn.discordapp.com",
         pathname: "/embed/avatars/**"
+      },
+      {
+        protocol: "https",
+        hostname: "i.imgur.com",
+        pathname: "/*.png"
       }
     ]
   }
