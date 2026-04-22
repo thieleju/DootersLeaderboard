@@ -1,4 +1,3 @@
-import { eq } from "drizzle-orm";
 import { DrizzleAdapter } from "@auth/drizzle-adapter";
 import { type DefaultSession, type NextAuthConfig } from "next-auth";
 import DiscordProvider from "next-auth/providers/discord";
@@ -79,19 +78,19 @@ export const authConfig = {
   trustHost: true,
   logger: {
     error(code, ...message) {
-      logger.error("nextauth internal error", {
+      logger.error("nextauth", {
         code,
         ...(summarizeNextAuthDetails(message) ?? {})
       });
     },
     warn(code, ...message) {
-      logger.warn("nextauth internal warning", {
+      logger.warn("nextauth", {
         code,
         ...(summarizeNextAuthDetails(message) ?? {})
       });
     },
     debug(code, ...message) {
-      logger.debug("nextauth internal debug", {
+      logger.debug("nextauth", {
         code,
         ...(summarizeNextAuthDetails(message) ?? {})
       });
@@ -172,6 +171,30 @@ export const authConfig = {
     }
   },
   events: {
+    async createUser({ user }) {
+      if (!user.id) {
+        return;
+      }
+
+      const displayName = user.displayName ?? user.name ?? "Profile";
+      const username = user.username ?? user.name ?? displayName;
+
+      await db.insert(botNotificationQueue).values({
+        eventKey: "user_first_login",
+        userId: user.id,
+        dataJson: JSON.stringify({
+          userId: user.id,
+          displayName,
+          name: username
+        })
+      });
+
+      logger.info("first login notification queued", {
+        userId: user.id,
+        username
+      });
+    },
+
     async signIn({ user, profile, account }) {
       if (account?.provider !== "discord" || !user.id) {
         logger.info("sign-in ignored", {
@@ -182,15 +205,6 @@ export const authConfig = {
         });
         return;
       }
-
-      // Check if user already exists (to detect first login)
-      const existingUser = await db
-        .select({ id: users.id })
-        .from(users)
-        .where(eq(users.id, user.id))
-        .limit(1);
-
-      const isFirstLogin = existingUser.length === 0;
 
       const activityAt = new Date();
       const discordProfile = profile as
@@ -220,8 +234,7 @@ export const authConfig = {
         providerAccountId: account.providerAccountId,
         userId: user.id,
         username,
-        role,
-        firstLogin: isFirstLogin
+        role
       });
 
       await db
@@ -246,24 +259,6 @@ export const authConfig = {
             lastSeenAt: activityAt
           }
         });
-
-      // Queue bot notification for first login
-      if (isFirstLogin) {
-        await db.insert(botNotificationQueue).values({
-          eventKey: "user_first_login",
-          userId: user.id,
-          dataJson: JSON.stringify({
-            userId: user.id,
-            displayName,
-            username
-          })
-        });
-
-        logger.info("first login queued notification", {
-          userId: user.id,
-          username
-        });
-      }
     },
 
     async signOut(message) {

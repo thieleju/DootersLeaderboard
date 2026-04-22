@@ -1,7 +1,7 @@
 import "server-only";
 
 import { TRPCError } from "@trpc/server";
-import { asc, eq } from "drizzle-orm";
+import { asc, desc, eq } from "drizzle-orm";
 
 import {
   BOT_NOTIFICATION_EVENT_KEYS,
@@ -62,7 +62,7 @@ export async function getAdminUsers(): Promise<AdminUserRow[]> {
       lastSeenAt: usersTable.lastSeenAt
     })
     .from(usersTable)
-    .orderBy(asc(usersTable.displayName), asc(usersTable.name));
+    .orderBy(desc(usersTable.lastSeenAt), desc(usersTable.lastLoginAt));
 
   return rows.map((row) => ({
     id: row.id,
@@ -108,7 +108,7 @@ export async function updateUserRole(
   return { userId: targetUserId, role };
 }
 
-export async function updateUserProfile(
+export async function updateAdminUserProfile(
   userId: string,
   input: AdminUserProfileUpdateInput
 ): Promise<AdminUserProfileUpdateResult> {

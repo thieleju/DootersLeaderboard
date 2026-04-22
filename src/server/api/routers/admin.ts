@@ -7,9 +7,9 @@ import {
   getBotChannels,
   getBotGuilds,
   getBotNotificationSettings,
+  updateAdminUserProfile,
   updateUserRole,
-  upsertBotNotificationSetting,
-  updateUserProfile
+  upsertBotNotificationSetting
 } from "~/server/lib/admin";
 
 const userRoleSchema = z.enum(["runner", "moderator", "admin"]);
@@ -53,7 +53,7 @@ export const adminRouter = createTRPCRouter({
       })
     )
     .mutation(({ input }) =>
-      updateUserProfile(input.userId, {
+      updateAdminUserProfile(input.userId, {
         displayName: input.displayName,
         name: input.name,
         image: input.image

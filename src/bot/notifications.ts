@@ -547,7 +547,7 @@ export async function pollAndSendNotifications(
 
           embed = new EmbedBuilder()
             .setColor(0x14b8a6)
-            .setTitle("👋 New Hunter Joined")
+            .setTitle("New User")
             .setDescription(`**${userName}** logged in for the first time.`)
             .addFields({
               name: "Open in Dooters Leaderboard",
