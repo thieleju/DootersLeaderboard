@@ -74,7 +74,7 @@ type DiscordProfilePayload = {
  * @see https://next-auth.js.org/configuration/options
  */
 export const authConfig = {
-  // debug: process.env.NODE_ENV !== "production",
+  debug: process.env.NODE_ENV !== "production",
   trustHost: true,
   logger: {
     error(code, ...message) {
@@ -101,6 +101,7 @@ export const authConfig = {
   },
   providers: [
     DiscordProvider({
+      issuer: "https://discord.com",
       clientId: env.AUTH_DISCORD_ID,
       clientSecret: env.AUTH_DISCORD_SECRET,
       authorization: {
